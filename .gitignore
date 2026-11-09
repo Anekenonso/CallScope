@@ -8,3 +8,12 @@ README-HANDOVER.md
 RULES.md
 TASKS.md
 
+# Dependencies & Build Outputs
+node_modules/
+dist/
+.env
+.env.local
+.DS_Store
+*.log
+
+
