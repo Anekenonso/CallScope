@@ -1,5 +1,9 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
-import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse } from '../src/types/analysis';
+import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem } from '../src/types/analysis';
+import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
+import { retrieveProposalCreatedEvent, readGovernorProposalState } from '../server/chain/proposal-events';
+import { decodeProposalActions } from '../server/analysis/decode-actions';
+import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 
 export default async function handler(
   req: VercelRequest,
@@ -38,37 +42,89 @@ export default async function handler(
       } satisfies ApiErrorResponse);
     }
 
-    // Stub response for Phase 1 testing
-    const response: AnalysisResponse = {
-      assessment: 'analysis_incomplete',
+    const trimmedProposalId = proposalId.trim();
+
+    // 1. Create client and verify network
+    const client = createChainClient(network);
+    await verifyNetworkChainId(network, client);
+
+    // 2. Validate Governor contract
+    const validGovernor = await validateGovernorContract(client, governorAddress, network);
+
+    // 3. Retrieve ProposalCreated event
+    const event = await retrieveProposalCreatedEvent(client, network, validGovernor, trimmedProposalId);
+
+    // 4. Read current proposal state
+    const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+
+    // 5. Decode proposal actions
+    const { actions, limitations } = await decodeProposalActions({
       network,
-      governorAddress,
-      proposal: {
-        id: proposalId.trim(),
-        description: 'Proposal analysis pipeline under construction.',
-        status: 'Pending',
+      targets: event.targets,
+      values: event.values,
+      signatures: event.signatures,
+      calldatas: event.calldatas,
+      client,
+    });
+
+    // Evidence links
+    const networkConfig = SUPPORTED_NETWORKS[network];
+    const evidence: EvidenceItem[] = [
+      {
+        label: 'Governor Contract',
+        url: `${networkConfig.explorerUrl}/address/${validGovernor}`,
+        description: `Verified on-chain governor at ${validGovernor}`,
       },
-      actions: [],
-      findings: [],
+      {
+        label: 'Proposal Creation Transaction',
+        url: `${networkConfig.explorerUrl}/tx/${event.transactionHash}`,
+        description: `Emitted ProposalCreated event in block ${event.blockNumber.toString()}`,
+      },
+    ];
+
+    for (let i = 0; i < actions.length; i++) {
+      const act = actions[i]!;
+      evidence.push({
+        label: `Action #${i + 1} Target: ${act.targetName || act.target.slice(0, 10) + '...'}`,
+        url: `${networkConfig.explorerUrl}/address/${act.target}`,
+        description: act.isProxy && act.implementation
+          ? `Proxy contract pointing to implementation ${act.implementation}`
+          : `Direct target contract`,
+      });
+    }
+
+    const response: AnalysisResponse = {
+      assessment: 'analysis_incomplete', // Assessment engine will be implemented in Phase 4
+      network,
+      governorAddress: validGovernor,
+      proposal: {
+        id: trimmedProposalId,
+        description: event.description,
+        status: state,
+        proposer: event.proposer,
+        creationTransaction: event.transactionHash,
+        blockNumber: event.blockNumber.toString(),
+      },
+      actions,
+      findings: [], // Deterministic findings will be implemented in Phase 4
       descriptionConsistency: {
         status: 'indeterminate',
-        explanation: 'Deterministic engine pipeline scheduled for Phase 2-4.',
+        explanation: 'Deterministic description consistency analysis scheduled for Phase 4.',
       },
       reviews: {
         serv: { status: 'not_configured' },
         dolphin: { status: 'not_configured' },
       },
-      limitations: ['Pipeline initialization in progress.'],
-      evidence: [],
+      limitations,
+      evidence,
     };
 
     return res.status(200).json(response);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal Server Error';
     return res.status(500).json({
-      error: 'Internal server error',
+      error: 'Analysis Error',
       details: message,
     } satisfies ApiErrorResponse);
   }
 }
-

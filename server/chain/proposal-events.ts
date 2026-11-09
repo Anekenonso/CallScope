@@ -186,7 +186,10 @@ async function fetchLogsFromBlockscout(
   const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}`;
 
   const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
+    headers: {
+      'User-Agent': 'Callscope/1.0 (DAO Proposal Analyzer)',
+      Accept: 'application/json',
+    },
     signal: AbortSignal.timeout(10_000),
   });
 

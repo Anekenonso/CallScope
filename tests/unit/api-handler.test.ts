@@ -88,7 +88,8 @@ describe('api/analyse handler', () => {
     const body = getBody() as Record<string, unknown>;
     expect(body).toHaveProperty('assessment', 'analysis_incomplete');
     expect(body).toHaveProperty('network', 'ethereum');
-    expect(body).toHaveProperty('governorAddress', '0x323A76393544d5ecca80cd6ef2a560C6a395b7E3');
-  });
+    expect(body).toHaveProperty('governorAddress', '0x323A76393544d5ecca80cd6ef2A560C6a395b7E3');
+    expect(body).toHaveProperty('actions');
+  }, 30_000);
 });
 

@@ -15,7 +15,7 @@ export const SUPPORTED_NETWORKS: Record<SupportedNetwork, NetworkConfig> = {
     id: 'ethereum',
     chainId: 1,
     name: 'Ethereum Mainnet',
-    defaultRpcUrl: 'https://ethereum-rpc.publicnode.com',
+    defaultRpcUrl: 'https://gateway.tenderly.co/public/mainnet',
     envRpcKey: 'ETHEREUM_RPC_URL',
     explorerUrl: 'https://etherscan.io',
     blockscoutApiUrl: 'https://eth.blockscout.com/api',
