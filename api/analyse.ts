@@ -10,6 +10,13 @@ import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
 /**
  * Core analysis engine pipeline that executes end-to-end analysis on a proposal
  */
@@ -17,15 +24,15 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   const { network, governorAddress, proposalId } = request;
 
   if (!network || (network !== 'ethereum' && network !== 'base')) {
-    throw new Error('Invalid network: must be either "ethereum" or "base".');
+    throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
   }
 
   if (!governorAddress || !/^0x[a-fA-F0-9]{40}$/.test(governorAddress)) {
-    throw new Error('Invalid Governor address: must be a valid 20-byte EVM hex address.');
+    throw new ValidationError('Invalid Governor address: must be a valid 20-byte EVM hex address.');
   }
 
   if (!proposalId || !/^\d+$/.test(proposalId.trim())) {
-    throw new Error('Invalid proposal ID: must be a valid non-empty decimal string.');
+    throw new ValidationError('Invalid proposal ID: must be a valid non-empty decimal string.');
   }
 
   const trimmedProposalId = proposalId.trim();
@@ -151,6 +158,13 @@ export default async function handler(
     const response = await executeAnalysis(body as AnalysisRequest);
     return res.status(200).json(response);
   } catch (err: unknown) {
+    if (err instanceof ValidationError) {
+      const errorTitle = err.message.split(':')[0] || 'Bad Request';
+      return res.status(400).json({
+        error: errorTitle,
+        details: err.message,
+      } satisfies ApiErrorResponse);
+    }
     const message = err instanceof Error ? err.message : 'Internal Server Error';
     return res.status(500).json({
       error: 'Analysis Error',
