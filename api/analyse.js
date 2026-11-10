@@ -1,4 +1,4 @@
-import { createPublicClient, http, getAddress, keccak256, toBytes, decodeEventLog, parseAbi, zeroAddress, decodeFunctionData, parseAbiItem, toFunctionSelector, concatHex } from "viem";
+import { http, createPublicClient, fallback, getAddress, keccak256, toBytes, decodeEventLog, parseAbi, zeroAddress, decodeFunctionData, parseAbiItem, toFunctionSelector, concatHex } from "viem";
 import { mainnet, base } from "viem/chains";
 const SUPPORTED_NETWORKS = {
   ethereum: {
@@ -38,13 +38,30 @@ function getRpcUrl(network) {
 function createChainClient(network) {
   const rpcUrl = getRpcUrl(network);
   const chain = network === "ethereum" ? mainnet : base;
+  let candidateUrls;
+  if (network === "base") {
+    if (rpcUrl.includes("mainnet.base.org")) {
+      candidateUrls = ["https://base-rpc.publicnode.com", rpcUrl, "https://base.drpc.org"];
+    } else {
+      candidateUrls = [rpcUrl, "https://base-rpc.publicnode.com", "https://base.drpc.org"];
+    }
+  } else {
+    candidateUrls = [
+      rpcUrl,
+      "https://gateway.tenderly.co/public/mainnet",
+      "https://ethereum-rpc.publicnode.com"
+    ];
+  }
+  const uniqueUrls = Array.from(new Set(candidateUrls.filter(Boolean)));
+  const transports = uniqueUrls.map(
+    (url) => http(url, {
+      timeout: 8e3,
+      retryCount: 0
+    })
+  );
   return createPublicClient({
     chain,
-    transport: http(rpcUrl, {
-      timeout: 8e3,
-      retryCount: 1,
-      retryDelay: 500
-    })
+    transport: fallback(transports, { rank: false })
   });
 }
 async function verifyNetworkChainId(network, client) {
@@ -2007,7 +2024,9 @@ async function handleNodeReqRes(req, res) {
           baseRpcConfigured: baseRpcEnv,
           ethRpcConfigured: ethRpcEnv,
           servConfigured: servKeyEnv,
-          dolphinConfigured: dolphinKeyEnv
+          dolphinConfigured: dolphinKeyEnv,
+          baseRpcHost: new URL(getRpcUrl("base")).hostname,
+          ethRpcHost: new URL(getRpcUrl("ethereum")).hostname
         },
         rpc: {
           ethLatencyMs: ethLatency,

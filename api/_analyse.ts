@@ -8,7 +8,7 @@ import { checkDescriptionActionConsistency } from '../server/analysis/check-cons
 import { buildAssessment } from '../server/analysis/build-assessment';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
-import { SUPPORTED_NETWORKS } from '../server/chain/networks';
+import { SUPPORTED_NETWORKS, getRpcUrl } from '../server/chain/networks';
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -476,6 +476,8 @@ async function handleNodeReqRes(req: VercelRequest, res: VercelResponse) {
           ethRpcConfigured: ethRpcEnv,
           servConfigured: servKeyEnv,
           dolphinConfigured: dolphinKeyEnv,
+          baseRpcHost: new URL(getRpcUrl('base')).hostname,
+          ethRpcHost: new URL(getRpcUrl('ethereum')).hostname,
         },
         rpc: {
           ethLatencyMs: ethLatency,
