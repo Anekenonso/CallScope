@@ -98,9 +98,25 @@ export async function callOpenAiCompatible(
     }
 
     const data = (await res.json()) as OpenAiCompletionResponse;
-    const content = data?.choices?.[0]?.message?.content;
+    const message = data?.choices?.[0]?.message;
+    let content = message?.content;
+
+    // Handle reasoning models (e.g. DeepSeek) where JSON might be present in reasoning output
+    if ((typeof content !== 'string' || content.trim().length === 0) && message) {
+      const rawMsg = message as Record<string, unknown>;
+      const reasoning = rawMsg.reasoning || rawMsg.reasoning_content;
+      if (typeof reasoning === 'string' && reasoning.trim().length > 0) {
+        const jsonMatch = reasoning.match(/\{[\s\S]*"summary"[\s\S]*\}/);
+        if (jsonMatch) {
+          content = jsonMatch[0];
+        }
+      }
+    }
 
     if (typeof content !== 'string' || content.trim().length === 0) {
+      if (data?.choices?.[0]?.finish_reason === 'length') {
+        throw new Error('Provider exhausted token limit during reasoning without generating content');
+      }
       throw new Error('Provider returned empty content response');
     }
 

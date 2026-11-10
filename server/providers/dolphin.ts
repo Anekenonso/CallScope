@@ -94,7 +94,10 @@ CRITICAL SECURITY AND SAFETY INSTRUCTIONS:
     "Specific observation or overlooked consequence 2"
   ]
 }
-Do not include any conversational text or markdown outside the JSON object.`;
+Do not include any conversational text or markdown outside the JSON object.
+
+CRITICAL INSTRUCTION FOR REASONING MODELS:
+Be extremely concise in your internal thinking. Limit your reasoning to at most 3-4 sentences, then immediately output the final JSON object. Never exhaust your token budget on internal reasoning.`;
 
   const userPrompt = `Please review this proposal's execution data:
 
@@ -119,8 +122,8 @@ Output JSON response:`;
       model,
       systemPrompt,
       userPrompt,
-      maxTokens: 1500,
-      timeoutMs: 35_000,
+      maxTokens: 2500,
+      timeoutMs: 40_000,
     });
 
     const parsed = extractStructuredJson<Record<string, unknown>>(rawOutput);
