@@ -7,11 +7,22 @@ interface AnalysisFormProps {
   isLoading: boolean;
 }
 
-export function AnalysisForm({ onAnalyse, isLoading }: AnalysisFormProps) {
+export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading }) => {
   const [network, setNetwork] = useState<SupportedNetwork>('ethereum');
   const [governorAddress, setGovernorAddress] = useState('');
   const [proposalId, setProposalId] = useState('');
   const [errors, setErrors] = useState<FormValidationErrors>({});
+
+  const loadExample = (
+    exNetwork: SupportedNetwork,
+    exGov: string,
+    exId: string
+  ) => {
+    setNetwork(exNetwork);
+    setGovernorAddress(exGov);
+    setProposalId(exId);
+    setErrors({});
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +44,7 @@ export function AnalysisForm({ onAnalyse, isLoading }: AnalysisFormProps) {
     <div className="analysis-form-card">
       <form onSubmit={handleSubmit} className="analysis-form" noValidate>
         <div className="form-grid">
+          {/* Network selector */}
           <div className="form-field">
             <label htmlFor="network-select">Network</label>
             <select
@@ -48,12 +60,13 @@ export function AnalysisForm({ onAnalyse, isLoading }: AnalysisFormProps) {
             {errors.network && <span className="field-error">{errors.network}</span>}
           </div>
 
+          {/* Governor address input */}
           <div className="form-field">
             <label htmlFor="governor-address">Governor</label>
             <input
               id="governor-address"
               type="text"
-              className="form-input"
+              className="form-input tabular-nums"
               placeholder="0x..."
               value={governorAddress}
               disabled={isLoading}
@@ -61,15 +74,18 @@ export function AnalysisForm({ onAnalyse, isLoading }: AnalysisFormProps) {
               autoComplete="off"
               spellCheck="false"
             />
-            {errors.governorAddress && <span className="field-error">{errors.governorAddress}</span>}
+            {errors.governorAddress && (
+              <span className="field-error">{errors.governorAddress}</span>
+            )}
           </div>
 
+          {/* Proposal ID input */}
           <div className="form-field">
             <label htmlFor="proposal-id">Proposal ID</label>
             <input
               id="proposal-id"
               type="text"
-              className="form-input"
+              className="form-input tabular-nums"
               placeholder="e.g. 777678..."
               value={proposalId}
               disabled={isLoading}
@@ -77,19 +93,56 @@ export function AnalysisForm({ onAnalyse, isLoading }: AnalysisFormProps) {
               autoComplete="off"
               spellCheck="false"
             />
-            {errors.proposalId && <span className="field-error">{errors.proposalId}</span>}
+            {errors.proposalId && (
+              <span className="field-error">{errors.proposalId}</span>
+            )}
           </div>
 
+          {/* Primary Action Button */}
           <button
             type="submit"
             className="form-button"
             disabled={isLoading}
+            aria-busy={isLoading}
           >
             {isLoading ? 'Analysing...' : 'Analyse'}
+          </button>
+        </div>
+
+        {/* Examples row */}
+        <div className="examples-row">
+          <span className="examples-label">Reference fixtures:</span>
+          <button
+            type="button"
+            className="example-link-btn"
+            disabled={isLoading}
+            onClick={() =>
+              loadExample(
+                'ethereum',
+                '0x323A76393544d5ecca80cd6ef2a560C6a395b7E3',
+                '77767899528494238518019756391533686963875234067646094287125791110488147463806'
+              )
+            }
+          >
+            ENS (Ethereum)
+          </button>
+          <span className="example-divider">·</span>
+          <button
+            type="button"
+            className="example-link-btn"
+            disabled={isLoading}
+            onClick={() =>
+              loadExample(
+                'base',
+                '0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9',
+                '27419154582993156392805749742953507877176483681373228046916881327937839104508'
+              )
+            }
+          >
+            Unlock (Base)
           </button>
         </div>
       </form>
     </div>
   );
-}
-
+};
