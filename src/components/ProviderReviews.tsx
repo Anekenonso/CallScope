@@ -10,12 +10,27 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
   const getStatusBadge = (review: ProviderReview) => {
     switch (review.status) {
       case 'available':
-        return <span className="review-status-badge status-available">Available</span>;
+        return (
+          <span className="review-status-badge status-available">
+            <span className="badge-dot" aria-hidden="true" />
+            <span>Available</span>
+          </span>
+        );
       case 'not_configured':
-        return <span className="review-status-badge status-unconfigured">Not configured</span>;
+        return (
+          <span className="review-status-badge status-unconfigured">
+            <span className="badge-dot" aria-hidden="true" />
+            <span>Not configured</span>
+          </span>
+        );
       case 'error':
       case 'unavailable':
-        return <span className="review-status-badge status-error">Unavailable</span>;
+        return (
+          <span className="review-status-badge status-error">
+            <span className="badge-dot" aria-hidden="true" />
+            <span>Unavailable</span>
+          </span>
+        );
       default:
         return null;
     }
@@ -49,10 +64,10 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
                 typeof item === 'string'
                   ? item
                   : typeof item === 'object' && item !== null
-                  ? (item as Record<string, unknown>).detail ||
+                    ? (item as Record<string, unknown>).detail ||
                     (item as Record<string, unknown>).description ||
                     JSON.stringify(item)
-                  : String(item);
+                    : String(item);
 
               return (
                 <li key={idx} className="review-observation-item">
@@ -69,7 +84,10 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
   return (
     <section className="section-card reviews-section" aria-labelledby="reviews-heading">
       <div className="section-header-row">
-        <h2 id="reviews-heading" className="section-heading">Sponsor advisory reviews</h2>
+        <div className="section-heading-group">
+          <span className="section-kicker">Secondary Intelligence</span>
+          <h2 id="reviews-heading" className="section-heading">Sponsor advisory reviews</h2>
+        </div>
         <span className="section-note">Advisory delegate assistance</span>
       </div>
 
@@ -100,6 +118,7 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
       </div>
 
       <div className="reviews-disclaimer">
+        <span className="disclaimer-stamp" aria-hidden="true">NOTICE</span>
         <p>
           Advisory reviews are bounded AI evaluations for delegate context. The deterministic analysis engine remains authoritative.
         </p>
@@ -107,4 +126,3 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
     </section>
   );
 };
-

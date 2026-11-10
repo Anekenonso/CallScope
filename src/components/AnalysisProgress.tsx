@@ -77,13 +77,12 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
     >
       <div className="progress-header">
         <div className="progress-title-wrap">
-          <div className="progress-spinner-wrap">
+          <div className="progress-spinner-wrap" aria-hidden="true">
             <svg
               className="progress-spinner"
               viewBox="0 0 24 24"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
             >
               <circle
                 className="spinner-track"
@@ -103,11 +102,12 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
             </svg>
           </div>
           <div>
+            <div className="progress-kicker">On-Chain Inspection Active</div>
             <h3 className="progress-headline">Analysing on-chain proposal</h3>
             <p className="progress-subheadline">
               {network ? <span className="network-tag">{network.toUpperCase()}</span> : null}
-              {formattedGov ? <span>{formattedGov}</span> : null}
-              {formattedId ? <span>Proposal #{formattedId}</span> : null}
+              {formattedGov ? <span className="target-addr-tag tabular-nums">{formattedGov}</span> : null}
+              {formattedId ? <span className="proposal-id-tag tabular-nums">#{formattedId}</span> : null}
             </p>
           </div>
         </div>
@@ -130,9 +130,7 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         {PIPELINE_STAGES.map((step, idx) => (
           <div key={step.id} className="progress-step-item step-current">
             <div className="step-indicator">
-              <span className="step-icon current-icon" aria-label="Pipeline stage in progress">
-                <span className="pulse-dot" style={{ animationDelay: `${idx * 0.25}s` }} />
-              </span>
+              <span className="step-number tabular-nums">{idx + 1}</span>
             </div>
 
             <div className="step-content">

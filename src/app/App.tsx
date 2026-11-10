@@ -39,11 +39,13 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (this.state.hasError) {
       return (
         <div className="error-banner" role="alert">
-          <span className="error-title">Display error</span>
-          <span>
-            {this.state.error?.message ||
-              'A rendering error occurred while displaying the proposal results.'}
-          </span>
+          <div className="error-banner-content">
+            <span className="error-title">Display error</span>
+            <span>
+              {this.state.error?.message ||
+                'A rendering error occurred while displaying the proposal results.'}
+            </span>
+          </div>
           <button
             type="button"
             className="form-button"
@@ -96,8 +98,10 @@ export const App: React.FC = () => {
 
           {error && (
             <div className="error-banner" role="alert">
-              <span className="error-title">Analysis failed</span>
-              <span>{error}</span>
+              <div className="error-banner-content">
+                <span className="error-title">Analysis failed</span>
+                <span>{error}</span>
+              </div>
             </div>
           )}
 
@@ -145,9 +149,9 @@ export const App: React.FC = () => {
         <footer className="app-footer">
           <div className="footer-meta">
             <span className="footer-system-dot" aria-hidden="true" />
-            <span>Callscope Governance Engine · Deterministic analysis authoritative</span>
+            <span>Callscope Governance Engine · Deterministic on-chain analysis strictly authoritative</span>
           </div>
-          <span className="footer-note">Ethereum &amp; Base Governor Compatibility</span>
+          <span className="footer-note">Ethereum Mainnet (1) &amp; Base (8453) Governor Standards</span>
         </footer>
       </div>
     </ErrorBoundary>

@@ -30,8 +30,16 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
   if (!actions || actions.length === 0) {
     return (
       <section className="section-card actions-section" aria-labelledby="actions-heading">
-        <h2 id="actions-heading" className="section-heading">Actions (0)</h2>
-        <p className="empty-message">This proposal contains zero executable on-chain calls (text-only proposal).</p>
+        <div className="section-header-row">
+          <div className="section-heading-group">
+            <span className="section-kicker">Execution Ledger</span>
+            <h2 id="actions-heading" className="section-heading">Actions (0)</h2>
+          </div>
+          <span className="section-note">Text-only proposal</span>
+        </div>
+        <div className="empty-message-box">
+          <p className="empty-message">This proposal contains zero executable on-chain calls (text-only proposal).</p>
+        </div>
       </section>
     );
   }
@@ -39,7 +47,10 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
   return (
     <section className="section-card actions-section" aria-labelledby="actions-heading">
       <div className="section-header-row">
-        <h2 id="actions-heading" className="section-heading">Actions ({actions.length})</h2>
+        <div className="section-heading-group">
+          <span className="section-kicker">Execution Ledger · The Call Record</span>
+          <h2 id="actions-heading" className="section-heading">Actions ({actions.length})</h2>
+        </div>
         <span className="section-note">Original execution sequence preserved</span>
       </div>
 
@@ -47,25 +58,32 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
         {actions.map((act) => {
           const isDecoded = act.decoded;
           const isExpanded = !!expandedCalldata[act.index];
+          const byteLength = act.rawCalldata.length > 2 ? (act.rawCalldata.length - 2) / 2 : 0;
 
           return (
             <article
               key={act.index}
               className={`action-item ${!isDecoded ? 'action-item-undecoded' : ''}`}
             >
+              {/* Receipt Header Strip */}
               <div className="action-item-header">
                 <div className="action-identity">
                   <span className="action-number">#{act.index + 1}</span>
                   <div className="action-title-group">
-                    <span className="action-function-name">
-                      {isDecoded ? (
-                        act.functionName || act.signature || 'Call'
-                      ) : (
-                        <span className="undecoded-label">Undecoded action ({act.selector})</span>
+                    <div className="action-func-row">
+                      <span className="action-function-name">
+                        {isDecoded ? (
+                          act.functionName || act.signature || 'Call'
+                        ) : (
+                          <span className="undecoded-label">Undecoded action ({act.selector})</span>
+                        )}
+                      </span>
+                      {act.selector && (
+                        <span className="action-selector-tag tabular-nums">{act.selector}</span>
                       )}
-                    </span>
-                    <span className="action-target">
-                      Target:{' '}
+                    </div>
+                    <div className="action-target">
+                      <span className="target-prefix">Target:</span>{' '}
                       <a
                         href={`${explorerBase}/address/${act.target}`}
                         target="_blank"
@@ -79,7 +97,7 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
                           [Proxy → {act.implementation.slice(0, 8)}...]
                         </span>
                       )}
-                    </span>
+                    </div>
                   </div>
                 </div>
 
@@ -90,15 +108,19 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
                     </span>
                   )}
                   <span className={`decode-status-badge ${isDecoded ? 'status-decoded' : 'status-undecoded'}`}>
-                    {isDecoded ? 'Decoded' : 'Opaque'}
+                    <span className="badge-dot" aria-hidden="true" />
+                    <span>{isDecoded ? 'Decoded' : 'Opaque'}</span>
                   </span>
                 </div>
               </div>
 
-              {/* Decoded Arguments */}
+              {/* Decoded Arguments Table */}
               {isDecoded && act.args && act.args.length > 0 && (
                 <div className="action-args-container">
-                  <span className="args-table-label">Parameters:</span>
+                  <div className="args-table-header">
+                    <span className="args-table-label">Verified Parameters:</span>
+                    <span className="args-count tabular-nums">{act.args.length} typed argument{act.args.length === 1 ? '' : 's'}</span>
+                  </div>
                   <div className="args-list">
                     {act.args.map((arg, argIdx) => (
                       <div key={argIdx} className="arg-row">
@@ -111,14 +133,15 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
                 </div>
               )}
 
-              {/* Decode Error if any */}
+              {/* Decode Error Notice */}
               {!isDecoded && act.decodeError && (
                 <div className="decode-error-notice">
+                  <span className="decode-error-icon" aria-hidden="true">!</span>
                   <span>Could not resolve ABI: {act.decodeError}</span>
                 </div>
               )}
 
-              {/* Raw Calldata Collapsible */}
+              {/* Raw Calldata Collapsible Inspector */}
               <div className="calldata-container">
                 <button
                   type="button"
@@ -126,14 +149,18 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
                   onClick={() => toggleCalldata(act.index)}
                   aria-expanded={isExpanded}
                 >
-                  {isExpanded ? 'Hide raw calldata' : 'Inspect raw calldata'}
+                  <span className="calldata-toggle-icon" aria-hidden="true">
+                    {isExpanded ? '▾' : '▸'}
+                  </span>
+                  <span>{isExpanded ? 'Hide raw calldata' : 'Inspect raw calldata'}</span>
+                  <span className="calldata-size-hint tabular-nums">({byteLength} bytes)</span>
                 </button>
 
                 {isExpanded && (
                   <div className="calldata-inspect-box">
                     <div className="calldata-actions">
                       <span className="calldata-length tabular-nums">
-                        {act.rawCalldata.length > 2 ? `${(act.rawCalldata.length - 2) / 2} bytes` : '0 bytes'}
+                        {byteLength} bytes ({act.rawCalldata.length} hex chars)
                       </span>
                       <button
                         type="button"
@@ -155,4 +182,3 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
     </section>
   );
 };
-

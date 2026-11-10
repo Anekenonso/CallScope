@@ -15,11 +15,13 @@ export const AssessmentBanner: React.FC<AssessmentBannerProps> = ({
   let title = '';
   let description = '';
   let bannerClass = '';
+  let verdictTag = '';
 
   switch (assessment) {
     case 'review_recommended':
       title = 'Review recommended';
       bannerClass = 'assessment-banner-warning';
+      verdictTag = 'Action Required';
       description =
         findingsCount > 0
           ? `${findingsCount} significant finding${findingsCount === 1 ? '' : 's'} identified among executable actions requiring human review.`
@@ -29,6 +31,7 @@ export const AssessmentBanner: React.FC<AssessmentBannerProps> = ({
     case 'analysis_incomplete':
       title = 'Analysis incomplete';
       bannerClass = 'assessment-banner-incomplete';
+      verdictTag = 'Unverified Calldata';
       description =
         undecodedCount > 0
           ? `${undecodedCount} action${undecodedCount === 1 ? '' : 's'} could not be verified or decoded from available ABIs. A clean assessment cannot be issued.`
@@ -38,6 +41,7 @@ export const AssessmentBanner: React.FC<AssessmentBannerProps> = ({
     case 'no_significant_issue_detected':
       title = 'No significant issue detected';
       bannerClass = 'assessment-banner-positive';
+      verdictTag = 'Verified Clean';
       description =
         'Analysis found no sensitive operations or discrepancies among verified actions. This does not constitute an audit or guarantee of safety.';
       break;
@@ -49,11 +53,18 @@ export const AssessmentBanner: React.FC<AssessmentBannerProps> = ({
       role="region"
       aria-label="Proposal Assessment"
     >
-      <div className="assessment-badge-row">
-        <span className="assessment-indicator" aria-hidden="true" />
-        <h2 className="assessment-title">{title}</h2>
+      <div className="assessment-top-strip">
+        <div className="assessment-badge-row">
+          <span className="assessment-indicator" aria-hidden="true" />
+          <span className="assessment-verdict-tag">{verdictTag}</span>
+        </div>
+        <span className="assessment-seal-label">Deterministic Verdict</span>
       </div>
-      <p className="assessment-description">{description}</p>
+
+      <div className="assessment-content">
+        <h2 className="assessment-title">{title}</h2>
+        <p className="assessment-description">{description}</p>
+      </div>
     </section>
   );
 };

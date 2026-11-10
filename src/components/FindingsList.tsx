@@ -9,10 +9,18 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings }) => {
   if (!findings || findings.length === 0) {
     return (
       <section className="section-card findings-section" aria-labelledby="findings-heading">
-        <h2 id="findings-heading" className="section-heading">Findings (0)</h2>
-        <p className="empty-message">
-          No sensitive permissions, contract upgrades, or high-risk operations detected among verified actions.
-        </p>
+        <div className="section-header-row">
+          <div className="section-heading-group">
+            <span className="section-kicker">Security Matrix</span>
+            <h2 id="findings-heading" className="section-heading">Findings (0)</h2>
+          </div>
+          <span className="section-note">Deterministic security rules</span>
+        </div>
+        <div className="empty-message-box">
+          <p className="empty-message">
+            No sensitive permissions, contract upgrades, or high-risk operations detected among verified actions.
+          </p>
+        </div>
       </section>
     );
   }
@@ -20,7 +28,10 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings }) => {
   return (
     <section className="section-card findings-section" aria-labelledby="findings-heading">
       <div className="section-header-row">
-        <h2 id="findings-heading" className="section-heading">Findings ({findings.length})</h2>
+        <div className="section-heading-group">
+          <span className="section-kicker">Security Matrix · Rule-Based Audit</span>
+          <h2 id="findings-heading" className="section-heading">Findings ({findings.length})</h2>
+        </div>
         <span className="section-note">Deterministic rule-based security findings</span>
       </div>
 
@@ -33,7 +44,8 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings }) => {
               <div className="finding-header">
                 <div className="finding-title-row">
                   <span className={`severity-badge ${sevClass}`}>
-                    {finding.severity.toUpperCase()}
+                    <span className="severity-dot" aria-hidden="true" />
+                    <span>{finding.severity.toUpperCase()}</span>
                   </span>
                   <h3 className="finding-title">{finding.title}</h3>
                 </div>
@@ -46,7 +58,8 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings }) => {
                   )}
                   {finding.verified && (
                     <span className="verified-badge" title="Verified against on-chain contract bytecode/ABI">
-                      Verified on-chain
+                      <span className="verified-dot" aria-hidden="true" />
+                      <span>Verified on-chain</span>
                     </span>
                   )}
                 </div>
@@ -67,4 +80,3 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings }) => {
     </section>
   );
 };
-

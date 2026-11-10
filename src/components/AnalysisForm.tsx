@@ -42,27 +42,37 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
 
   return (
     <div className="analysis-form-card">
+      <div className="form-card-header">
+        <div className="form-card-title-group">
+          <span className="form-kicker">Query Desk</span>
+          <h2 className="form-card-headline">Examine proposal calldata &amp; permissions</h2>
+        </div>
+        <span className="form-card-subtext">Direct RPC event retrieval &amp; bytecode ABI resolution</span>
+      </div>
+
       <form onSubmit={handleSubmit} className="analysis-form" noValidate>
         <div className="form-grid">
           {/* Network selector */}
           <div className="form-field">
-            <label htmlFor="network-select">Network</label>
-            <select
-              id="network-select"
-              className="form-select"
-              value={network}
-              disabled={isLoading}
-              onChange={(e) => setNetwork(e.target.value as SupportedNetwork)}
-            >
-              <option value="ethereum">Ethereum</option>
-              <option value="base">Base</option>
-            </select>
+            <label htmlFor="network-select">Chain</label>
+            <div className="select-wrapper">
+              <select
+                id="network-select"
+                className="form-select"
+                value={network}
+                disabled={isLoading}
+                onChange={(e) => setNetwork(e.target.value as SupportedNetwork)}
+              >
+                <option value="ethereum">Ethereum (1)</option>
+                <option value="base">Base (8453)</option>
+              </select>
+            </div>
             {errors.network && <span className="field-error">{errors.network}</span>}
           </div>
 
           {/* Governor address input */}
-          <div className="form-field">
-            <label htmlFor="governor-address">Governor</label>
+          <div className="form-field field-governor">
+            <label htmlFor="governor-address">Governor Contract</label>
             <input
               id="governor-address"
               type="text"
@@ -80,7 +90,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
           </div>
 
           {/* Proposal ID input */}
-          <div className="form-field">
+          <div className="form-field field-proposal-id">
             <label htmlFor="proposal-id">Proposal ID</label>
             <input
               id="proposal-id"
@@ -99,19 +109,28 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
           </div>
 
           {/* Primary Action Button */}
-          <button
-            type="submit"
-            className="form-button"
-            disabled={isLoading}
-            aria-busy={isLoading}
-          >
-            {isLoading ? 'Analysing...' : 'Analyse'}
-          </button>
+          <div className="form-action-wrap">
+            <button
+              type="submit"
+              className="form-button"
+              disabled={isLoading}
+              aria-busy={isLoading}
+            >
+              {isLoading ? (
+                <span className="button-inner-loading">
+                  <span className="button-spinner" aria-hidden="true" />
+                  <span>Analysing...</span>
+                </span>
+              ) : (
+                'Analyse'
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Examples row */}
         <div className="examples-row">
-          <span className="examples-label">Reference fixtures:</span>
+          <span className="examples-label">Archived fixtures:</span>
           <button
             type="button"
             className="example-preset-pill"
@@ -125,7 +144,8 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
             }
           >
             <span className="preset-network-badge">ETH</span>
-            <span>ENS EP 6.50</span>
+            <span className="preset-name">ENS EP 6.50</span>
+            <span className="preset-tag">Role Grant</span>
           </button>
           <button
             type="button"
@@ -140,7 +160,8 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
             }
           >
             <span className="preset-network-badge">BASE</span>
-            <span>Unlock Transfers</span>
+            <span className="preset-name">Unlock Transfers</span>
+            <span className="preset-tag">Token Logic</span>
           </button>
         </div>
       </form>
