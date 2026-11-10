@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { executeAnalysis } from '../../api/analyse';
 import { validateAnalysisInput } from '../../src/lib/validation';
 import { buildAssessment } from '../../server/analysis/build-assessment';
@@ -200,9 +201,16 @@ describe('Phase 7: End-to-End Integration & Pressure Testing', () => {
   describe('T7.9: Secret Isolation Audit', () => {
     it('confirms no secrets or API keys are leaked into production bundle', () => {
       const distDir = path.resolve(__dirname, '../../dist');
+      const assetsDir = path.join(distDir, 'assets');
+      if (!fs.existsSync(assetsDir) || fs.readdirSync(assetsDir).filter((f) => f.endsWith('.js')).length === 0) {
+        execSync('node ./node_modules/vite/bin/vite.js build', {
+          cwd: path.resolve(__dirname, '../..'),
+          stdio: 'pipe',
+        });
+      }
       expect(fs.existsSync(distDir)).toBe(true);
 
-      const bundleFiles = fs.readdirSync(path.join(distDir, 'assets'));
+      const bundleFiles = fs.readdirSync(assetsDir);
       const jsFiles = bundleFiles.filter((f) => f.endsWith('.js'));
       expect(jsFiles.length).toBeGreaterThan(0);
 

@@ -69,6 +69,7 @@ export const App: React.FC = () => {
   const handleAnalyse = async (request: AnalysisRequest) => {
     setIsLoading(true);
     setError(null);
+    setResult(null);
     setActiveRequest(request);
 
     try {

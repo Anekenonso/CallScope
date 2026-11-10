@@ -27,56 +27,54 @@ describe('Live Sponsor Provider Verification (T5.9)', () => {
     },
   ];
 
-  it('runs minimal live authenticated call to OpenServ SERV if key configured', async () => {
-    if (!process.env.SERV_API_KEY) {
-      console.log('Skipping live SERV test: SERV_API_KEY not in process.env');
-      return;
-    }
+  it.skipIf(!process.env.SERV_API_KEY)(
+    'runs minimal live authenticated call to OpenServ SERV when key configured',
+    async () => {
+      const review = await reviewWithServ(
+        'Proposal to perform a routine maintenance update.',
+        minimalActions
+      );
 
-    const review = await reviewWithServ(
-      'Proposal to perform a routine maintenance update.',
-      minimalActions
-    );
+      console.log('Live SERV Review Result Status:', review.status);
+      if (review.error) {
+        console.log('Live SERV Error Message:', review.error);
+      } else {
+        console.log('Live SERV Summary:', review.summary);
+        console.log('Live SERV Findings Count:', review.findings?.length ?? 0);
+      }
 
-    console.log('Live SERV Review Result Status:', review.status);
-    if (review.error) {
-      console.log('Live SERV Error Message:', review.error);
-    } else {
-      console.log('Live SERV Summary:', review.summary);
-      console.log('Live SERV Findings Count:', review.findings?.length ?? 0);
-    }
-
-    expect(['available', 'error', 'not_configured']).toContain(review.status);
-    if (review.status === 'available') {
+      // When API key is configured, assert valid authenticated response
+      expect(review.status).toBe('available');
       expect(typeof review.summary).toBe('string');
+      expect((review.summary ?? '').length).toBeGreaterThan(10);
       expect(Array.isArray(review.findings)).toBe(true);
-    }
-  }, 45000);
+    },
+    45000
+  );
 
-  it('runs minimal live authenticated call to Dolphin if key configured', async () => {
-    if (!process.env.DOLPHIN_API_KEY) {
-      console.log('Skipping live Dolphin test: DOLPHIN_API_KEY not in process.env');
-      return;
-    }
+  it.skipIf(!process.env.DOLPHIN_API_KEY)(
+    'runs minimal live authenticated call to Dolphin when key configured',
+    async () => {
+      const review = await reviewWithDolphin(
+        'Proposal to perform a routine maintenance update.',
+        minimalActions,
+        minimalFindings
+      );
 
-    const review = await reviewWithDolphin(
-      'Proposal to perform a routine maintenance update.',
-      minimalActions,
-      minimalFindings
-    );
+      console.log('Live Dolphin Review Result Status:', review.status);
+      if (review.error) {
+        console.log('Live Dolphin Error Message:', review.error);
+      } else {
+        console.log('Live Dolphin Summary:', review.summary);
+        console.log('Live Dolphin Findings Count:', review.findings?.length ?? 0);
+      }
 
-    console.log('Live Dolphin Review Result Status:', review.status);
-    if (review.error) {
-      console.log('Live Dolphin Error Message:', review.error);
-    } else {
-      console.log('Live Dolphin Summary:', review.summary);
-      console.log('Live Dolphin Findings Count:', review.findings?.length ?? 0);
-    }
-
-    expect(['available', 'error', 'not_configured']).toContain(review.status);
-    if (review.status === 'available') {
+      // When API key is configured, assert valid authenticated response
+      expect(review.status).toBe('available');
       expect(typeof review.summary).toBe('string');
+      expect((review.summary ?? '').length).toBeGreaterThan(10);
       expect(Array.isArray(review.findings)).toBe(true);
-    }
-  }, 45000);
+    },
+    45000
+  );
 });

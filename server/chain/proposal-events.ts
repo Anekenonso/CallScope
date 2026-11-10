@@ -82,14 +82,6 @@ export const PROPOSAL_STATE_MAP: Record<number, string> = {
   7: 'Executed',
 };
 
-// Known proposal creation block anchors for reliable historical recovery
-const KNOWN_PROPOSAL_BLOCK_HINTS: Record<string, bigint> = {
-  // ENS Ethereum Mainnet Security Council grantRole proposal
-  '77767899528494238518019756391533686963875234067646094287125791110488147463806': 25524727n,
-  // Unlock Base Mainnet transfer proposal
-  '27419154582993156392805749742953507877176483681373228046916881327937839104508': 52891503n,
-};
-
 export interface DecodedProposalEvent {
   proposalId: string;
   proposer: Address;
@@ -106,8 +98,17 @@ export interface DecodedProposalEvent {
 
 export function parseProposalCreatedLog(
   log: Log,
-  expectedProposalId: string
+  expectedProposalId: string,
+  expectedGovernorAddress?: Address
 ): DecodedProposalEvent | null {
+  if (
+    expectedGovernorAddress &&
+    log.address &&
+    log.address.toLowerCase() !== expectedGovernorAddress.toLowerCase()
+  ) {
+    return null;
+  }
+
   for (const eventAbi of SUPPORTED_EVENT_VARIANTS) {
     try {
       const decoded = decodeEventLog({
@@ -164,11 +165,9 @@ export function parseProposalCreatedLog(
         };
       }
     } catch (err: unknown) {
-      // If error is our explicit array mismatch error, rethrow it
       if (err instanceof Error && err.message.startsWith('Malformed ProposalCreated')) {
         throw err;
       }
-      // Otherwise continue checking other variants
     }
   }
 
@@ -176,96 +175,253 @@ export function parseProposalCreatedLog(
 }
 
 /**
- * Fetch logs using Blockscout explorer API (handles entire chain history in one call)
+ * Fetch logs using Blockscout explorer API with pagination support
  */
-async function fetchLogsFromBlockscout(
+async function fetchProposalEventFromBlockscout(
   network: SupportedNetwork,
-  governorAddress: Address
-): Promise<Log[]> {
+  governorAddress: Address,
+  expectedProposalId: string
+): Promise<DecodedProposalEvent | null> {
   const config = getNetworkConfig(network);
-  const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}`;
+  const pageSize = 1000;
+  const maxPages = 5;
 
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Callscope/1.0 (DAO Proposal Analyzer)',
-      Accept: 'application/json',
-    },
-    signal: AbortSignal.timeout(10_000),
-  });
+  let matchingEvent: DecodedProposalEvent | null = null;
 
-  if (!res.ok) {
-    throw new Error(`Blockscout API HTTP error ${res.status}`);
+  for (let page = 1; page <= maxPages; page++) {
+    const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}&page=${page}&offset=${pageSize}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Callscope/1.0 (DAO Proposal Analyzer)',
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(12_000),
+      });
+
+      if (!res.ok) break;
+
+      const json = (await res.json()) as any;
+      if (!json || json.status === '0' || !Array.isArray(json.result) || json.result.length === 0) {
+        break;
+      }
+
+      for (const item of json.result) {
+        if (item.address && item.address.toLowerCase() !== governorAddress.toLowerCase()) {
+          continue;
+        }
+
+        const log: Log = {
+          address: item.address,
+          blockHash: item.blockHash,
+          blockNumber: BigInt(item.blockNumber),
+          data: item.data,
+          logIndex: Number(item.logIndex),
+          removed: false,
+          topics: item.topics.filter(Boolean) as unknown as [`0x${string}`, ...`0x${string}`[]],
+          transactionHash: item.transactionHash,
+          transactionIndex: Number(item.transactionIndex),
+        };
+
+        const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
+        if (parsed) {
+          if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+            throw new Error(
+              `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
+            );
+          }
+          matchingEvent = parsed;
+        }
+      }
+
+      if (matchingEvent) {
+        return matchingEvent;
+      }
+
+      if (json.result.length < pageSize) {
+        break;
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.startsWith('Ambiguous event')) {
+        throw err;
+      }
+      break;
+    }
   }
 
-  const json = (await res.json()) as any;
-  if (!json || json.status === '0' || !Array.isArray(json.result)) {
-    return [];
-  }
-
-  return json.result.map((item: any) => ({
-    address: item.address,
-    blockHash: item.blockHash,
-    blockNumber: BigInt(item.blockNumber),
-    data: item.data,
-    logIndex: Number(item.logIndex),
-    removed: false,
-    topics: [item.topics[0], item.topics[1], item.topics[2], item.topics[3]].filter(Boolean),
-    transactionHash: item.transactionHash,
-    transactionIndex: Number(item.transactionIndex),
-  })) as Log[];
+  return matchingEvent;
 }
 
 /**
- * Fetch logs using RPC with adaptive bounded range scanning
+ * Read proposal snapshot block or timestamp from Governor contract if supported
  */
-async function fetchLogsFromRpc(
+async function queryGovernorSnapshotValue(
   client: PublicClient<any, any>,
   governorAddress: Address,
-  anchorBlock?: bigint
-): Promise<Log[]> {
+  proposalId: string
+): Promise<bigint | null> {
+  try {
+    const snapshot = await client.readContract({
+      address: governorAddress,
+      abi: [
+        {
+          name: 'proposalSnapshot',
+          type: 'function',
+          stateMutability: 'view',
+          inputs: [{ name: 'proposalId', type: 'uint256' }],
+          outputs: [{ name: '', type: 'uint256' }],
+        },
+      ],
+      functionName: 'proposalSnapshot',
+      args: [BigInt(proposalId)],
+    });
+
+    const val = BigInt(snapshot as any);
+    return val > 0n ? val : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch logs using RPC with adaptive bounded range scanning and contract snapshot targeting.
+ * Handles both block-based and timestamp-based snapshot timepoints across Ethereum and Base.
+ */
+async function fetchProposalEventFromRpc(
+  client: PublicClient<any, any>,
+  network: SupportedNetwork,
+  governorAddress: Address,
+  expectedProposalId: string
+): Promise<DecodedProposalEvent | null> {
   const latestBlock = await client.getBlockNumber();
-  const allLogs: Log[] = [];
+  let matchingEvent: DecodedProposalEvent | null = null;
 
-  // If we have an anchor block, query a focused range around it
-  if (anchorBlock !== undefined && anchorBlock > 0n) {
-    const fromBlock = anchorBlock > 50n ? anchorBlock - 50n : 0n;
-    const toBlock = anchorBlock + 50n;
-    try {
-      const logs = await client.getLogs({
-        address: governorAddress,
-        fromBlock,
-        toBlock,
-      });
-      allLogs.push(...logs);
-      if (allLogs.length > 0) return allLogs;
-    } catch {
-      // Continue to bounded adaptive search
+  // 1. If contract supports proposalSnapshot(), query a focused window around the snapshot
+  const snapshotVal = await queryGovernorSnapshotValue(client, governorAddress, expectedProposalId);
+  if (snapshotVal !== null) {
+    let targetBlock: bigint;
+
+    if (snapshotVal < 500_000_000n) {
+      // Direct block number (e.g. Ethereum Mainnet)
+      targetBlock = snapshotVal <= latestBlock ? snapshotVal : latestBlock;
+    } else {
+      // Timestamp (e.g. Base L2 with timestamp timepoints)
+      try {
+        const latestBlockData = await client.getBlock({ blockTag: 'latest' });
+        const timeDiff = Number(latestBlockData.timestamp - snapshotVal);
+        const secPerBlock = network === 'base' ? 0.633 : 12;
+        const estimatedDiff = BigInt(Math.max(0, Math.floor(timeDiff / secPerBlock)));
+        targetBlock =
+          latestBlockData.number > estimatedDiff ? latestBlockData.number - estimatedDiff : 0n;
+      } catch {
+        targetBlock = latestBlock;
+      }
+    }
+
+    // A proposal is created between (snapshot - votingDelay) and snapshot.
+    // On Base, votingDelay is ~550,000 blocks (~4 days). On Ethereum ~50,000 blocks.
+    const lookback = network === 'base' ? 650_000n : 60_000n;
+    const windowStart = targetBlock > lookback ? targetBlock - lookback : 0n;
+    const windowEnd = targetBlock + 20_000n <= latestBlock ? targetBlock + 20_000n : latestBlock;
+
+    const chunkSize = 50_000n;
+    const ranges: [bigint, bigint][] = [];
+    let bTo = windowEnd;
+    while (bTo > windowStart) {
+      const bFrom = bTo > chunkSize ? bTo - chunkSize : 0n;
+      ranges.push([bFrom, bTo]);
+      if (bFrom === 0n || bFrom <= windowStart) break;
+      bTo = bFrom - 1n;
+    }
+
+    // Scan ranges in batches of 4 in parallel for high performance
+    const batchSize = 4;
+    for (let i = 0; i < ranges.length; i += batchSize) {
+      const batch = ranges.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async ([fromBlock, toBlock]) => {
+          try {
+            return await (client as any).getLogs({
+              address: governorAddress,
+              topics: [PROPOSAL_CREATED_TOPIC0],
+              fromBlock,
+              toBlock,
+            });
+          } catch {
+            return [];
+          }
+        })
+      );
+
+      for (const logs of batchResults) {
+        for (const log of logs) {
+          const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
+          if (parsed) {
+            if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+              throw new Error(
+                `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
+              );
+            }
+            matchingEvent = parsed;
+          }
+        }
+      }
+
+      if (matchingEvent) return matchingEvent;
     }
   }
 
-  // Scan recent blocks with 1,000-block chunks
-  const chunkSize = 1_000n;
-  const scanLimit = 50_000n;
-  const startBlock = latestBlock > scanLimit ? latestBlock - scanLimit : 0n;
-  let toBlock = latestBlock;
+  // 2. Adaptive backward scanning with dynamic chunk sizing as general fallback
+  let chunkSize = 40_000n;
+  const minChunkSize = 2_000n;
+  const maxScanDepth = network === 'base' ? 1_500_000n : 500_000n;
+  const lowestAllowedBlock = latestBlock > maxScanDepth ? latestBlock - maxScanDepth : 0n;
+  let currentToBlock = latestBlock;
 
-  while (toBlock > startBlock) {
-    const fromBlock = toBlock > chunkSize ? toBlock - chunkSize : 0n;
+  while (currentToBlock > lowestAllowedBlock) {
+    const fromBlock = currentToBlock > chunkSize ? currentToBlock - chunkSize : 0n;
+
     try {
-      const logs = await client.getLogs({
+      const logs = await (client as any).getLogs({
         address: governorAddress,
+        topics: [PROPOSAL_CREATED_TOPIC0],
         fromBlock,
-        toBlock,
+        toBlock: currentToBlock,
       });
-      allLogs.push(...logs);
-    } catch {
-      break;
+
+      for (const log of logs) {
+        const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
+        if (parsed) {
+          if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+            throw new Error(
+              `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
+            );
+          }
+          matchingEvent = parsed;
+        }
+      }
+
+      if (matchingEvent) return matchingEvent;
+
+      if (fromBlock === 0n || fromBlock <= lowestAllowedBlock) break;
+      currentToBlock = fromBlock - 1n;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.startsWith('Ambiguous event')) {
+        throw err;
+      }
+      // If RPC rejected range, adaptively halve chunk size and retry
+      if (chunkSize > minChunkSize) {
+        chunkSize = chunkSize / 2n;
+        continue;
+      } else {
+        if (fromBlock === 0n) break;
+        currentToBlock = fromBlock - 1n;
+      }
     }
-    if (fromBlock === 0n) break;
-    toBlock = fromBlock - 1n;
   }
 
-  return allLogs;
+  return matchingEvent;
 }
 
 export async function retrieveProposalCreatedEvent(
@@ -276,40 +432,27 @@ export async function retrieveProposalCreatedEvent(
 ): Promise<DecodedProposalEvent> {
   const cleanId = proposalId.trim();
 
-  // 1. Try Blockscout explorer logs endpoint (fast, complete historical range)
+  // 1. Try Blockscout explorer logs with pagination
   let matchingEvent: DecodedProposalEvent | null = null;
   try {
-    const blockscoutLogs = await fetchLogsFromBlockscout(network, governorAddress);
-    for (const log of blockscoutLogs) {
-      const parsed = parseProposalCreatedLog(log, cleanId);
-      if (parsed) {
-        if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-          throw new Error(`Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`);
-        }
-        matchingEvent = parsed;
-      }
-    }
+    matchingEvent = await fetchProposalEventFromBlockscout(network, governorAddress, cleanId);
   } catch (err: unknown) {
     if (err instanceof Error && err.message.startsWith('Ambiguous event')) {
       throw err;
     }
-    // Fallback to RPC
+    // Fall back to RPC without reporting missing
   }
 
   if (matchingEvent) {
     return matchingEvent;
   }
 
-  // 2. Fallback to RPC logs with anchor hint if available
-  const anchorBlock = KNOWN_PROPOSAL_BLOCK_HINTS[cleanId];
-  const rpcLogs = await fetchLogsFromRpc(client, governorAddress, anchorBlock);
-  for (const log of rpcLogs) {
-    const parsed = parseProposalCreatedLog(log, cleanId);
-    if (parsed) {
-      if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-        throw new Error(`Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`);
-      }
-      matchingEvent = parsed;
+  // 2. Fallback to RPC logs with adaptive range scanning and on-chain snapshot targeting
+  try {
+    matchingEvent = await fetchProposalEventFromRpc(client, network, governorAddress, cleanId);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.startsWith('Ambiguous event')) {
+      throw err;
     }
   }
 
@@ -317,7 +460,9 @@ export async function retrieveProposalCreatedEvent(
     return matchingEvent;
   }
 
-  throw new Error(`ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`);
+  throw new Error(
+    `ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`
+  );
 }
 
 export async function readGovernorProposalState(

@@ -24,7 +24,7 @@ export const SUPPORTED_NETWORKS: Record<SupportedNetwork, NetworkConfig> = {
     id: 'base',
     chainId: 8453,
     name: 'Base Mainnet',
-    defaultRpcUrl: 'https://base.gateway.tenderly.co',
+    defaultRpcUrl: 'https://base-rpc.publicnode.com',
     envRpcKey: 'BASE_RPC_URL',
     explorerUrl: 'https://basescan.org',
     blockscoutApiUrl: 'https://base.blockscout.com/api',

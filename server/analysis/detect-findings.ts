@@ -36,30 +36,68 @@ export const KNOWN_ROLE_HASHES: Record<string, { name: string; description: stri
   },
 };
 
+export type RoleVerificationStatus = 'verified' | 'recognized_standard_hash' | 'unknown';
+
 export interface RoleResolution {
   roleName: string;
+  status: RoleVerificationStatus;
   isVerifiable: boolean;
   explanation: string;
 }
 
 /**
- * Resolve role semantics from verifiable contract evidence or known role definitions
+ * Resolve role semantics from verifiable contract evidence or known role definitions.
+ * Distinguishes between verified contract semantics, recognized standard hashes, and unknown roles.
  */
-export function resolveRoleSemantics(roleHex: string): RoleResolution {
+export function resolveRoleSemantics(roleHex: string, targetName?: string): RoleResolution {
   const normalized = roleHex.toLowerCase();
   const known = KNOWN_ROLE_HASHES[normalized];
+
   if (known) {
+    // Contract-specific evidence: target contract is a verified Timelock or known AccessControl contract
+    const targetIsTimelock = Boolean(targetName && /timelock/i.test(targetName));
+    const targetIsKnownAccessControl = Boolean(
+      targetName && /(accesscontrol|governor|token)/i.test(targetName)
+    );
+
+    if (
+      targetIsTimelock &&
+      (known.name === 'PROPOSER_ROLE' ||
+        known.name === 'EXECUTOR_ROLE' ||
+        known.name === 'CANCELLER_ROLE' ||
+        known.name === 'TIMELOCK_ADMIN_ROLE')
+    ) {
+      return {
+        roleName: known.name,
+        status: 'verified',
+        isVerifiable: true,
+        explanation: `${known.name}: Confirmed on verified ${targetName}. ${known.description}`,
+      };
+    }
+
+    if (targetIsKnownAccessControl && known.name === 'DEFAULT_ADMIN_ROLE') {
+      return {
+        roleName: known.name,
+        status: 'verified',
+        isVerifiable: true,
+        explanation: `${known.name}: Confirmed on verified ${targetName}. ${known.description}`,
+      };
+    }
+
+    // Hash is recognized from OpenZeppelin standard library, but contract-specific semantics are unconfirmed
     return {
       roleName: known.name,
-      isVerifiable: true,
-      explanation: `${known.name}: ${known.description}`,
+      status: 'recognized_standard_hash',
+      isVerifiable: false,
+      explanation: `Matches standard OpenZeppelin ${known.name} hash, but contract-specific semantics are unverified on target contract without implementation proof.`,
     };
   }
 
   return {
     roleName: 'Unknown Role',
+    status: 'unknown',
     isVerifiable: false,
-    explanation: `Unverifiable role identifier ${roleHex}; semantics could not be confirmed on-chain.`,
+    explanation: `Unrecognized role identifier ${roleHex}; semantics could not be confirmed on-chain.`,
   };
 }
 
@@ -106,38 +144,70 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
 
     // 1. grantRole(bytes32,address)
     if (fn === 'grantRole') {
-      const roleArg = action.args?.find((a) => a.name.toLowerCase().includes('role') || a.type === 'bytes32')?.value || action.args?.[0]?.value || '';
-      const accountArg = action.args?.find((a) => a.name.toLowerCase().includes('account') || a.type === 'address')?.value || action.args?.[1]?.value || '';
-      const roleSemantics = resolveRoleSemantics(roleArg);
+      const roleArg =
+        action.args?.find((a) => a.name.toLowerCase().includes('role') || a.type === 'bytes32')
+          ?.value ||
+        action.args?.[0]?.value ||
+        '';
+      const accountArg =
+        action.args?.find((a) => a.name.toLowerCase().includes('account') || a.type === 'address')
+          ?.value ||
+        action.args?.[1]?.value ||
+        '';
+      const roleSemantics = resolveRoleSemantics(roleArg, action.targetName);
+
+      const title =
+        roleSemantics.status === 'verified'
+          ? `Action #${actionNum} grants privileged role: ${roleSemantics.roleName}`
+          : roleSemantics.status === 'recognized_standard_hash'
+          ? `Action #${actionNum} grants privileged role (unconfirmed semantics): ${roleSemantics.roleName}`
+          : `Action #${actionNum} grants unrecognized role`;
 
       findings.push({
         id: `SENSITIVE_GRANT_ROLE_${i}`,
         severity: 'high',
-        title: `Action #${actionNum} grants privileged role: ${roleSemantics.roleName}`,
+        title,
         description: `Grants role ${roleSemantics.roleName} (${roleArg}) to account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`,
         actionIndex: i,
         target: action.target,
-        verified: roleSemantics.isVerifiable,
-        whyItMatters: 'Permission grants alter access control topology and confer privileged capabilities on the recipient address.',
+        verified: roleSemantics.status === 'verified',
+        whyItMatters:
+          'Permission grants alter access control topology and confer privileged capabilities on the recipient address.',
       });
       continue;
     }
 
     // 2. revokeRole(bytes32,address)
     if (fn === 'revokeRole') {
-      const roleArg = action.args?.find((a) => a.name.toLowerCase().includes('role') || a.type === 'bytes32')?.value || action.args?.[0]?.value || '';
-      const accountArg = action.args?.find((a) => a.name.toLowerCase().includes('account') || a.type === 'address')?.value || action.args?.[1]?.value || '';
-      const roleSemantics = resolveRoleSemantics(roleArg);
+      const roleArg =
+        action.args?.find((a) => a.name.toLowerCase().includes('role') || a.type === 'bytes32')
+          ?.value ||
+        action.args?.[0]?.value ||
+        '';
+      const accountArg =
+        action.args?.find((a) => a.name.toLowerCase().includes('account') || a.type === 'address')
+          ?.value ||
+        action.args?.[1]?.value ||
+        '';
+      const roleSemantics = resolveRoleSemantics(roleArg, action.targetName);
+
+      const title =
+        roleSemantics.status === 'verified'
+          ? `Action #${actionNum} revokes privileged role: ${roleSemantics.roleName}`
+          : roleSemantics.status === 'recognized_standard_hash'
+          ? `Action #${actionNum} revokes role (unconfirmed semantics): ${roleSemantics.roleName}`
+          : `Action #${actionNum} revokes unrecognized role`;
 
       findings.push({
         id: `SENSITIVE_REVOKE_ROLE_${i}`,
         severity: 'medium',
-        title: `Action #${actionNum} revokes privileged role: ${roleSemantics.roleName}`,
-        description: `Revokes role ${roleSemantics.roleName} (${roleArg}) from account ${accountArg} on ${action.targetName || action.target}.`,
+        title,
+        description: `Revokes role ${roleSemantics.roleName} (${roleArg}) from account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`,
         actionIndex: i,
         target: action.target,
-        verified: roleSemantics.isVerifiable,
-        whyItMatters: 'Permission revocations remove capabilities and can affect operational multisigs or automated runners.',
+        verified: roleSemantics.status === 'verified',
+        whyItMatters:
+          'Permission revocations remove capabilities and can affect operational multisigs or automated runners.',
       });
       continue;
     }
