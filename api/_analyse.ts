@@ -394,6 +394,53 @@ async function handleNodeReqRes(req: VercelRequest, res: VercelResponse) {
     const body = (req.body || {}) as any;
     if (body && body.diag) {
       const diagStart = Date.now();
+
+      if (body.diag === 'unlock') {
+        const timings: Record<string, number> = {};
+        const gov = '0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9';
+        const propId = '27419154582993156392805749742953507877176483681373228046916881327937839104508';
+        const client = createChainClient('base');
+
+        let t = Date.now();
+        await verifyNetworkChainId('base', client);
+        const validGov = await validateGovernorContract(client, gov, 'base');
+        timings.validateGovMs = Date.now() - t;
+
+        t = Date.now();
+        const event = await retrieveProposalCreatedEvent(client, 'base', validGov, propId);
+        timings.retrieveEventsMs = Date.now() - t;
+
+        t = Date.now();
+        await readGovernorProposalState(client, validGov, propId);
+        timings.readStateMs = Date.now() - t;
+
+        t = Date.now();
+        const { actions, limitations } = await decodeProposalActions({
+          network: 'base',
+          targets: event.targets,
+          values: event.values,
+          signatures: event.signatures,
+          calldatas: event.calldatas,
+          client,
+        });
+        timings.decodeActionsMs = Date.now() - t;
+
+        t = Date.now();
+        const findings = detectFindings(actions);
+        timings.detectFindingsMs = Date.now() - t;
+
+        t = Date.now();
+        const consistency = checkDescriptionActionConsistency(event.description, actions);
+        timings.consistencyMs = Date.now() - t;
+
+        t = Date.now();
+        const assessment = buildAssessment({ actions, findings, consistency, limitations });
+        timings.assessmentMs = Date.now() - t;
+
+        timings.totalMs = Date.now() - diagStart;
+        return res.status(200).json({ timings, assessment, actionsCount: actions.length });
+      }
+
       const baseConfig = SUPPORTED_NETWORKS.base;
       const ethConfig = SUPPORTED_NETWORKS.ethereum;
       const baseRpcEnv = Boolean(process.env[baseConfig.envRpcKey]);
