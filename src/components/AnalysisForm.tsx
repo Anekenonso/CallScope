@@ -114,7 +114,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
           <span className="examples-label">Reference fixtures:</span>
           <button
             type="button"
-            className="example-link-btn"
+            className="example-preset-pill"
             disabled={isLoading}
             onClick={() =>
               loadExample(
@@ -124,12 +124,12 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
               )
             }
           >
-            ENS (Ethereum)
+            <span className="preset-network-badge">ETH</span>
+            <span>ENS EP 6.50</span>
           </button>
-          <span className="example-divider">·</span>
           <button
             type="button"
-            className="example-link-btn"
+            className="example-preset-pill"
             disabled={isLoading}
             onClick={() =>
               loadExample(
@@ -139,7 +139,8 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
               )
             }
           >
-            Unlock (Base)
+            <span className="preset-network-badge">BASE</span>
+            <span>Unlock Transfers</span>
           </button>
         </div>
       </form>

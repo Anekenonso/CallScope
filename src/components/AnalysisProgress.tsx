@@ -127,11 +127,11 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
       </div>
 
       <div className="progress-steps-list">
-        {PIPELINE_STAGES.map((step) => (
+        {PIPELINE_STAGES.map((step, idx) => (
           <div key={step.id} className="progress-step-item step-current">
             <div className="step-indicator">
               <span className="step-icon current-icon" aria-label="Pipeline stage in progress">
-                <span className="pulse-dot" />
+                <span className="pulse-dot" style={{ animationDelay: `${idx * 0.25}s` }} />
               </span>
             </div>
 

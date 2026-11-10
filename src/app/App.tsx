@@ -141,6 +141,14 @@ export const App: React.FC = () => {
             </div>
           )}
         </main>
+
+        <footer className="app-footer">
+          <div className="footer-meta">
+            <span className="footer-system-dot" aria-hidden="true" />
+            <span>Callscope Governance Engine · Deterministic analysis authoritative</span>
+          </div>
+          <span className="footer-note">Ethereum &amp; Base Governor Compatibility</span>
+        </footer>
       </div>
     </ErrorBoundary>
   );
