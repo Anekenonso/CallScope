@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
-import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem } from '../src/types/analysis';
+import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview } from '../src/types/analysis';
 import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
 import { retrieveProposalCreatedEvent, readGovernorProposalState } from '../server/chain/proposal-events';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
 import { detectFindings } from '../server/analysis/detect-findings';
 import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
 import { buildAssessment } from '../server/analysis/build-assessment';
+import { reviewWithServ } from '../server/providers/serv';
+import { reviewWithDolphin } from '../server/providers/dolphin';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 
 export default async function handler(
@@ -84,6 +86,22 @@ export default async function handler(
       limitations,
     });
 
+    // 9. Run sponsor advisory reviews concurrently (bounded, non-blocking)
+    const [servResult, dolphinResult] = await Promise.allSettled([
+      reviewWithServ(event.description, actions),
+      reviewWithDolphin(event.description, actions, findings),
+    ]);
+
+    const servReview: ProviderReview =
+      servResult.status === 'fulfilled'
+        ? servResult.value
+        : { status: 'error', error: servResult.reason?.message || 'SERV review failed' };
+
+    const dolphinReview: ProviderReview =
+      dolphinResult.status === 'fulfilled'
+        ? dolphinResult.value
+        : { status: 'error', error: dolphinResult.reason?.message || 'Dolphin review failed' };
+
     // Evidence links
     const networkConfig = SUPPORTED_NETWORKS[network];
     const evidence: EvidenceItem[] = [
@@ -126,8 +144,8 @@ export default async function handler(
       findings,
       descriptionConsistency,
       reviews: {
-        serv: { status: 'not_configured' },
-        dolphin: { status: 'not_configured' },
+        serv: servReview,
+        dolphin: dolphinReview,
       },
       limitations,
       evidence,
