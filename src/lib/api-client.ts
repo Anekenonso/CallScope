@@ -9,7 +9,15 @@ export async function analyseProposal(request: AnalysisRequest): Promise<Analysi
     body: JSON.stringify(request),
   });
 
-  const data = await response.json();
+  const text = await response.text();
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    // Upstream server or gateway returned non-JSON (e.g. 500/504 gateway response)
+    const preview = text.trim().slice(0, 160) || response.statusText || 'Server error';
+    throw new Error(`Server returned HTTP ${response.status}: ${preview}`);
+  }
 
   if (!response.ok) {
     const errorData = data as ApiErrorResponse;
