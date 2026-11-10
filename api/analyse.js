@@ -1938,6 +1938,48 @@ async function handleNodeReqRes(req, res) {
   }
   try {
     const body = req.body || {};
+    if (body && body.diag) {
+      const diagStart = Date.now();
+      const baseConfig = SUPPORTED_NETWORKS.base;
+      const ethConfig = SUPPORTED_NETWORKS.ethereum;
+      const baseRpcEnv = Boolean(process.env[baseConfig.envRpcKey]);
+      const ethRpcEnv = Boolean(process.env[ethConfig.envRpcKey]);
+      const servKeyEnv = Boolean(process.env.SERV_API_KEY);
+      const dolphinKeyEnv = Boolean(process.env.DOLPHIN_API_KEY);
+      const ethClient = createChainClient("ethereum");
+      const baseClient = createChainClient("base");
+      let ethLatency = -1;
+      let baseLatency = -1;
+      let baseError = null;
+      try {
+        const t0 = Date.now();
+        await ethClient.getBlockNumber();
+        ethLatency = Date.now() - t0;
+      } catch {
+        ethLatency = -1;
+      }
+      try {
+        const t1 = Date.now();
+        await baseClient.getBlockNumber();
+        baseLatency = Date.now() - t1;
+      } catch (e) {
+        baseError = sanitizePublicErrorMessage((e == null ? void 0 : e.message) || "base error");
+      }
+      return res.status(200).json({
+        env: {
+          baseRpcConfigured: baseRpcEnv,
+          ethRpcConfigured: ethRpcEnv,
+          servConfigured: servKeyEnv,
+          dolphinConfigured: dolphinKeyEnv
+        },
+        rpc: {
+          ethLatencyMs: ethLatency,
+          baseLatencyMs: baseLatency,
+          baseError
+        },
+        totalMs: Date.now() - diagStart
+      });
+    }
     const response = await executeAnalysis(body);
     return res.status(200).json(response);
   } catch (err) {
