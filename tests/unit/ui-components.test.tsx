@@ -7,6 +7,7 @@ import { FindingsList } from '../../src/components/FindingsList';
 import { ConsistencyView } from '../../src/components/ConsistencyView';
 import { ProviderReviews } from '../../src/components/ProviderReviews';
 import { EvidenceLinks } from '../../src/components/EvidenceLinks';
+import { AnalysisProgress } from '../../src/components/AnalysisProgress';
 import type { ProposalAction, Finding, ProposalInfo } from '../../src/types/analysis';
 
 describe('UI Component Unit Tests (Phase 6)', () => {
@@ -225,6 +226,30 @@ describe('UI Component Unit Tests (Phase 6)', () => {
       expect(html).toContain('Governor Contract');
       expect(html).toContain('https://etherscan.io/address/0x323A76393544d5ecca80cd6ef2a560C6a395b7E3');
       expect(html).toContain('Analysis limited to verified contracts.');
+    });
+  });
+
+  describe('AnalysisProgress', () => {
+    it('renders animated visual pipeline with steps, tags, and elapsed indicator', () => {
+      const html = renderToString(
+        <AnalysisProgress
+          network="ethereum"
+          governorAddress="0x323A76393544d5ecca80cd6ef2A560C6a395b7E3"
+          proposalId="77767899528494238518019756391533686963875234067646094287125791110488147463806"
+        />
+      );
+      expect(html).toContain('Analysing on-chain proposal');
+      expect(html).toContain('ETHEREUM');
+      expect(html).toContain('0x323A76...95b7E3');
+      expect(html).toContain('7776789952');
+      expect(html).toContain('Connecting to RPC Node');
+      expect(html).toContain('Retrieving Proposal Logs');
+      expect(html).toContain('Resolving ABIs &amp; Proxies');
+      expect(html).toContain('Decoding Execution Actions');
+      expect(html).toContain('Evaluating Deterministic Rules &amp; Sponsor Advisory');
+      expect(html).toContain('Elapsed');
+      expect(html).toContain('analysis-progress-card');
+      expect(html).toContain('progress-bar-shimmer');
     });
   });
 });

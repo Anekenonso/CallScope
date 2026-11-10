@@ -9,6 +9,7 @@ import { FindingsList } from '../components/FindingsList';
 import { ConsistencyView } from '../components/ConsistencyView';
 import { ProviderReviews } from '../components/ProviderReviews';
 import { EvidenceLinks } from '../components/EvidenceLinks';
+import { AnalysisProgress } from '../components/AnalysisProgress';
 import { analyseProposal } from '../lib/api-client';
 
 interface ErrorBoundaryProps {
@@ -63,10 +64,12 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [activeRequest, setActiveRequest] = useState<AnalysisRequest | null>(null);
 
   const handleAnalyse = async (request: AnalysisRequest) => {
     setIsLoading(true);
     setError(null);
+    setActiveRequest(request);
 
     try {
       const data = await analyseProposal(request);
@@ -98,9 +101,11 @@ export const App: React.FC = () => {
           )}
 
           {isLoading && (
-            <div className="loading-box" aria-live="polite">
-              <span>Querying RPC, retrieving proposal logs, and decoding actions...</span>
-            </div>
+            <AnalysisProgress
+              network={activeRequest?.network}
+              governorAddress={activeRequest?.governorAddress}
+              proposalId={activeRequest?.proposalId}
+            />
           )}
 
           {result && (
