@@ -8,7 +8,7 @@ import { checkDescriptionActionConsistency } from '../server/analysis/check-cons
 import { buildAssessment } from '../server/analysis/build-assessment';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
-import { SUPPORTED_NETWORKS, getRpcUrl } from '../server/chain/networks';
+import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -120,7 +120,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     limitations,
   });
 
-  // 9. Run sponsor advisory reviews with a bounded total execution time (max 12s)
+  // 9. Run sponsor advisory reviews with a bounded total execution time (max 18s)
   // Sponsor failures are completely isolated and never invalidate deterministic analysis
   const sponsorTimeoutPromise = new Promise<{ serv: ProviderReview; dolphin: ProviderReview }>(
     (resolve) => {
@@ -129,7 +129,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
           serv: { status: 'error', error: 'SERV review timed out' },
           dolphin: { status: 'error', error: 'Dolphin review timed out' },
         });
-      }, 12_000);
+      }, 18_000);
     }
   );
 
@@ -199,60 +199,6 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
 async function handleWebRequest(request: Request): Promise<Response> {
   // Enforce POST
   if (request.method !== 'POST') {
-    const url = new URL(request.url, 'http://localhost');
-    if (request.method === 'GET' && url.searchParams.get('diag') === 'true') {
-      const diagStart = Date.now();
-      const baseConfig = SUPPORTED_NETWORKS.base;
-      const ethConfig = SUPPORTED_NETWORKS.ethereum;
-      const baseRpcEnv = Boolean(process.env[baseConfig.envRpcKey]);
-      const ethRpcEnv = Boolean(process.env[ethConfig.envRpcKey]);
-      const servKeyEnv = Boolean(process.env.SERV_API_KEY);
-      const dolphinKeyEnv = Boolean(process.env.DOLPHIN_API_KEY);
-
-      const ethClient = createChainClient('ethereum');
-      const baseClient = createChainClient('base');
-      let ethLatency = -1;
-      let baseLatency = -1;
-      let baseError: string | null = null;
-
-      try {
-        const t0 = Date.now();
-        await ethClient.getBlockNumber();
-        ethLatency = Date.now() - t0;
-      } catch {
-        ethLatency = -1;
-      }
-
-      try {
-        const t1 = Date.now();
-        await baseClient.getBlockNumber();
-        baseLatency = Date.now() - t1;
-      } catch (e: any) {
-        baseError = sanitizePublicErrorMessage(e?.message || 'base error');
-      }
-
-      return new Response(
-        JSON.stringify({
-          env: {
-            baseRpcConfigured: baseRpcEnv,
-            ethRpcConfigured: ethRpcEnv,
-            servConfigured: servKeyEnv,
-            dolphinConfigured: dolphinKeyEnv,
-          },
-          rpc: {
-            ethLatencyMs: ethLatency,
-            baseLatencyMs: baseLatency,
-            baseError,
-          },
-          totalMs: Date.now() - diagStart,
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
     return new Response(
       JSON.stringify({
         error: 'Method Not Allowed',
@@ -391,103 +337,7 @@ async function handleNodeReqRes(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const body = (req.body || {}) as any;
-    if (body && body.diag) {
-      const diagStart = Date.now();
-
-      if (body.diag === 'unlock') {
-        const timings: Record<string, number> = {};
-        const gov = '0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9';
-        const propId = '27419154582993156392805749742953507877176483681373228046916881327937839104508';
-        const client = createChainClient('base');
-
-        let t = Date.now();
-        await verifyNetworkChainId('base', client);
-        const validGov = await validateGovernorContract(client, gov, 'base');
-        timings.validateGovMs = Date.now() - t;
-
-        t = Date.now();
-        const event = await retrieveProposalCreatedEvent(client, 'base', validGov, propId);
-        timings.retrieveEventsMs = Date.now() - t;
-
-        t = Date.now();
-        await readGovernorProposalState(client, validGov, propId);
-        timings.readStateMs = Date.now() - t;
-
-        t = Date.now();
-        const { actions, limitations } = await decodeProposalActions({
-          network: 'base',
-          targets: event.targets,
-          values: event.values,
-          signatures: event.signatures,
-          calldatas: event.calldatas,
-          client,
-        });
-        timings.decodeActionsMs = Date.now() - t;
-
-        t = Date.now();
-        const findings = detectFindings(actions);
-        timings.detectFindingsMs = Date.now() - t;
-
-        t = Date.now();
-        const consistency = checkDescriptionActionConsistency(event.description, actions);
-        timings.consistencyMs = Date.now() - t;
-
-        t = Date.now();
-        const assessment = buildAssessment({ actions, findings, consistency, limitations });
-        timings.assessmentMs = Date.now() - t;
-
-        timings.totalMs = Date.now() - diagStart;
-        return res.status(200).json({ timings, assessment, actionsCount: actions.length });
-      }
-
-      const baseConfig = SUPPORTED_NETWORKS.base;
-      const ethConfig = SUPPORTED_NETWORKS.ethereum;
-      const baseRpcEnv = Boolean(process.env[baseConfig.envRpcKey]);
-      const ethRpcEnv = Boolean(process.env[ethConfig.envRpcKey]);
-      const servKeyEnv = Boolean(process.env.SERV_API_KEY);
-      const dolphinKeyEnv = Boolean(process.env.DOLPHIN_API_KEY);
-
-      const ethClient = createChainClient('ethereum');
-      const baseClient = createChainClient('base');
-      let ethLatency = -1;
-      let baseLatency = -1;
-      let baseError: string | null = null;
-
-      try {
-        const t0 = Date.now();
-        await ethClient.getBlockNumber();
-        ethLatency = Date.now() - t0;
-      } catch {
-        ethLatency = -1;
-      }
-
-      try {
-        const t1 = Date.now();
-        await baseClient.getBlockNumber();
-        baseLatency = Date.now() - t1;
-      } catch (e: any) {
-        baseError = sanitizePublicErrorMessage(e?.message || 'base error');
-      }
-
-      return res.status(200).json({
-        env: {
-          baseRpcConfigured: baseRpcEnv,
-          ethRpcConfigured: ethRpcEnv,
-          servConfigured: servKeyEnv,
-          dolphinConfigured: dolphinKeyEnv,
-          baseRpcHost: new URL(getRpcUrl('base')).hostname,
-          ethRpcHost: new URL(getRpcUrl('ethereum')).hostname,
-        },
-        rpc: {
-          ethLatencyMs: ethLatency,
-          baseLatencyMs: baseLatency,
-          baseError,
-        },
-        totalMs: Date.now() - diagStart,
-      });
-    }
-
+    const body = (req.body || {}) as Partial<AnalysisRequest>;
     const response = await executeAnalysis(body as AnalysisRequest);
     return res.status(200).json(response);
   } catch (err: unknown) {
