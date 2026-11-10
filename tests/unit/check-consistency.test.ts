@@ -81,3 +81,4 @@ describe('checkDescriptionActionConsistency', () => {
     expect(result.discrepancies?.[0]).toContain('upgrades contract implementation');
   });
 });
+

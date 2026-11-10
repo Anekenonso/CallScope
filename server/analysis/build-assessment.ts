@@ -60,3 +60,4 @@ export function buildAssessment(input: BuildAssessmentInput): AssessmentOutcome 
   // 3. Clean assessment
   return 'no_significant_issue_detected';
 }
+
