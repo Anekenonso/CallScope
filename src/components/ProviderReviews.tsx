@@ -44,11 +44,22 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
 
         {review.findings && review.findings.length > 0 && (
           <ul className="review-observations-list">
-            {review.findings.map((item, idx) => (
-              <li key={idx} className="review-observation-item">
-                {item}
-              </li>
-            ))}
+            {review.findings.map((item, idx) => {
+              const text =
+                typeof item === 'string'
+                  ? item
+                  : typeof item === 'object' && item !== null
+                  ? (item as Record<string, unknown>).detail ||
+                    (item as Record<string, unknown>).description ||
+                    JSON.stringify(item)
+                  : String(item);
+
+              return (
+                <li key={idx} className="review-observation-item">
+                  {String(text)}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

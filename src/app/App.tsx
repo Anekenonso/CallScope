@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Component, type ErrorInfo, type ReactNode } from 'react';
 import type { AnalysisRequest, AnalysisResponse } from '../types/analysis';
 import { Header } from '../components/Header';
 import { AnalysisForm } from '../components/AnalysisForm';
@@ -10,6 +10,54 @@ import { ConsistencyView } from '../components/ConsistencyView';
 import { ProviderReviews } from '../components/ProviderReviews';
 import { EvidenceLinks } from '../components/EvidenceLinks';
 import { analyseProposal } from '../lib/api-client';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Callscope UI Error Boundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-banner" role="alert">
+          <span className="error-title">Display error</span>
+          <span>
+            {this.state.error?.message ||
+              'A rendering error occurred while displaying the proposal results.'}
+          </span>
+          <button
+            type="button"
+            className="form-button"
+            style={{ marginTop: '12px', width: 'fit-content' }}
+            onClick={() => this.setState({ hasError: false, error: null })}
+          >
+            Reset display
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -35,57 +83,59 @@ export const App: React.FC = () => {
     result?.actions?.filter((act) => !act.decoded).length ?? 0;
 
   return (
-    <div className="app-container">
-      <Header />
+    <ErrorBoundary>
+      <div className="app-container">
+        <Header />
 
-      <main>
-        <AnalysisForm onAnalyse={handleAnalyse} isLoading={isLoading} />
+        <main>
+          <AnalysisForm onAnalyse={handleAnalyse} isLoading={isLoading} />
 
-        {error && (
-          <div className="error-banner" role="alert">
-            <span className="error-title">Analysis failed</span>
-            <span>{error}</span>
-          </div>
-        )}
+          {error && (
+            <div className="error-banner" role="alert">
+              <span className="error-title">Analysis failed</span>
+              <span>{error}</span>
+            </div>
+          )}
 
-        {isLoading && (
-          <div className="loading-box" aria-live="polite">
-            <span>Querying RPC, retrieving proposal logs, and decoding actions...</span>
-          </div>
-        )}
+          {isLoading && (
+            <div className="loading-box" aria-live="polite">
+              <span>Querying RPC, retrieving proposal logs, and decoding actions...</span>
+            </div>
+          )}
 
-        {result && (
-          <div className="results-container">
-            <AssessmentBanner
-              assessment={result.assessment}
-              findingsCount={result.findings?.length ?? 0}
-              undecodedCount={undecodedCount}
-            />
+          {result && (
+            <div className="results-container">
+              <AssessmentBanner
+                assessment={result.assessment}
+                findingsCount={result.findings?.length ?? 0}
+                undecodedCount={undecodedCount}
+              />
 
-            <ProposalDetails
-              proposal={result.proposal}
-              network={result.network}
-              governorAddress={result.governorAddress}
-            />
+              <ProposalDetails
+                proposal={result.proposal}
+                network={result.network}
+                governorAddress={result.governorAddress}
+              />
 
-            <ActionList actions={result.actions} network={result.network} />
+              <ActionList actions={result.actions} network={result.network} />
 
-            <FindingsList findings={result.findings} />
+              <FindingsList findings={result.findings} />
 
-            <ConsistencyView consistency={result.descriptionConsistency} />
+              <ConsistencyView consistency={result.descriptionConsistency} />
 
-            <ProviderReviews
-              serv={result.reviews?.serv}
-              dolphin={result.reviews?.dolphin}
-            />
+              <ProviderReviews
+                serv={result.reviews?.serv}
+                dolphin={result.reviews?.dolphin}
+              />
 
-            <EvidenceLinks
-              evidence={result.evidence}
-              limitations={result.limitations}
-            />
-          </div>
-        )}
-      </main>
-    </div>
+              <EvidenceLinks
+                evidence={result.evidence}
+                limitations={result.limitations}
+              />
+            </div>
+          )}
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 };

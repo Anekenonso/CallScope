@@ -104,12 +104,27 @@ Output JSON response:`;
       timeoutMs: 30_000,
     });
 
-    const parsed = extractStructuredJson<ServReviewResult>(rawOutput);
+    const parsed = extractStructuredJson<Record<string, unknown>>(rawOutput);
+
+    const rawFindings = Array.isArray(parsed?.findings) ? parsed.findings : [];
+    const normalizedFindings: string[] = rawFindings.map((f: unknown) => {
+      if (typeof f === 'string') return f;
+      if (f && typeof f === 'object') {
+        const obj = f as Record<string, unknown>;
+        if (obj.detail) return `${obj.type ? `[${obj.type}] ` : ''}${obj.detail}`;
+        if (obj.description) return String(obj.description);
+        if (obj.observation) return String(obj.observation);
+        if (obj.message) return String(obj.message);
+        if (obj.title) return `${obj.title}: ${obj.description || ''}`;
+        return JSON.stringify(f);
+      }
+      return String(f);
+    });
 
     return {
       status: 'available',
-      summary: parsed.summary || 'Analysis complete.',
-      findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+      summary: typeof parsed?.summary === 'string' ? parsed.summary : 'Analysis complete.',
+      findings: normalizedFindings,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown SERV error';
