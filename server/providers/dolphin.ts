@@ -119,8 +119,8 @@ Output JSON response:`;
       model,
       systemPrompt,
       userPrompt,
-      maxTokens: 800,
-      timeoutMs: 15_000,
+      maxTokens: 1500,
+      timeoutMs: 35_000,
     });
 
     const parsed = extractStructuredJson<DolphinReviewResult>(rawOutput);

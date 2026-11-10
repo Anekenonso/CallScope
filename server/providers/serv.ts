@@ -52,7 +52,11 @@ export async function reviewWithServ(
     };
   }
 
-  const model = process.env.SERV_MODEL || 'gpt-4o-mini';
+  let model = process.env.SERV_MODEL || 'serv-mini';
+  // OpenServ inference API native model identifier mapping
+  if (model === '4o-mini' || model === 'gpt-4o-mini') {
+    model = 'serv-mini';
+  }
 
   const systemPrompt = `You are an expert DAO proposal analysis agent powered by OpenServ SERV.
 Your role is to rigorously compare a DAO governance proposal description with its actual on-chain executable actions.
@@ -96,8 +100,8 @@ Output JSON response:`;
       model,
       systemPrompt,
       userPrompt,
-      maxTokens: 800,
-      timeoutMs: 15_000,
+      maxTokens: 1000,
+      timeoutMs: 30_000,
     });
 
     const parsed = extractStructuredJson<ServReviewResult>(rawOutput);

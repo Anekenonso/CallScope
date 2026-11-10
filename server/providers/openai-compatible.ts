@@ -50,6 +50,16 @@ export async function callOpenAiCompatible(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const requestBody: Record<string, unknown> = {
+      model: model || 'serv-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_completion_tokens: maxTokens,
+      temperature,
+    };
+
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -57,15 +67,7 @@ export async function callOpenAiCompatible(
         Authorization: `Bearer ${apiKey.trim()}`,
         'User-Agent': 'Callscope/1.0 (DAO Proposal Analysis Tool)',
       },
-      body: JSON.stringify({
-        model: model || 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        max_tokens: maxTokens,
-        temperature,
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
 
