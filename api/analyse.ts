@@ -3,6 +3,9 @@ import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem 
 import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
 import { retrieveProposalCreatedEvent, readGovernorProposalState } from '../server/chain/proposal-events';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
+import { detectFindings } from '../server/analysis/detect-findings';
+import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
+import { buildAssessment } from '../server/analysis/build-assessment';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 
 export default async function handler(
@@ -67,6 +70,20 @@ export default async function handler(
       client,
     });
 
+    // 6. Run deterministic security checks
+    const findings = detectFindings(actions);
+
+    // 7. Check consistency between proposal description and executable actions
+    const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
+
+    // 8. Build final deterministic assessment
+    const assessment = buildAssessment({
+      actions,
+      findings,
+      consistency: descriptionConsistency,
+      limitations,
+    });
+
     // Evidence links
     const networkConfig = SUPPORTED_NETWORKS[network];
     const evidence: EvidenceItem[] = [
@@ -94,7 +111,7 @@ export default async function handler(
     }
 
     const response: AnalysisResponse = {
-      assessment: 'analysis_incomplete', // Assessment engine will be implemented in Phase 4
+      assessment,
       network,
       governorAddress: validGovernor,
       proposal: {
@@ -106,11 +123,8 @@ export default async function handler(
         blockNumber: event.blockNumber.toString(),
       },
       actions,
-      findings: [], // Deterministic findings will be implemented in Phase 4
-      descriptionConsistency: {
-        status: 'indeterminate',
-        explanation: 'Deterministic description consistency analysis scheduled for Phase 4.',
-      },
+      findings,
+      descriptionConsistency,
       reviews: {
         serv: { status: 'not_configured' },
         dolphin: { status: 'not_configured' },

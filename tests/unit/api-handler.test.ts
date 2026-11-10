@@ -86,7 +86,7 @@ describe('api/analyse handler', () => {
     await handler(req, res);
     expect(getStatus()).toBe(200);
     const body = getBody() as Record<string, unknown>;
-    expect(body).toHaveProperty('assessment', 'analysis_incomplete');
+    expect(body).toHaveProperty('assessment', 'review_recommended');
     expect(body).toHaveProperty('network', 'ethereum');
     expect(body).toHaveProperty('governorAddress', '0x323A76393544d5ecca80cd6ef2A560C6a395b7E3');
     expect(body).toHaveProperty('actions');

@@ -1,0 +1,161 @@
+import { describe, it, expect } from 'vitest';
+import {
+  detectFindings,
+  resolveRoleSemantics,
+} from '../../server/analysis/detect-findings';
+import type { ProposalAction } from '../../src/types/analysis';
+
+describe('Role semantics resolution', () => {
+  it('resolves PROPOSER_ROLE from verifiable hash', () => {
+    const roleHex = '0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1';
+    const result = resolveRoleSemantics(roleHex);
+    expect(result.isVerifiable).toBe(true);
+    expect(result.roleName).toBe('PROPOSER_ROLE');
+    expect(result.explanation).toContain('Timelock proposer role');
+  });
+
+  it('resolves DEFAULT_ADMIN_ROLE from 0x00 hash', () => {
+    const roleHex = '0x0000000000000000000000000000000000000000000000000000000000000000';
+    const result = resolveRoleSemantics(roleHex);
+    expect(result.isVerifiable).toBe(true);
+    expect(result.roleName).toBe('DEFAULT_ADMIN_ROLE');
+  });
+
+  it('marks unknown role hash as unverifiable', () => {
+    const roleHex = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+    const result = resolveRoleSemantics(roleHex);
+    expect(result.isVerifiable).toBe(false);
+    expect(result.roleName).toBe('Unknown Role');
+    expect(result.explanation).toContain('Unverifiable role identifier');
+  });
+});
+
+describe('Sensitive operation detection', () => {
+  const dummyTarget = '0x1111111111111111111111111111111111111111';
+
+  it('detects grantRole as high severity finding with decoded parameters', () => {
+    const action: ProposalAction = {
+      index: 0,
+      target: dummyTarget,
+      value: '0',
+      signature: 'grantRole(bytes32,address)',
+      selector: '0x2f2ff15d',
+      decoded: true,
+      functionName: 'grantRole',
+      args: [
+        { name: 'role', type: 'bytes32', value: '0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1' },
+        { name: 'account', type: 'address', value: '0x2acbf518b3759f6e1fa163294eda55bf1d0ae051' },
+      ],
+      rawCalldata: '0x2f2ff15d...',
+    };
+
+    const findings = detectFindings([action]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('high');
+    expect(findings[0]?.title).toContain('PROPOSER_ROLE');
+    expect(findings[0]?.description).toContain('0x2acbf518b3759f6e1fa163294eda55bf1d0ae051');
+    expect(findings[0]?.verified).toBe(true);
+  });
+
+  it('detects transferOwnership as critical finding', () => {
+    const action: ProposalAction = {
+      index: 0,
+      target: dummyTarget,
+      value: '0',
+      signature: '',
+      selector: '0xf2fde38b',
+      decoded: true,
+      functionName: 'transferOwnership',
+      args: [
+        { name: 'newOwner', type: 'address', value: '0x9999999999999999999999999999999999999999' },
+      ],
+      rawCalldata: '0xf2fde38b...',
+    };
+
+    const findings = detectFindings([action]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('critical');
+    expect(findings[0]?.title).toContain('transfers contract ownership');
+  });
+
+  it('detects upgradeTo and upgradeToAndCall as critical finding', () => {
+    const action: ProposalAction = {
+      index: 0,
+      target: dummyTarget,
+      value: '0',
+      signature: '',
+      selector: '0x3659cfe6',
+      decoded: true,
+      functionName: 'upgradeTo',
+      args: [
+        { name: 'newImplementation', type: 'address', value: '0x8888888888888888888888888888888888888888' },
+      ],
+      rawCalldata: '0x3659cfe6...',
+    };
+
+    const findings = detectFindings([action]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('critical');
+    expect(findings[0]?.title).toContain('upgrades implementation logic');
+  });
+
+  it('detects changeAdmin as critical finding', () => {
+    const action: ProposalAction = {
+      index: 0,
+      target: dummyTarget,
+      value: '0',
+      signature: '',
+      selector: '0x8f283970',
+      decoded: true,
+      functionName: 'changeAdmin',
+      args: [
+        { name: 'newAdmin', type: 'address', value: '0x7777777777777777777777777777777777777777' },
+      ],
+      rawCalldata: '0x8f283970...',
+    };
+
+    const findings = detectFindings([action]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('critical');
+    expect(findings[0]?.title).toContain('modifies proxy admin');
+  });
+
+  it('flags undecoded actions with high severity', () => {
+    const action: ProposalAction = {
+      index: 0,
+      target: dummyTarget,
+      value: '0',
+      signature: '',
+      selector: '0x12345678',
+      decoded: false,
+      rawCalldata: '0x12345678deadbeef',
+      decodeError: 'Verified ABI unavailable',
+    };
+
+    const findings = detectFindings([action]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('high');
+    expect(findings[0]?.title).toContain('could not be decoded');
+    expect(findings[0]?.verified).toBe(false);
+  });
+
+  it('returns empty findings for normal benign transfers without native value', () => {
+    const action: ProposalAction = {
+      index: 0,
+      target: dummyTarget,
+      value: '0',
+      signature: '',
+      selector: '0xa9059cbb',
+      decoded: true,
+      functionName: 'transfer',
+      args: [
+        { name: 'to', type: 'address', value: '0x4444444444444444444444444444444444444444' },
+        { name: 'amount', type: 'uint256', value: '1000' },
+      ],
+      rawCalldata: '0xa9059cbb...',
+    };
+
+    const findings = detectFindings([action]);
+    expect(findings).toHaveLength(0);
+  });
+});
