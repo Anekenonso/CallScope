@@ -140,10 +140,114 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   };
 }
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+async function handleWebRequest(request: Request): Promise<Response> {
+  // Enforce POST
+  if (request.method !== 'POST') {
+    return new Response(
+      JSON.stringify({
+        error: 'Method Not Allowed',
+        details: 'Only POST requests are supported.',
+      } satisfies ApiErrorResponse),
+      {
+        status: 405,
+        headers: {
+          'Content-Type': 'application/json',
+          Allow: 'POST',
+        },
+      }
+    );
+  }
+
+  // Rate limiting check
+  const forwarded = request.headers.get('x-forwarded-for');
+  const clientIp = forwarded?.split(',')[0]?.trim() || '127.0.0.1';
+
+  if (isRateLimited(clientIp)) {
+    return new Response(
+      JSON.stringify({
+        error: 'Too Many Requests',
+        details: 'Rate limit exceeded. Please wait before submitting additional proposals.',
+      } satisfies ApiErrorResponse),
+      {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
+  // Read payload text
+  let bodyText = '';
+  try {
+    bodyText = await request.text();
+  } catch {
+    bodyText = '';
+  }
+
+  // Enforce payload size limit (max 64KB)
+  if (bodyText.length > 65_536) {
+    return new Response(
+      JSON.stringify({
+        error: 'Payload Too Large',
+        details: 'Request body exceeds maximum allowed size (64KB).',
+      } satisfies ApiErrorResponse),
+      {
+        status: 413,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
+  let body: AnalysisRequest;
+  try {
+    body = JSON.parse(bodyText || '{}') as AnalysisRequest;
+  } catch {
+    return new Response(
+      JSON.stringify({
+        error: 'Invalid JSON',
+        details: 'Request body is not valid JSON.',
+      } satisfies ApiErrorResponse),
+      {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
+  try {
+    const response = await executeAnalysis(body);
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err: unknown) {
+    if (err instanceof ValidationError) {
+      const errorTitle = err.message.split(':')[0] || 'Bad Request';
+      return new Response(
+        JSON.stringify({
+          error: errorTitle,
+          details: err.message,
+        } satisfies ApiErrorResponse),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    const rawMessage = err instanceof Error ? err.message : 'Internal Server Error';
+    return new Response(
+      JSON.stringify({
+        error: 'Analysis Error',
+        details: sanitizePublicErrorMessage(rawMessage),
+      } satisfies ApiErrorResponse),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+}
+
+async function handleNodeReqRes(req: VercelRequest, res: VercelResponse) {
   // Enforce POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -171,4 +275,27 @@ export default async function handler(
       details: message,
     } satisfies ApiErrorResponse);
   }
+}
+
+export async function POST(request: Request): Promise<Response> {
+  return handleWebRequest(request);
+}
+
+export async function GET(request: Request): Promise<Response> {
+  return handleWebRequest(request);
+}
+
+export default async function handler(
+  req: VercelRequest | Request,
+  res?: VercelResponse
+) {
+  if (
+    !res ||
+    typeof (res as any).status !== 'function' ||
+    (typeof Request !== 'undefined' && req instanceof Request) ||
+    typeof (req as any).json === 'function'
+  ) {
+    return handleWebRequest(req as Request);
+  }
+  return handleNodeReqRes(req as VercelRequest, res as VercelResponse);
 }
