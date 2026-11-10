@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import handler, { POST, GET } from '../../api/analyse';
+import handler, { POST, GET } from '../../api/_analyse';
 import type { VercelRequest, VercelResponse } from '../../src/types/vercel';
 
 function createMockReqRes(method: string, body: unknown) {
