@@ -92,6 +92,16 @@ describe('api/analyse handler', () => {
     expect(body).toHaveProperty('actions');
   }, 60_000);
 
+  it('handles Web Standard GET export directly', async () => {
+    const webReq = new Request('https://callscope-five.vercel.app/api/analyse', {
+      method: 'GET',
+    });
+    const webRes = await GET(webReq);
+    expect(webRes.status).toBe(405);
+    const body = await webRes.json();
+    expect(body).toHaveProperty('error', 'Method Not Allowed');
+  });
+
   it('handles Web Standard Request via default handler', async () => {
     const webReq = new Request('https://callscope-five.vercel.app/api/analyse', {
       method: 'GET',
