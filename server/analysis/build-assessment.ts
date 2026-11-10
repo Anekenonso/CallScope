@@ -9,7 +9,7 @@ export interface BuildAssessmentInput {
   actions: ProposalAction[];
   findings: Finding[];
   consistency: DescriptionConsistency;
-  limitations: string[];
+  limitations?: string[];
 }
 
 /**
@@ -34,7 +34,7 @@ export interface BuildAssessmentInput {
  * An undecoded or opaque action CANNOT produce "no_significant_issue_detected".
  */
 export function buildAssessment(input: BuildAssessmentInput): AssessmentOutcome {
-  const { actions, findings, consistency, limitations } = input;
+  const { actions = [], findings = [], consistency, limitations = [] } = input;
 
   // 1. Check for sensitive operations or high/critical findings
   const hasHighOrCriticalFinding = findings.some(
