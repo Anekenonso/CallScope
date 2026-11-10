@@ -268,55 +268,81 @@ async function queryGovernorSnapshotValue(client, governorAddress, proposalId) {
     return null;
   }
 }
+async function queryGovernorVotingDelay(client, governorAddress) {
+  try {
+    const delay = await client.readContract({
+      address: governorAddress,
+      abi: [
+        {
+          name: "votingDelay",
+          type: "function",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256" }]
+        }
+      ],
+      functionName: "votingDelay"
+    });
+    return BigInt(delay);
+  } catch {
+    return null;
+  }
+}
 async function fetchProposalEventFromRpc(client, network, governorAddress, expectedProposalId) {
   const latestBlock = await client.getBlockNumber();
   let matchingEvent = null;
   const snapshotVal = await queryGovernorSnapshotValue(client, governorAddress, expectedProposalId);
   if (snapshotVal !== null) {
+    const votingDelay = await queryGovernorVotingDelay(client, governorAddress);
+    const creationTimepoint = votingDelay !== null && snapshotVal > votingDelay ? snapshotVal - votingDelay : snapshotVal;
     let targetBlock;
-    if (snapshotVal < 500000000n) {
-      targetBlock = snapshotVal <= latestBlock ? snapshotVal : latestBlock;
+    if (creationTimepoint < 500000000n) {
+      targetBlock = creationTimepoint <= latestBlock ? creationTimepoint : latestBlock;
     } else {
       try {
         const latestBlockData = await client.getBlock({ blockTag: "latest" });
-        const timeDiff = Number(latestBlockData.timestamp - snapshotVal);
-        const secPerBlock = network === "base" ? 0.633 : 12;
+        const timeDiff = Number(latestBlockData.timestamp - creationTimepoint);
+        const secPerBlock = network === "base" ? 0.623 : 12;
         const estimatedDiff = BigInt(Math.max(0, Math.floor(timeDiff / secPerBlock)));
         targetBlock = latestBlockData.number > estimatedDiff ? latestBlockData.number - estimatedDiff : 0n;
       } catch {
         targetBlock = latestBlock;
       }
     }
-    const lookback = network === "base" ? 650000n : 60000n;
-    const windowStart = targetBlock > lookback ? targetBlock - lookback : 0n;
-    const windowEnd = targetBlock + 20000n <= latestBlock ? targetBlock + 20000n : latestBlock;
-    const chunkSize2 = 50000n;
-    const ranges = [];
-    let bTo = windowEnd;
-    while (bTo > windowStart) {
-      const bFrom = bTo > chunkSize2 ? bTo - chunkSize2 : 0n;
-      ranges.push([bFrom, bTo]);
-      if (bFrom === 0n || bFrom <= windowStart) break;
-      bTo = bFrom - 1n;
-    }
-    const batchSize = 4;
-    for (let i = 0; i < ranges.length; i += batchSize) {
-      const batch = ranges.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(async ([fromBlock, toBlock]) => {
-          try {
-            return await client.getLogs({
-              address: governorAddress,
-              topics: [PROPOSAL_CREATED_TOPIC0],
-              fromBlock,
-              toBlock
-            });
-          } catch {
-            return [];
-          }
-        })
-      );
-      for (const logs of batchResults) {
+    const rings = [
+      // Ring 0: immediate target (within ±5,000 blocks)
+      [
+        targetBlock > 5000n ? targetBlock - 5000n : 0n,
+        targetBlock + 5000n <= latestBlock ? targetBlock + 5000n : latestBlock
+      ],
+      // Ring 1: slightly wider backward & forward
+      [
+        targetBlock > 14900n ? targetBlock - 14900n : 0n,
+        targetBlock > 5001n ? targetBlock - 5001n : 0n
+      ],
+      [
+        targetBlock + 5001n <= latestBlock ? targetBlock + 5001n : latestBlock,
+        targetBlock + 14900n <= latestBlock ? targetBlock + 14900n : latestBlock
+      ],
+      // Ring 2: wider margin
+      [
+        targetBlock > 24800n ? targetBlock - 24800n : 0n,
+        targetBlock > 14901n ? targetBlock - 14901n : 0n
+      ],
+      [
+        targetBlock + 14901n <= latestBlock ? targetBlock + 14901n : latestBlock,
+        targetBlock + 24800n <= latestBlock ? targetBlock + 24800n : latestBlock
+      ]
+    ];
+    for (const [fromBlock, toBlock] of rings) {
+      if (fromBlock >= toBlock) continue;
+      try {
+        const logs = await client.getLogs({
+          address: governorAddress,
+          topics: [PROPOSAL_CREATED_TOPIC0],
+          fromBlock,
+          toBlock
+        });
         for (const log of logs) {
           const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
           if (parsed) {
@@ -328,11 +354,44 @@ async function fetchProposalEventFromRpc(client, network, governorAddress, expec
             matchingEvent = parsed;
           }
         }
+      } catch {
       }
       if (matchingEvent) return matchingEvent;
     }
+    if (votingDelay === null || votingDelay === 0n) {
+      const lookback = network === "base" ? 650000n : 60000n;
+      const windowStart = targetBlock > lookback ? targetBlock - lookback : 0n;
+      let bTo = targetBlock > 25000n ? targetBlock - 25000n : 0n;
+      const chunkSize2 = 9900n;
+      while (bTo > windowStart) {
+        const bFrom = bTo > chunkSize2 ? bTo - chunkSize2 : 0n;
+        try {
+          const logs = await client.getLogs({
+            address: governorAddress,
+            topics: [PROPOSAL_CREATED_TOPIC0],
+            fromBlock: bFrom,
+            toBlock: bTo
+          });
+          for (const log of logs) {
+            const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
+            if (parsed) {
+              if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+                throw new Error(
+                  `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
+                );
+              }
+              matchingEvent = parsed;
+            }
+          }
+        } catch {
+        }
+        if (matchingEvent) return matchingEvent;
+        if (bFrom === 0n || bFrom <= windowStart) break;
+        bTo = bFrom - 1n;
+      }
+    }
   }
-  let chunkSize = 40000n;
+  let chunkSize = 9900n;
   const minChunkSize = 2000n;
   const maxScanDepth = network === "base" ? 1500000n : 500000n;
   const lowestAllowedBlock = latestBlock > maxScanDepth ? latestBlock - maxScanDepth : 0n;
@@ -1680,7 +1739,7 @@ async function executeAnalysis(request) {
           serv: { status: "error", error: "SERV review timed out" },
           dolphin: { status: "error", error: "Dolphin review timed out" }
         });
-      }, 2e4);
+      }, 12e3);
     }
   );
   const sponsorReviewsPromise = Promise.allSettled([

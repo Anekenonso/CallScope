@@ -120,7 +120,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     limitations,
   });
 
-  // 9. Run sponsor advisory reviews with a bounded total execution time (max 20s)
+  // 9. Run sponsor advisory reviews with a bounded total execution time (max 12s)
   // Sponsor failures are completely isolated and never invalidate deterministic analysis
   const sponsorTimeoutPromise = new Promise<{ serv: ProviderReview; dolphin: ProviderReview }>(
     (resolve) => {
@@ -129,7 +129,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
           serv: { status: 'error', error: 'SERV review timed out' },
           dolphin: { status: 'error', error: 'Dolphin review timed out' },
         });
-      }, 20_000);
+      }, 12_000);
     }
   );
 

@@ -285,6 +285,33 @@ async function queryGovernorSnapshotValue(
 }
 
 /**
+ * Read governor votingDelay from contract if supported
+ */
+async function queryGovernorVotingDelay(
+  client: PublicClient<any, any>,
+  governorAddress: Address
+): Promise<bigint | null> {
+  try {
+    const delay = await client.readContract({
+      address: governorAddress,
+      abi: [
+        {
+          name: 'votingDelay',
+          type: 'function',
+          stateMutability: 'view',
+          inputs: [],
+          outputs: [{ name: '', type: 'uint256' }],
+        },
+      ],
+      functionName: 'votingDelay',
+    });
+    return BigInt(delay as any);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch logs using RPC with adaptive bounded range scanning and contract snapshot targeting.
  * Handles both block-based and timestamp-based snapshot timepoints across Ethereum and Base.
  */
@@ -297,20 +324,26 @@ async function fetchProposalEventFromRpc(
   const latestBlock = await client.getBlockNumber();
   let matchingEvent: DecodedProposalEvent | null = null;
 
-  // 1. If contract supports proposalSnapshot(), query a focused window around the snapshot
+  // 1. If contract supports proposalSnapshot(), target the exact creation window
   const snapshotVal = await queryGovernorSnapshotValue(client, governorAddress, expectedProposalId);
   if (snapshotVal !== null) {
+    const votingDelay = await queryGovernorVotingDelay(client, governorAddress);
+    // In OpenZeppelin Governor: snapshot = creation_timepoint + votingDelay
+    // So creation_timepoint = snapshot - votingDelay
+    const creationTimepoint =
+      votingDelay !== null && snapshotVal > votingDelay ? snapshotVal - votingDelay : snapshotVal;
+
     let targetBlock: bigint;
 
-    if (snapshotVal < 500_000_000n) {
+    if (creationTimepoint < 500_000_000n) {
       // Direct block number (e.g. Ethereum Mainnet)
-      targetBlock = snapshotVal <= latestBlock ? snapshotVal : latestBlock;
+      targetBlock = creationTimepoint <= latestBlock ? creationTimepoint : latestBlock;
     } else {
       // Timestamp (e.g. Base L2 with timestamp timepoints)
       try {
         const latestBlockData = await client.getBlock({ blockTag: 'latest' });
-        const timeDiff = Number(latestBlockData.timestamp - snapshotVal);
-        const secPerBlock = network === 'base' ? 0.633 : 12;
+        const timeDiff = Number(latestBlockData.timestamp - creationTimepoint);
+        const secPerBlock = network === 'base' ? 0.623 : 12;
         const estimatedDiff = BigInt(Math.max(0, Math.floor(timeDiff / secPerBlock)));
         targetBlock =
           latestBlockData.number > estimatedDiff ? latestBlockData.number - estimatedDiff : 0n;
@@ -319,42 +352,43 @@ async function fetchProposalEventFromRpc(
       }
     }
 
-    // A proposal is created between (snapshot - votingDelay) and snapshot.
-    // On Base, votingDelay is ~550,000 blocks (~4 days). On Ethereum ~50,000 blocks.
-    const lookback = network === 'base' ? 650_000n : 60_000n;
-    const windowStart = targetBlock > lookback ? targetBlock - lookback : 0n;
-    const windowEnd = targetBlock + 20_000n <= latestBlock ? targetBlock + 20_000n : latestBlock;
+    // Concentric search rings around targetBlock using <= 9,900 block chunks (safe for all RPCs)
+    const rings: [bigint, bigint][] = [
+      // Ring 0: immediate target (within ±5,000 blocks)
+      [
+        targetBlock > 5_000n ? targetBlock - 5_000n : 0n,
+        targetBlock + 5_000n <= latestBlock ? targetBlock + 5_000n : latestBlock,
+      ],
+      // Ring 1: slightly wider backward & forward
+      [
+        targetBlock > 14_900n ? targetBlock - 14_900n : 0n,
+        targetBlock > 5_001n ? targetBlock - 5_001n : 0n,
+      ],
+      [
+        targetBlock + 5_001n <= latestBlock ? targetBlock + 5_001n : latestBlock,
+        targetBlock + 14_900n <= latestBlock ? targetBlock + 14_900n : latestBlock,
+      ],
+      // Ring 2: wider margin
+      [
+        targetBlock > 24_800n ? targetBlock - 24_800n : 0n,
+        targetBlock > 14_901n ? targetBlock - 14_901n : 0n,
+      ],
+      [
+        targetBlock + 14_901n <= latestBlock ? targetBlock + 14_901n : latestBlock,
+        targetBlock + 24_800n <= latestBlock ? targetBlock + 24_800n : latestBlock,
+      ],
+    ];
 
-    const chunkSize = 50_000n;
-    const ranges: [bigint, bigint][] = [];
-    let bTo = windowEnd;
-    while (bTo > windowStart) {
-      const bFrom = bTo > chunkSize ? bTo - chunkSize : 0n;
-      ranges.push([bFrom, bTo]);
-      if (bFrom === 0n || bFrom <= windowStart) break;
-      bTo = bFrom - 1n;
-    }
+    for (const [fromBlock, toBlock] of rings) {
+      if (fromBlock >= toBlock) continue;
+      try {
+        const logs = await (client as any).getLogs({
+          address: governorAddress,
+          topics: [PROPOSAL_CREATED_TOPIC0],
+          fromBlock,
+          toBlock,
+        });
 
-    // Scan ranges in batches of 4 in parallel for high performance
-    const batchSize = 4;
-    for (let i = 0; i < ranges.length; i += batchSize) {
-      const batch = ranges.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(async ([fromBlock, toBlock]) => {
-          try {
-            return await (client as any).getLogs({
-              address: governorAddress,
-              topics: [PROPOSAL_CREATED_TOPIC0],
-              fromBlock,
-              toBlock,
-            });
-          } catch {
-            return [];
-          }
-        })
-      );
-
-      for (const logs of batchResults) {
         for (const log of logs) {
           const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
           if (parsed) {
@@ -366,14 +400,54 @@ async function fetchProposalEventFromRpc(
             matchingEvent = parsed;
           }
         }
+      } catch {
+        // Continue to next ring
       }
 
       if (matchingEvent) return matchingEvent;
     }
+
+    // If votingDelay was unknown/reverted, also search backwards towards windowStart in 9,900-block chunks
+    if (votingDelay === null || votingDelay === 0n) {
+      const lookback = network === 'base' ? 650_000n : 60_000n;
+      const windowStart = targetBlock > lookback ? targetBlock - lookback : 0n;
+      let bTo = targetBlock > 25_000n ? targetBlock - 25_000n : 0n;
+      const chunkSize = 9_900n;
+
+      while (bTo > windowStart) {
+        const bFrom = bTo > chunkSize ? bTo - chunkSize : 0n;
+        try {
+          const logs = await (client as any).getLogs({
+            address: governorAddress,
+            topics: [PROPOSAL_CREATED_TOPIC0],
+            fromBlock: bFrom,
+            toBlock: bTo,
+          });
+
+          for (const log of logs) {
+            const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
+            if (parsed) {
+              if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+                throw new Error(
+                  `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
+                );
+              }
+              matchingEvent = parsed;
+            }
+          }
+        } catch {
+          // Continue searching
+        }
+
+        if (matchingEvent) return matchingEvent;
+        if (bFrom === 0n || bFrom <= windowStart) break;
+        bTo = bFrom - 1n;
+      }
+    }
   }
 
   // 2. Adaptive backward scanning with dynamic chunk sizing as general fallback
-  let chunkSize = 40_000n;
+  let chunkSize = 9_900n;
   const minChunkSize = 2_000n;
   const maxScanDepth = network === 'base' ? 1_500_000n : 500_000n;
   const lowestAllowedBlock = latestBlock > maxScanDepth ? latestBlock - maxScanDepth : 0n;
