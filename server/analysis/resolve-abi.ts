@@ -285,30 +285,17 @@ export async function resolveContractAbi(
   let isProxy = onChainProxy.isProxy;
   let implementationAddress = onChainProxy.implementationAddress;
 
-  // 2. Fetch target metadata and ABI
-  // On Base, Sourcify is primary due to Cloudflare challenge on base.blockscout.com
-  let targetMetadata: { abi?: Abi; contractName?: string; isProxy?: boolean; implementationAddress?: Address } | null = null;
+  // 2. Fetch target metadata and ABI concurrently with fast timeout
+  const [targetSourcify, targetBlockscout] = await Promise.allSettled([
+    fetchFromSourcify(network, address),
+    fetchFromBlockscoutV2(network, address),
+  ]);
 
-  if (network === 'base') {
-    const sourcifyMeta = await fetchFromSourcify(network, address);
-    if (sourcifyMeta?.abi) {
-      targetMetadata = sourcifyMeta;
-    } else {
-      targetMetadata = await fetchFromBlockscoutV2(network, address);
-    }
-  } else {
-    targetMetadata = await fetchFromBlockscoutV2(network, address);
-    if (!targetMetadata?.abi) {
-      const sourcifyMeta = await fetchFromSourcify(network, address);
-      if (sourcifyMeta?.abi) {
-        targetMetadata = {
-          ...targetMetadata,
-          abi: sourcifyMeta.abi,
-          contractName: sourcifyMeta.contractName || targetMetadata?.contractName,
-        };
-      }
-    }
-  }
+  const targetSourcifyVal = targetSourcify.status === 'fulfilled' ? targetSourcify.value : null;
+  const targetBlockscoutVal = targetBlockscout.status === 'fulfilled' ? targetBlockscout.value : null;
+
+  let targetMetadata: { abi?: Abi; contractName?: string; isProxy?: boolean; implementationAddress?: Address } | null =
+    (targetSourcifyVal?.abi ? targetSourcifyVal : targetBlockscoutVal?.abi ? targetBlockscoutVal : targetBlockscoutVal || targetSourcifyVal) || null;
 
   // If still no ABI, try Blockscout v1
   if (!targetMetadata?.abi) {
@@ -329,30 +316,18 @@ export async function resolveContractAbi(
     }
   }
 
-  // 3. If target is a proxy and implementation address is identified, resolve implementation ABI!
+  // 3. If target is a proxy and implementation address is identified, resolve implementation ABI concurrently!
   if (isProxy && implementationAddress) {
-    let implMetadata: { abi?: Abi; contractName?: string } | null = null;
+    const [implSourcify, implBlockscout] = await Promise.allSettled([
+      fetchFromSourcify(network, implementationAddress),
+      fetchFromBlockscoutV2(network, implementationAddress),
+    ]);
 
-    if (network === 'base') {
-      const sourcifyImpl = await fetchFromSourcify(network, implementationAddress);
-      if (sourcifyImpl?.abi) {
-        implMetadata = sourcifyImpl;
-      } else {
-        implMetadata = await fetchFromBlockscoutV2(network, implementationAddress);
-      }
-    } else {
-      implMetadata = await fetchFromBlockscoutV2(network, implementationAddress);
-      if (!implMetadata?.abi) {
-        const sourcifyImpl = await fetchFromSourcify(network, implementationAddress);
-        if (sourcifyImpl?.abi) {
-          implMetadata = {
-            ...implMetadata,
-            abi: sourcifyImpl.abi,
-            contractName: sourcifyImpl.contractName || implMetadata?.contractName,
-          };
-        }
-      }
-    }
+    const implSourcifyVal = implSourcify.status === 'fulfilled' ? implSourcify.value : null;
+    const implBlockscoutVal = implBlockscout.status === 'fulfilled' ? implBlockscout.value : null;
+
+    let implMetadata: { abi?: Abi; contractName?: string } | null =
+      (implSourcifyVal?.abi ? implSourcifyVal : implBlockscoutVal?.abi ? implBlockscoutVal : implBlockscoutVal || implSourcifyVal) || null;
 
     if (!implMetadata?.abi) {
       const v1Impl = await fetchFromBlockscoutV1(network, implementationAddress);

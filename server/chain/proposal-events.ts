@@ -197,7 +197,7 @@ async function fetchProposalEventFromBlockscout(
           'User-Agent': 'Callscope/1.0 (DAO Proposal Analyzer)',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(12_000),
+        signal: AbortSignal.timeout(3_000),
       });
 
       if (!res.ok) break;

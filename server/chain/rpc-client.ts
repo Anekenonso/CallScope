@@ -10,9 +10,9 @@ export function createChainClient(network: SupportedNetwork): PublicClient<any, 
   return createPublicClient({
     chain,
     transport: http(rpcUrl, {
-      timeout: 15_000,
-      retryCount: 3,
-      retryDelay: 1_000,
+      timeout: 8_000,
+      retryCount: 1,
+      retryDelay: 500,
     }),
   });
 }

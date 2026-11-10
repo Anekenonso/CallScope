@@ -41,9 +41,9 @@ function createChainClient(network) {
   return createPublicClient({
     chain,
     transport: http(rpcUrl, {
-      timeout: 15e3,
-      retryCount: 3,
-      retryDelay: 1e3
+      timeout: 8e3,
+      retryCount: 1,
+      retryDelay: 500
     })
   });
 }
@@ -199,7 +199,7 @@ async function fetchProposalEventFromBlockscout(network, governorAddress, expect
           "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
           Accept: "application/json"
         },
-        signal: AbortSignal.timeout(12e3)
+        signal: AbortSignal.timeout(3e3)
       });
       if (!res.ok) break;
       const json = await res.json();
@@ -677,27 +677,13 @@ async function resolveContractAbi(network, rawAddress, client, cache) {
   const onChainProxy = await detectProxyImplementation(client, address);
   let isProxy = onChainProxy.isProxy;
   let implementationAddress = onChainProxy.implementationAddress;
-  let targetMetadata = null;
-  if (network === "base") {
-    const sourcifyMeta = await fetchFromSourcify(network, address);
-    if (sourcifyMeta == null ? void 0 : sourcifyMeta.abi) {
-      targetMetadata = sourcifyMeta;
-    } else {
-      targetMetadata = await fetchFromBlockscoutV2(network, address);
-    }
-  } else {
-    targetMetadata = await fetchFromBlockscoutV2(network, address);
-    if (!(targetMetadata == null ? void 0 : targetMetadata.abi)) {
-      const sourcifyMeta = await fetchFromSourcify(network, address);
-      if (sourcifyMeta == null ? void 0 : sourcifyMeta.abi) {
-        targetMetadata = {
-          ...targetMetadata,
-          abi: sourcifyMeta.abi,
-          contractName: sourcifyMeta.contractName || (targetMetadata == null ? void 0 : targetMetadata.contractName)
-        };
-      }
-    }
-  }
+  const [targetSourcify, targetBlockscout] = await Promise.allSettled([
+    fetchFromSourcify(network, address),
+    fetchFromBlockscoutV2(network, address)
+  ]);
+  const targetSourcifyVal = targetSourcify.status === "fulfilled" ? targetSourcify.value : null;
+  const targetBlockscoutVal = targetBlockscout.status === "fulfilled" ? targetBlockscout.value : null;
+  let targetMetadata = ((targetSourcifyVal == null ? void 0 : targetSourcifyVal.abi) ? targetSourcifyVal : (targetBlockscoutVal == null ? void 0 : targetBlockscoutVal.abi) ? targetBlockscoutVal : targetBlockscoutVal || targetSourcifyVal) || null;
   if (!(targetMetadata == null ? void 0 : targetMetadata.abi)) {
     const v1Meta = await fetchFromBlockscoutV1(network, address);
     if (v1Meta == null ? void 0 : v1Meta.abi) {
@@ -714,27 +700,13 @@ async function resolveContractAbi(network, rawAddress, client, cache) {
     }
   }
   if (isProxy && implementationAddress) {
-    let implMetadata = null;
-    if (network === "base") {
-      const sourcifyImpl = await fetchFromSourcify(network, implementationAddress);
-      if (sourcifyImpl == null ? void 0 : sourcifyImpl.abi) {
-        implMetadata = sourcifyImpl;
-      } else {
-        implMetadata = await fetchFromBlockscoutV2(network, implementationAddress);
-      }
-    } else {
-      implMetadata = await fetchFromBlockscoutV2(network, implementationAddress);
-      if (!(implMetadata == null ? void 0 : implMetadata.abi)) {
-        const sourcifyImpl = await fetchFromSourcify(network, implementationAddress);
-        if (sourcifyImpl == null ? void 0 : sourcifyImpl.abi) {
-          implMetadata = {
-            ...implMetadata,
-            abi: sourcifyImpl.abi,
-            contractName: sourcifyImpl.contractName || (implMetadata == null ? void 0 : implMetadata.contractName)
-          };
-        }
-      }
-    }
+    const [implSourcify, implBlockscout] = await Promise.allSettled([
+      fetchFromSourcify(network, implementationAddress),
+      fetchFromBlockscoutV2(network, implementationAddress)
+    ]);
+    const implSourcifyVal = implSourcify.status === "fulfilled" ? implSourcify.value : null;
+    const implBlockscoutVal = implBlockscout.status === "fulfilled" ? implBlockscout.value : null;
+    let implMetadata = ((implSourcifyVal == null ? void 0 : implSourcifyVal.abi) ? implSourcifyVal : (implBlockscoutVal == null ? void 0 : implBlockscoutVal.abi) ? implBlockscoutVal : implBlockscoutVal || implSourcifyVal) || null;
     if (!(implMetadata == null ? void 0 : implMetadata.abi)) {
       const v1Impl = await fetchFromBlockscoutV1(network, implementationAddress);
       if (v1Impl == null ? void 0 : v1Impl.abi) {
