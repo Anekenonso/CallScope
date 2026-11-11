@@ -127,6 +127,8 @@ export interface ReviewItem {
   actionRef?: number;
   findingRef?: string;
   claimRef?: string;
+  evidenceId?: string;
+  toolCallId?: string;
 }
 
 export type ProviderStatus =

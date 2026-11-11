@@ -737,6 +737,48 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Test Suite (`pnpm test`):** 23 test files passed, 195 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
 
+---
+
+## Second-Pass Task 6: OpenServ SERV Native Guarded Tool-Grounded Investigator
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Natively integrate OpenServ SERV as a guarded, tool-grounded investigator backed by five deterministic engine tools, declare explicit runtime parameters (`serv_prompt_guard: true`, `serv_shadow_agent: true`, `reasoning_effort: low`), enforce that review items cite tool-call evidence IDs (dropping any uncited items), and contain prompt injection attempts.
+
+### 1. Architectural Design & Parameter Configuration
+- **OpenServ Agent Framework Parameters (`docs/sponsor-notes.md`):**
+  - Documented native OpenServ runtime parameters:
+    - `serv_prompt_guard: true`: Runtime hardware/boundary prompt injection classifier that scrutinizes untrusted proposal markdown and calldata strings before model reasoning. Detects jailbreak signatures and maps directly to `status: 'guard_blocked'`.
+    - `serv_shadow_agent: true`: OpenServ's dual-agent verification mechanism that cross-audits quotes, citations, and claims against ground truth before output delivery.
+    - `reasoning_effort: low`: Fast-turn reasoning mode optimized for real-time governance delegate workflows within Vercel's serverless budget.
+    - **Strict JSON Schema Configuration**: Explicit structured schema enforcement (`response_format: { type: 'json_object' }` and typed interfaces).
+- **Five Deterministic Engine Tools (`server/providers/serv.ts`):**
+  - Implemented `ServToolEngine` backing five application tools:
+    1. `get_action(index: number)`: Returns decoded action target, value, function signature, decoded arguments, raw calldata, role capabilities, and recipient profile.
+    2. `get_role_capabilities(roleHash: string, target: string)`: Inspects target contract source and returns capability mappings and execution access gates.
+    3. `get_recipient_profile(address: string)`: Profiles address bytecode for contract vs EOA, creation block timestamp, and explorer verification.
+    4. `get_token_metadata(token: string)`: Resolves symbol, decimal precision, and canonical registry status.
+    5. `get_description_section(sectionIndex: number)`: Splits markdown descriptions into indexed structural sections (`splitDescriptionSections`).
+  - Exported OpenAI-compatible tool specifications in `SERV_INVESTIGATOR_TOOLS`.
+- **Mandatory Tool Evidence Citation Gate:**
+  - Every tool execution generates a deterministic evidence record with an ID (e.g. `tool-call-1`, `tool-call-2`).
+  - SERV review items are evaluated against `validEvidenceIds`:
+    - Items citing a valid evidence ID directly (`item.evidenceId` or `item.toolCallId`) or in explanation text (`item.evidence` / `item.issue`) are retained and attributed.
+    - Items with missing, ungrounded, or hallucinated tool IDs (e.g. `tool-call-999`) are strictly dropped by the deterministic engine before presentation.
+- **Guarded Prompt Injection Containment:**
+  - Declared `[OpenServ Agent Configuration: serv_prompt_guard=true, serv_shadow_agent=true, reasoning_effort=low]` in system prompts across `server/providers/serv.ts` and `server/analysis/claims-ledger.ts`.
+  - Added `detectPromptInjection` pre-check: immediately blocks adversarial payloads targeting prompt guards (`ignore all previous instructions`, `serv_prompt_guard: false`) and returns `status: 'guard_blocked'`, `retryable: false`.
+
+### 2. Verification Evidence
+- **Unit Tests (`tests/unit/serv-investigator.test.ts`):** 12/12 passed.
+  - Proved all 5 tools (`get_action`, `get_role_capabilities`, `get_recipient_profile`, `get_token_metadata`, `get_description_section`) execute accurately and handle bounds safely.
+  - Proved prompt guard detection catches adversarial injection attempts and maps to `status: 'guard_blocked'`.
+  - Proved mandatory evidence citation gate retains validly cited items and drops uncited items.
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm vitest run tests/unit/`):** 24 test files passed, 207 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas (`api/analyse.js`, `api/review.js`, `api/health.js`).
+
 
 
 

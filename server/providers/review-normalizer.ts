@@ -99,6 +99,18 @@ export function normalizeReviewItem(item: unknown): ReviewItem {
       claimRef = rawClaimRef.trim();
     }
 
+    let evidenceId: string | undefined;
+    const rawEvidenceId = obj.evidenceId ?? obj.evidence_id ?? obj.evidenceRef;
+    if (typeof rawEvidenceId === 'string' && rawEvidenceId.trim().length > 0) {
+      evidenceId = rawEvidenceId.trim();
+    }
+
+    let toolCallId: string | undefined;
+    const rawToolCallId = obj.toolCallId ?? obj.tool_call_id ?? obj.toolCall;
+    if (typeof rawToolCallId === 'string' && rawToolCallId.trim().length > 0) {
+      toolCallId = rawToolCallId.trim();
+    }
+
     return {
       kind,
       issue,
@@ -106,6 +118,8 @@ export function normalizeReviewItem(item: unknown): ReviewItem {
       actionRef,
       findingRef,
       claimRef,
+      evidenceId,
+      toolCallId,
     };
   }
 

@@ -8,6 +8,8 @@ export interface OpenAiCompatibleOptions {
   temperature?: number;
   timeoutMs?: number;
   responseFormat?: { type: string; [key: string]: unknown };
+  tools?: Array<Record<string, unknown>>;
+  extraBody?: Record<string, unknown>;
 }
 
 export interface OpenAiCompletionResponse {
@@ -59,9 +61,13 @@ export async function callOpenAiCompatible(
       ],
       max_completion_tokens: maxTokens,
       temperature,
+      ...(options.extraBody || {}),
     };
     if (options.responseFormat) {
       requestBody.response_format = options.responseFormat;
+    }
+    if (options.tools && options.tools.length > 0) {
+      requestBody.tools = options.tools;
     }
 
     const res = await fetch(endpoint, {
@@ -122,6 +128,15 @@ export async function callOpenAiCompatible(
         throw new Error('Provider exhausted token limit during reasoning without generating content');
       }
       throw new Error('Provider returned empty content response');
+    }
+
+    if (
+      content.includes('serv_prompt_guard_triggered') ||
+      content.includes('prompt_guard_blocked') ||
+      content.includes('BLOCKED_BY_PROMPT_GUARD') ||
+      content.includes('prompt injection safety guard')
+    ) {
+      throw new Error('Proposal text triggered provider prompt injection safety guard (serv_prompt_guard).');
     }
 
     return content.trim();

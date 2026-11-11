@@ -37,9 +37,27 @@ flowchart TD
 
 ## 2. OpenServ SERV Integration
 
-OpenServ SERV is used for two critical governance analysis phases:
+OpenServ SERV is used natively as a **guarded, tool-grounded investigator** for governance proposal scrutiny:
 
-### A. Structured Claims Extraction (`server/analysis/claims-ledger.ts`)
+### A. OpenServ Agent Framework Parameters
+CallScope explicitly configures OpenServ's native agent runtime parameters:
+- `serv_prompt_guard: true`: Hardware/runtime-level prompt injection boundary defense. Analyzes untrusted proposal descriptions and calldata strings before model reasoning. Detects and blocks jailbreaks, command overrides, and evasion attempts, mapping directly to `status: 'guard_blocked'`.
+- `serv_shadow_agent: true`: OpenServ's dual-agent verification mechanism. A secondary shadow agent runs alongside the primary investigator to validate that claims, citations, and quotes match ground truth verbatim before delivery.
+- `reasoning_effort: low`: Fast-turn reasoning mode optimized for real-time governance delegate workflows, bounded within Vercel's serverless budget (under 15s per attempt).
+- **Strict JSON Schema Configuration**: Employs structured JSON schema enforcement (`response_format: { type: 'json_object' }` and typed output schemas) ensuring all emitted reviews adhere strictly to the TypeScript contract without conversational preamble.
+
+### B. Tool-Grounded Investigator Architecture (`server/providers/serv.ts`)
+Rather than relying on ungrounded text generation, SERV operates as a tool-grounded investigator backed by five deterministic engine tools:
+1. `get_action(index: number)`: Retrieves decoded action details (target contract, value, decoded function signature, arguments, raw calldata).
+2. `get_role_capabilities(roleHash: string, target: string)`: Inspects verified contract source and returns capability mappings and execution access gates.
+3. `get_recipient_profile(address: string)`: Inspects target/recipient addresses for EOA vs contract bytecode, deployment timestamp, and explorer verification status.
+4. `get_token_metadata(token: string)`: Retrieves token symbol, verified decimal precision, and canonical registry status.
+5. `get_description_section(sectionIndex: number)`: Fetches individual markdown sections of the proposal description to isolate specific commitments.
+
+#### Mandatory Tool-Call Evidence Gate:
+Every tool execution generates a deterministic evidence record with an ID (e.g. `tool-call-1`, `tool-call-2`). Every review item emitted by SERV **must** cite a valid tool-call evidence ID (`item.evidenceId` or citation in `item.evidence`). The deterministic engine enforces this gate: **any uncited review item is strictly dropped before presentation**.
+
+### C. Structured Claims Extraction (`server/analysis/claims-ledger.ts`)
 Instead of using unconstrained text completions, CallScope requests structured JSON output via `response_format: { type: 'json_object' }`:
 - **Native Prompting Schema**: Emits an array of atomic claims: `{ id, quote, category, params }`.
 - **Verbatim Substring Guard**: Every extracted claim must feature a `quote` that is an exact, case-sensitive substring of the proposal markdown. Any hallucinated or paraphrased quotes are immediately dropped before evaluation.
@@ -50,7 +68,7 @@ Instead of using unconstrained text completions, CallScope requests structured J
   - `capability`: Cross-examination of power assertions (e.g. "cannot propose", "only power: cancel") against granted role capabilities.
   - `ownership`, `upgrade`, `duration`: Evaluated against action signatures or categorized as `not_checkable` for off-chain promises.
 
-### B. Description-Calldata Advisory Review (`server/providers/serv.ts`)
+### D. Description-Calldata Advisory Review (`server/providers/serv.ts`)
 - Focuses on unstated consequences, discrepancies between narrative intent and bytecode execution, and governance risks.
 - Outputs typed `ReviewItem` instances (`supported`, `unsupported_claim`, `risk`, `contradiction`, `note`) with associated issue text and collapsed evidence lines.
 

@@ -114,6 +114,14 @@ describe('OpenServ SERV provider adapter', () => {
             role: 'assistant',
             content: JSON.stringify({
               summary: 'SERV: Actions match proposal claims.',
+              items: [
+                {
+                  kind: 'supported',
+                  issue: 'Verified permission grant to multisig.',
+                  evidenceId: 'tool-call-1',
+                  evidence: 'Action 0 matches specification in tool-call-1',
+                },
+              ],
               findings: ['Verified permission grant to multisig.'],
             }),
           },
