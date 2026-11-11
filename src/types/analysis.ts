@@ -70,9 +70,21 @@ export interface DescriptionConsistency {
   discrepancies?: string[];
 }
 
+export type ReviewItemKind = 'supported' | 'unsupported_claim' | 'risk' | 'contradiction' | 'note';
+
+export interface ReviewItem {
+  kind: ReviewItemKind;
+  issue: string;
+  evidence?: string;
+  actionRef?: number;
+  findingRef?: string;
+  claimRef?: string;
+}
+
 export interface ProviderReview {
   status: 'available' | 'unavailable' | 'error' | 'not_configured';
   summary?: string;
+  items?: ReviewItem[];
   findings?: string[];
   error?: string;
 }

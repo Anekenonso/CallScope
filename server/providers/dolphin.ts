@@ -1,15 +1,17 @@
-import type { ProposalAction, Finding, ProviderReview } from '../../src/types/analysis';
+import type { ProposalAction, Finding, ProviderReview, ReviewItem } from '../../src/types/analysis';
 import {
   callOpenAiCompatible,
   extractStructuredJson,
 } from './openai-compatible';
+import { normalizeReviewItem } from './review-normalizer';
 
 export const DOLPHIN_ENDPOINT =
   process.env.DOLPHIN_ENDPOINT || 'https://lighthouse.dphn.ai/run/text-v/v1/chat/completions';
 
 export interface DolphinReviewResult {
   summary: string;
-  findings: string[];
+  items?: ReviewItem[];
+  findings?: Array<string | Record<string, unknown>>;
 }
 
 /**
@@ -128,25 +130,36 @@ Output JSON response:`;
 
     const parsed = extractStructuredJson<Record<string, unknown>>(rawOutput);
 
-    const rawFindings = Array.isArray(parsed?.findings) ? parsed.findings : [];
-    const normalizedFindings: string[] = rawFindings.map((f: unknown) => {
-      if (typeof f === 'string') return f;
-      if (f && typeof f === 'object') {
-        const obj = f as Record<string, unknown>;
-        if (obj.detail) return `${obj.type ? `[${obj.type}] ` : ''}${obj.detail}`;
-        if (obj.description) return String(obj.description);
-        if (obj.observation) return String(obj.observation);
-        if (obj.message) return String(obj.message);
-        if (obj.title) return `${obj.title}: ${obj.description || ''}`;
-        return JSON.stringify(f);
+    const rawList = Array.isArray(parsed?.items)
+      ? parsed.items
+      : Array.isArray(parsed?.findings)
+        ? parsed.findings
+        : [];
+
+    const normalizedItems: ReviewItem[] = rawList.map(normalizeReviewItem);
+
+    // Dolphin: cap at 3 items; each must carry actionRef or findingRef. The server drops items whose refs don't exist.
+    const validDolphinItems = normalizedItems.filter((item) => {
+      if (item.actionRef !== undefined) {
+        return item.actionRef >= 0 && item.actionRef < actions.length;
       }
-      return String(f);
-    });
+      if (item.findingRef) {
+        return findings.some(
+          (f) =>
+            f.id.toLowerCase() === item.findingRef?.toLowerCase() ||
+            f.title.toLowerCase().includes(item.findingRef?.toLowerCase() || '')
+        );
+      }
+      return false;
+    }).slice(0, 3);
+
+    const findingsStrings: string[] = validDolphinItems.map((it) => it.issue);
 
     return {
       status: 'available',
       summary: typeof parsed?.summary === 'string' ? parsed.summary : 'Secondary review complete.',
-      findings: normalizedFindings,
+      items: validDolphinItems,
+      findings: findingsStrings,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown Dolphin error';

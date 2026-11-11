@@ -7,6 +7,7 @@ export interface OpenAiCompatibleOptions {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
+  responseFormat?: { type: string; [key: string]: unknown };
 }
 
 export interface OpenAiCompletionResponse {
@@ -59,6 +60,9 @@ export async function callOpenAiCompatible(
       max_completion_tokens: maxTokens,
       temperature,
     };
+    if (options.responseFormat) {
+      requestBody.response_format = options.responseFormat;
+    }
 
     const res = await fetch(endpoint, {
       method: 'POST',

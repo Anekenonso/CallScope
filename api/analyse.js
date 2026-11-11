@@ -2002,6 +2002,9 @@ async function callOpenAiCompatible(options) {
       max_completion_tokens: maxTokens,
       temperature
     };
+    if (options.responseFormat) {
+      requestBody.response_format = options.responseFormat;
+    }
     const res = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -2077,6 +2080,95 @@ function extractStructuredJson(rawContent) {
     throw new Error(`Failed to parse structured JSON output from provider response: ${rawContent.slice(0, 100)}...`);
   }
 }
+const VALID_KINDS = /* @__PURE__ */ new Set([
+  "supported",
+  "unsupported_claim",
+  "risk",
+  "contradiction",
+  "note"
+]);
+function normalizeKind(rawKind) {
+  if (typeof rawKind !== "string") return "note";
+  const lower = rawKind.trim().toLowerCase();
+  if (VALID_KINDS.has(lower)) {
+    return lower;
+  }
+  if (lower === "unsupported" || lower === "unsupported_claim" || lower.includes("unsupported")) {
+    return "unsupported_claim";
+  }
+  if (lower === "contradiction" || lower.includes("conflict") || lower.includes("mismatch")) {
+    return "contradiction";
+  }
+  if (lower === "risk" || lower === "warning" || lower === "critical" || lower === "hazard") {
+    return "risk";
+  }
+  if (lower === "supported" || lower === "verified" || lower === "valid") {
+    return "supported";
+  }
+  return "note";
+}
+function sanitizeSummaryFromObject(obj) {
+  const parts = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === void 0) continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      parts.push(`${k}: ${v}`);
+    }
+  }
+  if (parts.length > 0) {
+    return parts.join("; ");
+  }
+  return "Note recorded by reviewer.";
+}
+function normalizeReviewItem(item) {
+  if (typeof item === "string") {
+    const trimmed = item.trim();
+    let kind = "note";
+    let issue = trimmed;
+    const kindMatch = trimmed.match(/^\[(supported|unsupported_claim|unsupported|risk|contradiction|note)\]\s*(.*)$/i);
+    if (kindMatch) {
+      kind = normalizeKind(kindMatch[1]);
+      issue = kindMatch[2] || trimmed;
+    }
+    return { kind, issue };
+  }
+  if (typeof item === "object" && item !== null) {
+    const obj = item;
+    const kind = normalizeKind(obj.kind || obj.type || obj.category || obj.status);
+    const rawIssue = obj.issue || obj.detail || obj.description || obj.observation || obj.message || (obj.title ? `${obj.title}: ${obj.description || ""}` : void 0);
+    const issue = rawIssue && typeof rawIssue === "string" && rawIssue.trim().length > 0 ? rawIssue.trim() : sanitizeSummaryFromObject(obj);
+    const evidence = obj.evidence && typeof obj.evidence === "string" && obj.evidence.trim().length > 0 ? obj.evidence.trim() : void 0;
+    let actionRef;
+    const rawActionRef = obj.actionRef ?? obj.action_ref ?? obj.actionIndex ?? obj.action;
+    if (typeof rawActionRef === "number" && Number.isInteger(rawActionRef)) {
+      actionRef = rawActionRef;
+    } else if (typeof rawActionRef === "string" && /^\d+$/.test(rawActionRef.trim())) {
+      actionRef = parseInt(rawActionRef.trim(), 10);
+    }
+    let findingRef;
+    const rawFindingRef = obj.findingRef ?? obj.finding_ref ?? obj.findingId ?? obj.finding;
+    if (typeof rawFindingRef === "string" && rawFindingRef.trim().length > 0) {
+      findingRef = rawFindingRef.trim();
+    }
+    let claimRef;
+    const rawClaimRef = obj.claimRef ?? obj.claim_ref ?? obj.claimId ?? obj.claim;
+    if (typeof rawClaimRef === "string" && rawClaimRef.trim().length > 0) {
+      claimRef = rawClaimRef.trim();
+    }
+    return {
+      kind,
+      issue,
+      evidence,
+      actionRef,
+      findingRef,
+      claimRef
+    };
+  }
+  return {
+    kind: "note",
+    issue: String(item)
+  };
+}
 const SERV_ENDPOINT = process.env.SERV_ENDPOINT || "https://inference-api.openserv.ai/v1/chat/completions";
 function formatActionsForPrompt$1(actions) {
   if (actions.length === 0) {
@@ -2149,24 +2241,14 @@ Output JSON response:`;
       timeoutMs: 3e4
     });
     const parsed = extractStructuredJson(rawOutput);
-    const rawFindings = Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
-    const normalizedFindings = rawFindings.map((f) => {
-      if (typeof f === "string") return f;
-      if (f && typeof f === "object") {
-        const obj = f;
-        if (obj.detail) return `${obj.type ? `[${obj.type}] ` : ""}${obj.detail}`;
-        if (obj.description) return String(obj.description);
-        if (obj.observation) return String(obj.observation);
-        if (obj.message) return String(obj.message);
-        if (obj.title) return `${obj.title}: ${obj.description || ""}`;
-        return JSON.stringify(f);
-      }
-      return String(f);
-    });
+    const rawList = Array.isArray(parsed == null ? void 0 : parsed.items) ? parsed.items : Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
+    const items = rawList.map(normalizeReviewItem);
+    const findings = items.map((it) => it.issue);
     return {
       status: "available",
       summary: typeof (parsed == null ? void 0 : parsed.summary) === "string" ? parsed.summary : "Analysis complete.",
-      findings: normalizedFindings
+      items,
+      findings
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown SERV error";
@@ -2262,24 +2344,28 @@ Output JSON response:`;
       timeoutMs: 4e4
     });
     const parsed = extractStructuredJson(rawOutput);
-    const rawFindings = Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
-    const normalizedFindings = rawFindings.map((f) => {
-      if (typeof f === "string") return f;
-      if (f && typeof f === "object") {
-        const obj = f;
-        if (obj.detail) return `${obj.type ? `[${obj.type}] ` : ""}${obj.detail}`;
-        if (obj.description) return String(obj.description);
-        if (obj.observation) return String(obj.observation);
-        if (obj.message) return String(obj.message);
-        if (obj.title) return `${obj.title}: ${obj.description || ""}`;
-        return JSON.stringify(f);
+    const rawList = Array.isArray(parsed == null ? void 0 : parsed.items) ? parsed.items : Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
+    const normalizedItems = rawList.map(normalizeReviewItem);
+    const validDolphinItems = normalizedItems.filter((item) => {
+      if (item.actionRef !== void 0) {
+        return item.actionRef >= 0 && item.actionRef < actions.length;
       }
-      return String(f);
-    });
+      if (item.findingRef) {
+        return findings.some(
+          (f) => {
+            var _a, _b;
+            return f.id.toLowerCase() === ((_a = item.findingRef) == null ? void 0 : _a.toLowerCase()) || f.title.toLowerCase().includes(((_b = item.findingRef) == null ? void 0 : _b.toLowerCase()) || "");
+          }
+        );
+      }
+      return false;
+    }).slice(0, 3);
+    const findingsStrings = validDolphinItems.map((it) => it.issue);
     return {
       status: "available",
       summary: typeof (parsed == null ? void 0 : parsed.summary) === "string" ? parsed.summary : "Secondary review complete.",
-      findings: normalizedFindings
+      items: validDolphinItems,
+      findings: findingsStrings
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown Dolphin error";

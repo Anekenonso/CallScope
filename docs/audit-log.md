@@ -110,4 +110,42 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `tests/integration/proposal-retrieval.test.ts`: 2/2 passed.
 - `tests/integration/pinned-and-txhash.test.ts`: 4/4 passed.
 
+---
+
+## Task 2: Sponsor Review Normalization, Rendering & Structured Typing
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Eliminate raw `JSON.stringify` leakage, define structured `ReviewItem`, normalize multiple key formats, cap Dolphin reviews at 3 with reference integrity, and add kind badges with collapsible evidence.
+
+### 1. Normalization & Structured Typing
+- Defined `ReviewItem` and `ReviewItemKind` (`'supported' | 'unsupported_claim' | 'risk' | 'contradiction' | 'note'`) in `src/types/analysis.ts`.
+- Created `server/providers/review-normalizer.ts` with `normalizeReviewItem`:
+  - Normalizes heterogeneous key patterns: `issue`, `detail`, `description`, `observation`, `message`, `title`.
+  - Normalizes `evidence` string.
+  - Normalizes and sanitizes reference keys: `actionRef`, `findingRef`, `claimRef`.
+  - For unmapped or unexpected object shapes, transforms into a structured `note` with a sanitized one-line summary. **Never** outputs raw JSON syntax into UI strings.
+- Added `responseFormat` capability to `callOpenAiCompatible` in `server/providers/openai-compatible.ts`.
+
+### 2. Dolphin Reference Integrity
+- Updated `server/providers/dolphin.ts`:
+  - Enforced cap of at most 3 review items.
+  - Required each item to reference either a valid `actionRef` (verified against `actions` bounds) or a valid `findingRef` (matching an existing deterministic finding).
+  - Server automatically drops unreferenced items before returning.
+
+### 3. UI Rendering & Evidence Collapse
+- Updated `src/components/ProviderReviews.tsx`:
+  - Renders each `ReviewItem` with a dedicated kind badge (`[Supported]`, `[Unsupported Claim]`, `[Risk]`, `[Contradiction]`, `[Note]`).
+  - Displays referenced action number, finding ID, or claim ID as appropriate.
+  - Renders an interactive toggle for evidence (`Show evidence` / `Hide evidence`) which is collapsed by default.
+  - Completely removed raw JSON fallback in UI text.
+
+### 4. Verification Evidence
+- `tests/unit/sponsor-review-normalization.test.ts`: 5/5 passed.
+  - Tested exact production payload shape: `{"type":"unsupported_claim","issue":"...","evidence":"..."}`.
+  - Tested alternative key normalization.
+  - Tested unknown object shapes (asserted no raw `{}` JSON syntax leaks).
+  - Tested Dolphin reference integrity filtering and cap at 3 items.
+
+
 
