@@ -1,0 +1,24 @@
+{
+  "chain": "ethereum",
+  "governor": "0x323a76393544d5ecca80cd6ef2a560c6a395b7e3",
+  "proposalId": "999001",
+  "proposer": "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5",
+  "targets": [
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+  ],
+  "values": [
+    "0"
+  ],
+  "signatures": [
+    ""
+  ],
+  "calldatas": [
+    "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400"
+  ],
+  "voteStart": "25524730",
+  "voteEnd": "25554730",
+  "description": "# [SYNTHETIC] Verified Community Grant\n\nAllocate 400 USDC to grantee 0xca7632327567796e51920f6b16373e92c7823854 for documentation tooling maintenance and translation updates.",
+  "blockNumber": "25524730",
+  "transactionHash": "0x1111111111111111111111111111111111111111111111111111111111111111"
+}
+

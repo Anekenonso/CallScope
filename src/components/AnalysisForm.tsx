@@ -233,7 +233,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
         </div>
 
         {/* Examples row */}
-        <div className="examples-row" style={{ marginTop: '16px' }}>
+        <div className="examples-row" style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
           <span className="examples-label">Pinned examples:</span>
           <button
             type="button"
@@ -249,7 +249,39 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
           >
             <span className="preset-network-badge">ETH</span>
             <span className="preset-name">ENS EP 6.50</span>
-            <span className="preset-tag">Role Grant</span>
+            <span className="preset-tag">Review Recommended</span>
+          </button>
+          <button
+            type="button"
+            className="example-preset-pill"
+            disabled={isLoading}
+            onClick={() =>
+              loadExample(
+                'ethereum',
+                '0x323A76393544d5ecca80cd6ef2A560C6a395b7E3',
+                '999001'
+              )
+            }
+          >
+            <span className="preset-network-badge">ETH</span>
+            <span className="preset-name">[SYNTHETIC] Clean Grant</span>
+            <span className="preset-tag">No Issues</span>
+          </button>
+          <button
+            type="button"
+            className="example-preset-pill"
+            disabled={isLoading}
+            onClick={() =>
+              loadExample(
+                'ethereum',
+                '0x323A76393544d5ecca80cd6ef2A560C6a395b7E3',
+                '999002'
+              )
+            }
+          >
+            <span className="preset-network-badge">ETH</span>
+            <span className="preset-name">[SYNTHETIC] Opaque Wrapper</span>
+            <span className="preset-tag">Incomplete</span>
           </button>
           <button
             type="button"
@@ -265,7 +297,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
           >
             <span className="preset-network-badge">BASE</span>
             <span className="preset-name">Unlock Transfers</span>
-            <span className="preset-tag">Token Logic</span>
+            <span className="preset-tag">Token Transfers</span>
           </button>
         </div>
       </form>

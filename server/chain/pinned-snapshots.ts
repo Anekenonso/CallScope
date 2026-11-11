@@ -3,8 +3,15 @@ import type { SupportedNetwork } from './types';
 import type { DecodedProposalEvent } from './proposal-events';
 import ethEnsSnapshot from '../fixtures/ethereum-0x323a76393544d5ecca80cd6ef2a560c6a395b7e3-77767899528494238518019756391533686963875234067646094287125791110488147463806.json';
 import baseUnlockSnapshot from '../fixtures/base-0x65ba0624403fc5ca2b20479e9f626ed4d78e0ad9-27419154582993156392805749742953507877176483681373228046916881327937839104508.json';
+import syntheticCleanGrantSnapshot from '../fixtures/ethereum-0x323a76393544d5ecca80cd6ef2a560c6a395b7e3-999001.json';
+import syntheticUnverifiedUpgradeSnapshot from '../fixtures/ethereum-0x323a76393544d5ecca80cd6ef2a560c6a395b7e3-999002.json';
 
-const PINNED_SNAPSHOTS = [ethEnsSnapshot, baseUnlockSnapshot];
+const PINNED_SNAPSHOTS = [
+  ethEnsSnapshot,
+  baseUnlockSnapshot,
+  syntheticCleanGrantSnapshot,
+  syntheticUnverifiedUpgradeSnapshot,
+];
 
 function parseSnapshot(raw: any): DecodedProposalEvent {
   return {

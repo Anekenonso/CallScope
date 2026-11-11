@@ -92,12 +92,104 @@ async function validateGovernorContract(client, governorAddress, network) {
   }
   return checksummedAddress;
 }
+const chain$3 = "ethereum";
+const governor$3 = "0x323A76393544d5ecca80cd6ef2A560C6a395b7E3";
+const proposalId$3 = "77767899528494238518019756391533686963875234067646094287125791110488147463806";
+const proposer$3 = "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5";
+const targets$3 = [
+  "0xFe89cc7aBB2C4183683ab71653C4cdc9B02D44b7"
+];
+const values$3 = [
+  "0"
+];
+const signatures$3 = [
+  ""
+];
+const calldatas$3 = [
+  "0x2f2ff15db09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc10000000000000000000000002acbf518b3759f6e1fa163294eda55bf1d0ae051"
+];
+const voteStart$3 = "25524728";
+const voteEnd$3 = "25570546";
+const description$3 = "# [Executable] Establishing a new Security Council\n## Abstract\n\nThis proposal establishes the new ENS Security Council based on the results of EP 6.50 “Election of the New ENS DAO Security Council”. The term will last two years, until 16 July 2028.\n\n## Motivation\n\nThe Security Council was originally established in EP 5.13 as a 4-of-8 multisig with a single power: to cancel malicious proposals made to ENS DAO. It cannot propose, amend, or initiate any governance action. Its term was two years, ending 24 July 2026.\n\nThe purpose of this proposal is to establish a new Security Council that will inherit the same responsibilities for the coming two years.\n\n## Specification\n\nA single call to the DAO’s TimelockController, granting `PROPOSER_ROLE` to Blockful’s Security Council contract, which is owned by a multisig with the Security Council members elected in EP 6.50.\n\nThe Security Council contract has been deployed to `0x2acBf518b3759f6e1fA163294eda55bF1d0ae051`, and the multisig to `0x7101B78638e34444F0a5AdE9e1149fbEeC029931`.\n\nAfter two years, any address may call `renounceTimelockRoleByExpiration()` to revoke its cancel power unless `extend()` is called first by a separate DAO proposal.";
+const blockNumber$3 = "25524727";
+const transactionHash$3 = "0x76eefae46df65ef44d7bf95f4a0fd7cc7f0628fd684cc0074d59f1173cddef90";
+const ethEnsSnapshot = {
+  chain: chain$3,
+  governor: governor$3,
+  proposalId: proposalId$3,
+  proposer: proposer$3,
+  targets: targets$3,
+  values: values$3,
+  signatures: signatures$3,
+  calldatas: calldatas$3,
+  voteStart: voteStart$3,
+  voteEnd: voteEnd$3,
+  description: description$3,
+  blockNumber: blockNumber$3,
+  transactionHash: transactionHash$3
+};
+const chain$2 = "base";
+const governor$2 = "0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9";
+const proposalId$2 = "27419154582993156392805749742953507877176483681373228046916881327937839104508";
+const proposer$2 = "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5";
+const targets$2 = [
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187"
+];
+const values$2 = [
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0"
+];
+const signatures$2 = [
+  "",
+  "",
+  "",
+  "",
+  "",
+  ""
+];
+const calldatas$2 = [
+  "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400",
+  "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c7823854000000000000000000000000000000000000000000000a968163f0a57b400000",
+  "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d0000000000000000000000000000000000000000000000000000000029b92700",
+  "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d000000000000000000000000000000000000000000000a968163f0a57b400000",
+  "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000000000000000000bebc200",
+  "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000001fc3842bd1f071c00000"
+];
+const voteStart$2 = "1792917953";
+const voteEnd$2 = "1793436353";
+const description$2 = "# DAO Constant Payment Roll October\nThe next proposal is to make the payment for the months of **September**:\n\nDavid Moderator (Role: Financial & Resources Role)\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125](https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125)\n\nCeci Sakura (Steward of Marketing & Communication):\n\n[https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9](https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9)\n\nDanny (Repository Technical Maintainer):\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591](https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591)";
+const blockNumber$2 = "52891503";
+const transactionHash$2 = "0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385";
+const baseUnlockSnapshot = {
+  chain: chain$2,
+  governor: governor$2,
+  proposalId: proposalId$2,
+  proposer: proposer$2,
+  targets: targets$2,
+  values: values$2,
+  signatures: signatures$2,
+  calldatas: calldatas$2,
+  voteStart: voteStart$2,
+  voteEnd: voteEnd$2,
+  description: description$2,
+  blockNumber: blockNumber$2,
+  transactionHash: transactionHash$2
+};
 const chain$1 = "ethereum";
-const governor$1 = "0x323A76393544d5ecca80cd6ef2A560C6a395b7E3";
-const proposalId$1 = "77767899528494238518019756391533686963875234067646094287125791110488147463806";
+const governor$1 = "0x323a76393544d5ecca80cd6ef2a560c6a395b7e3";
+const proposalId$1 = "999001";
 const proposer$1 = "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5";
 const targets$1 = [
-  "0xFe89cc7aBB2C4183683ab71653C4cdc9B02D44b7"
+  "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 ];
 const values$1 = [
   "0"
@@ -106,14 +198,14 @@ const signatures$1 = [
   ""
 ];
 const calldatas$1 = [
-  "0x2f2ff15db09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc10000000000000000000000002acbf518b3759f6e1fa163294eda55bf1d0ae051"
+  "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400"
 ];
-const voteStart$1 = "25524728";
-const voteEnd$1 = "25570546";
-const description$1 = "# [Executable] Establishing a new Security Council\n## Abstract\n\nThis proposal establishes the new ENS Security Council based on the results of EP 6.50 “Election of the New ENS DAO Security Council”. The term will last two years, until 16 July 2028.\n\n## Motivation\n\nThe Security Council was originally established in EP 5.13 as a 4-of-8 multisig with a single power: to cancel malicious proposals made to ENS DAO. It cannot propose, amend, or initiate any governance action. Its term was two years, ending 24 July 2026.\n\nThe purpose of this proposal is to establish a new Security Council that will inherit the same responsibilities for the coming two years.\n\n## Specification\n\nA single call to the DAO’s TimelockController, granting `PROPOSER_ROLE` to Blockful’s Security Council contract, which is owned by a multisig with the Security Council members elected in EP 6.50.\n\nThe Security Council contract has been deployed to `0x2acBf518b3759f6e1fA163294eda55bF1d0ae051`, and the multisig to `0x7101B78638e34444F0a5AdE9e1149fbEeC029931`.\n\nAfter two years, any address may call `renounceTimelockRoleByExpiration()` to revoke its cancel power unless `extend()` is called first by a separate DAO proposal.";
-const blockNumber$1 = "25524727";
-const transactionHash$1 = "0x76eefae46df65ef44d7bf95f4a0fd7cc7f0628fd684cc0074d59f1173cddef90";
-const ethEnsSnapshot = {
+const voteStart$1 = "25524730";
+const voteEnd$1 = "25554730";
+const description$1 = "# [SYNTHETIC] Verified Community Grant\n\nAllocate 400 USDC to grantee 0xca7632327567796e51920f6b16373e92c7823854 for documentation tooling maintenance and translation updates.";
+const blockNumber$1 = "25524730";
+const transactionHash$1 = "0x1111111111111111111111111111111111111111111111111111111111111111";
+const syntheticCleanGrantSnapshot = {
   chain: chain$1,
   governor: governor$1,
   proposalId: proposalId$1,
@@ -128,48 +220,28 @@ const ethEnsSnapshot = {
   blockNumber: blockNumber$1,
   transactionHash: transactionHash$1
 };
-const chain = "base";
-const governor = "0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9";
-const proposalId = "27419154582993156392805749742953507877176483681373228046916881327937839104508";
-const proposer = "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5";
+const chain = "ethereum";
+const governor = "0x323a76393544d5ecca80cd6ef2a560c6a395b7e3";
+const proposalId = "999002";
+const proposer = "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5";
 const targets = [
-  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
-  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
-  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187"
+  "0x000000000000000000000000000000000000beef"
 ];
 const values = [
-  "0",
-  "0",
-  "0",
-  "0",
-  "0",
   "0"
 ];
 const signatures = [
-  "",
-  "",
-  "",
-  "",
-  "",
   ""
 ];
 const calldatas = [
-  "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400",
-  "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c7823854000000000000000000000000000000000000000000000a968163f0a57b400000",
-  "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d0000000000000000000000000000000000000000000000000000000029b92700",
-  "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d000000000000000000000000000000000000000000000a968163f0a57b400000",
-  "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000000000000000000bebc200",
-  "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000001fc3842bd1f071c00000"
+  "0x6a7612020000000000000000000000001111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0"
 ];
-const voteStart = "1792917953";
-const voteEnd = "1793436353";
-const description = "# DAO Constant Payment Roll October\nThe next proposal is to make the payment for the months of **September**:\n\nDavid Moderator (Role: Financial & Resources Role)\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125](https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125)\n\nCeci Sakura (Steward of Marketing & Communication):\n\n[https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9](https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9)\n\nDanny (Repository Technical Maintainer):\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591](https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591)";
-const blockNumber = "52891503";
-const transactionHash = "0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385";
-const baseUnlockSnapshot = {
+const voteStart = "25524735";
+const voteEnd = "25554735";
+const description = "# [SYNTHETIC] Opaque Multi-Sig Nested Execution\n\nExecutes treasury rebalance via Gnosis Safe transaction wrapper.";
+const blockNumber = "25524735";
+const transactionHash = "0x2222222222222222222222222222222222222222222222222222222222222222";
+const syntheticUnverifiedUpgradeSnapshot = {
   chain,
   governor,
   proposalId,
@@ -184,7 +256,12 @@ const baseUnlockSnapshot = {
   blockNumber,
   transactionHash
 };
-const PINNED_SNAPSHOTS = [ethEnsSnapshot, baseUnlockSnapshot];
+const PINNED_SNAPSHOTS = [
+  ethEnsSnapshot,
+  baseUnlockSnapshot,
+  syntheticCleanGrantSnapshot,
+  syntheticUnverifiedUpgradeSnapshot
+];
 function parseSnapshot(raw) {
   return {
     proposalId: raw.proposalId,
