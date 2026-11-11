@@ -57,9 +57,12 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings }) => {
                     </span>
                   )}
                   {finding.verified && (
-                    <span className="verified-badge" title="Verified against on-chain contract bytecode/ABI">
+                    <span
+                      className="verified-badge"
+                      title={finding.verificationBadge || (finding.id.includes('ROLE') ? 'Role hash matched' : 'Decoded from calldata')}
+                    >
                       <span className="verified-dot" aria-hidden="true" />
-                      <span>Verified on-chain</span>
+                      <span>{finding.verificationBadge || (finding.id.includes('ROLE') ? 'Role hash matched' : 'Decoded from calldata')}</span>
                     </span>
                   )}
                 </div>

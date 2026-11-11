@@ -321,3 +321,39 @@ Our investigation uncovered a compound failure across three distinct layers:
 - All 18 test files in `tests/unit/` (158 tests) passed offline with 0 failures.
 - `pnpm typecheck` passed with 0 errors.
 - `pnpm build` passed with clean prebundled `api/analyse.js` and `api/review.js`.
+---
+
+## Task 7: Overclaim and Copy Sweep
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Align all UI labels, badges, and documentation with verifiable truth. Eliminate overclaiming badges, replace generic findings pills with precise verification sources, convert theme toggle to an accessible icon button, and reconcile README with codebase realities.
+
+### 1. Implementation & Accuracy Corrections
+- **Header Badge (`src/components/Header.tsx`):**
+  - Replaced overclaiming `Verified On-Chain · v0.1` with truthful `Read-only · v0.1 beta`.
+- **Finding Verification Pills (`server/analysis/detect-findings.ts` & `src/components/FindingsList.tsx`):**
+  - Added `verificationBadge` to `Finding` interface.
+  - Replaced generic `Verified on-chain` badge text:
+    - Privilege / role grants & revocations: `Role hash matched` (for recognized OZ/timelock constants like `PROPOSER_ROLE`, `DEFAULT_ADMIN_ROLE`).
+    - Calldata operations (transfers, upgrades, ownership, approvals, safe wrappers): `Decoded from calldata`.
+- **Accessible Theme Toggle (`src/components/Header.tsx` & `src/styles/index.css`):**
+  - Converted from a text status pill to an accessible icon button (`.theme-toggle-icon-btn`).
+  - Added SVGs for Light (Sun), Dark (Moon), and System (Monitor).
+  - Configured `aria-label={`Current theme: ${theme}. Switch to ${nextTheme} theme.`}` and `title`.
+  - Persisted user preference via `localStorage['callscope-theme']` with safe fallback for restricted iframe/sandboxes.
+- **Documentation & README Reconcile (`README.md`):**
+  - Removed `<repository-url>` placeholder and replaced with clone instructions.
+  - Reconciled Base RPC endpoint from erroneous Tenderly URL to `https://base-rpc.publicnode.com` (matching `server/chain/networks.ts`).
+  - Updated test count claim from `80+ automated tests` to `150+ automated tests` (actual count is 160 unit tests + integration suites).
+  - Confirmed `DESIGN.md` exists and is tracked in the repository.
+
+### 2. Verification Evidence
+- `tests/unit/ui-components.test.tsx`: 15/15 passed.
+  - Verified `Header` renders `Read-only · v0.1 beta` and does not contain `Verified On-Chain · v0.1`.
+  - Verified `Header` renders accessible `theme-toggle-icon-btn` with `aria-label` and `title`.
+  - Verified `FindingsList` displays `Role hash matched` for role actions and `Decoded from calldata` for calldata actions, with zero occurrences of `Verified on-chain`.
+- `tests/unit/detect-findings.test.ts`: 10/10 passed (asserted `verificationBadge` property values).
+- All 18 test files in `tests/unit/` (160 tests) passed offline.
+- `pnpm typecheck` passed with 0 errors.
+- `pnpm build` passed with exit code 0.

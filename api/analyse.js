@@ -1516,6 +1516,7 @@ function detectFindings(actions) {
         actionIndex: i,
         target: action.target,
         verified: true,
+        verificationBadge: "Decoded from calldata",
         whyItMatters: "Direct treasury balance transfers alter DAO reserves and should match requested appropriations."
       });
     }
@@ -1529,6 +1530,7 @@ function detectFindings(actions) {
           actionIndex: i,
           target: action.target,
           verified: true,
+          verificationBadge: "Decoded from calldata",
           whyItMatters: "Safe transaction wrappers conceal the underlying destination addresses, token amounts, and contract calls of the transaction."
         });
       } else {
@@ -1570,6 +1572,7 @@ function detectFindings(actions) {
         actionIndex: i,
         target: action.target,
         verified: roleSemantics.status === "verified",
+        verificationBadge: roleSemantics.status === "verified" || roleSemantics.status === "recognized_standard_hash" ? "Role hash matched" : "Decoded from calldata",
         whyItMatters: "Permission grants alter access control topology and confer privileged capabilities on the recipient address."
       });
       continue;
@@ -1598,6 +1601,7 @@ function detectFindings(actions) {
         actionIndex: i,
         target: action.target,
         verified: roleSemantics.status === "verified",
+        verificationBadge: roleSemantics.status === "verified" || roleSemantics.status === "recognized_standard_hash" ? "Role hash matched" : "Decoded from calldata",
         whyItMatters: "Permission revocations remove capabilities and can affect operational multisigs or automated runners."
       });
       continue;
@@ -1626,6 +1630,7 @@ function detectFindings(actions) {
         actionIndex: i,
         target: action.target,
         verified: true,
+        verificationBadge: "Decoded from calldata",
         whyItMatters: "Transferring contract ownership relinquishes exclusive administrative control over the target contract."
       });
       continue;
@@ -1640,6 +1645,7 @@ function detectFindings(actions) {
         actionIndex: i,
         target: action.target,
         verified: true,
+        verificationBadge: "Decoded from calldata",
         whyItMatters: "Smart contract upgrades modify the executable bytecode of the proxy, replacing contract rules and state handling."
       });
       continue;
@@ -1654,6 +1660,7 @@ function detectFindings(actions) {
         actionIndex: i,
         target: action.target,
         verified: true,
+        verificationBadge: "Decoded from calldata",
         whyItMatters: "Proxy admins possess direct authority to upgrade implementation logic or manipulate proxy routing."
       });
       continue;
@@ -1671,6 +1678,7 @@ function detectFindings(actions) {
           actionIndex: i,
           target: action.target,
           verified: true,
+          verificationBadge: "Decoded from calldata",
           whyItMatters: "Unlimited token allowances permit the spender address to drain approved tokens up to the balance held without transaction-level DAO approval."
         });
       } else {
@@ -1690,6 +1698,7 @@ function detectFindings(actions) {
             actionIndex: i,
             target: action.target,
             verified: true,
+            verificationBadge: "Decoded from calldata",
             whyItMatters: "Token approvals delegate withdrawal authority to an external contract or address rather than transferring funds directly. An approval does not automatically execute a transfer or configure an active payment stream."
           });
         }

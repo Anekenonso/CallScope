@@ -10,7 +10,7 @@ The deterministic analysis engine remains strictly authoritative. AI sponsor rev
 
 ## Key Features
 
-- **Direct On-Chain Retrieval**: Fetches exact `ProposalCreated` event logs and current proposal state directly from verified RPC endpoints (Tenderly / public archive nodes).
+- **Direct On-Chain Retrieval**: Fetches exact `ProposalCreated` event logs and current proposal state directly from verified RPC endpoints (Tenderly / public archive nodes on Ethereum; PublicNode / Base.org on Base).
 - **Automated ABI Resolution**: Dynamically resolves verified contract ABIs from Blockscout v2 and Sourcify, with automatic ERC-1967/1822 proxy implementation resolution.
 - **Calldata & Legacy Signature Decoding**: Decodes 4-byte selectors, typed arguments, and legacy separate signatures using `viem`.
 - **Deterministic Assessment Engine**: Rule-based findings engine identifying sensitive operations (`grantRole`, `revokeRole`, `transferOwnership`, `upgradeTo`, `changeAdmin`, infinite approvals) and canonical role semantics (e.g. `PROPOSER_ROLE`, `DEFAULT_ADMIN_ROLE`).
@@ -44,7 +44,7 @@ The deterministic analysis engine remains strictly authoritative. AI sponsor rev
 
 ### 2. Installation
 ```bash
-git clone <repository-url>
+git clone https://github.com/openserv-labs/callscope.git
 cd callscope
 pnpm install
 ```
@@ -57,9 +57,9 @@ cp .env.example .env
 
 Edit `.env` to configure your keys (never commit `.env`):
 ```env
-# Optional custom RPC URLs (defaults to public Tenderly gateways)
+# Optional custom RPC URLs (defaults to Tenderly for Ethereum, PublicNode / Base.org for Base)
 ETHEREUM_RPC_URL=https://gateway.tenderly.co/public/mainnet
-BASE_RPC_URL=https://base.gateway.tenderly.co
+BASE_RPC_URL=https://base-rpc.publicnode.com
 
 # OpenServ SERV provider
 SERV_API_KEY=your_openserv_api_key
@@ -109,7 +109,7 @@ Callscope includes extensive unit, integration, SSR, and adversarial pressure te
 # Typecheck TypeScript codebase
 pnpm typecheck
 
-# Run complete test suite (80+ automated tests)
+# Run complete test suite (150+ automated tests)
 pnpm test
 
 # Build production bundle

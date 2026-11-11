@@ -8,6 +8,7 @@ import { ConsistencyView } from '../../src/components/ConsistencyView';
 import { ProviderReviews } from '../../src/components/ProviderReviews';
 import { EvidenceLinks } from '../../src/components/EvidenceLinks';
 import { AnalysisProgress } from '../../src/components/AnalysisProgress';
+import { Header } from '../../src/components/Header';
 import type { ProposalAction, Finding, ProposalInfo } from '../../src/types/analysis';
 
 describe('UI Component Unit Tests (Phase 6)', () => {
@@ -123,6 +124,17 @@ describe('UI Component Unit Tests (Phase 6)', () => {
     });
   });
 
+  describe('Header', () => {
+    it('renders "Read-only · v0.1 beta" version badge and accessible theme toggle button', () => {
+      const html = renderToString(<Header />);
+      expect(html).toContain('Read-only · v0.1 beta');
+      expect(html).not.toContain('Verified On-Chain · v0.1');
+      expect(html).toContain('theme-toggle-icon-btn');
+      expect(html).toContain('aria-label');
+      expect(html).toContain('title="Theme:');
+    });
+  });
+
   describe('FindingsList', () => {
     const mockFindings: Finding[] = [
       {
@@ -141,9 +153,26 @@ describe('UI Component Unit Tests (Phase 6)', () => {
       expect(html).toMatch(/Findings\s*\([^\d]*1[^\d]*\)/);
       expect(html).toContain('HIGH');
       expect(html).toMatch(/Action\s*#[^\d]*1/);
-      expect(html).toContain('Verified on-chain');
+      expect(html).toContain('Role hash matched');
+      expect(html).not.toContain('Verified on-chain');
       expect(html).toContain('Why it matters:');
       expect(html).toContain('PROPOSER_ROLE allows scheduling arbitrary transactions');
+    });
+
+    it('renders findings with "Decoded from calldata" pill for non-role actions', () => {
+      const calldataFinding: Finding = {
+        id: 'NATIVE_VALUE_TRANSFER_0',
+        severity: 'medium',
+        title: 'Action #1 transfers native ETH',
+        description: 'Action transfers 1 ETH to 0x123.',
+        actionIndex: 0,
+        verified: true,
+        verificationBadge: 'Decoded from calldata',
+        whyItMatters: 'Treasury transfer',
+      };
+      const html = renderToString(<FindingsList findings={[calldataFinding]} />);
+      expect(html).toContain('Decoded from calldata');
+      expect(html).not.toContain('Verified on-chain');
     });
 
     it('renders empty findings state cleanly', () => {

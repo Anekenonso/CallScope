@@ -78,6 +78,7 @@ export interface Finding {
   target?: string;
   verified: boolean;
   whyItMatters: string;
+  verificationBadge?: string;
 }
 
 export type ClaimCategory =

@@ -68,6 +68,7 @@ describe('Sensitive operation detection', () => {
     expect(findings[0]?.title).toContain('PROPOSER_ROLE');
     expect(findings[0]?.description).toContain('0x2acbf518b3759f6e1fa163294eda55bf1d0ae051');
     expect(findings[0]?.verified).toBe(true);
+    expect(findings[0]?.verificationBadge).toBe('Role hash matched');
   });
 
   it('detects transferOwnership with calibrated proportionate severity', () => {
@@ -89,6 +90,7 @@ describe('Sensitive operation detection', () => {
     const findingsHigh = detectFindings([actionHigh]);
     expect(findingsHigh).toHaveLength(1);
     expect(findingsHigh[0]?.severity).toBe('high');
+    expect(findingsHigh[0]?.verificationBadge).toBe('Decoded from calldata');
     expect(findingsHigh[0]?.title).toContain('transfers contract ownership');
 
     // 2. Transfer to governance Timelock calibrated as medium
