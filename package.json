@@ -13,7 +13,9 @@
     "test:all": "vitest run",
     "test:watch": "vitest",
     "check:readme": "node --experimental-strip-types scripts/check-readme-consistency.ts",
-    "compare:sponsors": "node --experimental-strip-types scripts/compare-sponsors.ts"
+    "compare:sponsors": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=sim",
+    "compare:sponsors:sim": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=sim",
+    "compare:sponsors:live": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=live"
   },
   "dependencies": {
     "react": "^18.3.1",

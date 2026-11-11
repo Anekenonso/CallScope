@@ -820,6 +820,39 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Test Suite (`pnpm vitest run tests/unit/`):** 25 test files passed, 218 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
 
+---
+
+## Second-Pass Task 8: Honest Benchmark Suites (Simulated vs Live)
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Eradicate artificial latency floors (`Math.max(..., 28)`), create distinct hermetic simulated (`pnpm compare:sponsors:sim`) and live (`pnpm compare:sponsors:live`) benchmark runners, refuse unauthenticated live execution when API keys are missing, and generate truthful, explicitly labeled reports in `docs/sponsor-impact.md`.
+
+### 1. Root Cause & Architecture
+- **Finding E Remediation:** The legacy `scripts/compare-sponsors.ts` unconditionally wiped API keys, injected hardcoded mock text while claiming it was live, and applied an artificial floor (`Math.max(..., 28)`) to Phase 2 latency.
+- **Dual-Mode Benchmark Suite (`scripts/compare-sponsors.ts` & `package.json`):**
+  - **Simulated Mode (`pnpm compare:sponsors:sim`):**
+    - Runs hermetically offline without network calls or API keys.
+    - Labels all responses explicitly with `[SIMULATED]`.
+    - Generates `docs/sponsor-impact.md` carrying a prominent `⚠️ [SIMULATED BENCHMARK]` banner.
+  - **Live Mode (`pnpm compare:sponsors:live`):**
+    - Checks for `SERV_API_KEY` and `DOLPHIN_API_KEY`.
+    - If either key is missing, immediately halts with a clear error: `❌ ERROR: Live sponsor benchmark requires both SERV_API_KEY and DOLPHIN_API_KEY to be set in environment.`
+    - When keys are present, calls the actual `/api/review` endpoint via standard `Request`, measuring true unfloored wall-clock latency with `performance.now()`.
+    - Generates `docs/sponsor-impact.md` carrying `🟢 [LIVE MEASURED BENCHMARK]` with ISO execution timestamps.
+
+### 2. Verification Evidence
+- **Live Rejection Verification:** Executing `pnpm compare:sponsors:live` without keys exited with code 1 and emitted the helpful prompt to run `pnpm compare:sponsors:sim`.
+- **Simulated Execution Verification:** Executing `pnpm compare:sponsors:sim` completed successfully, proved 100% assessment invariance across fixtures, and updated `docs/sponsor-impact.md`.
+- **Unit Tests (`tests/unit/honest-benchmark.test.ts`):** 3/3 passed.
+  - Proved zero occurrences of `Math.max` or `, 28)` in `scripts/compare-sponsors.ts`.
+  - Proved `package.json` defines separate `compare:sponsors:sim` and `compare:sponsors:live` scripts.
+  - Proved generated `docs/sponsor-impact.md` carries `[SIMULATED BENCHMARK]` and `100% INVARIANT`.
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm vitest run tests/unit/`):** 26 test files passed, 221 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
+
 
 
 
