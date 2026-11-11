@@ -140,14 +140,17 @@ pnpm install
 ```
 
 ### 2. Environment Configuration (Optional)
-Copy `.env.example` to `.env` if you wish to configure live sponsor keys or custom RPC gateways:
+Copy `.env.example` to `.env` if you wish to configure live sponsor keys, persistent distributed cache, or custom RPC gateways:
 ```bash
 cp .env.example .env
 ```
 
-Default RPC endpoints configured in `server/chain/networks.ts`:
-- **Ethereum**: `https://gateway.tenderly.co/public/mainnet`
-- **Base**: `https://base-rpc.publicnode.com`
+Configurable options in `.env`:
+- **Sponsors**: `SERV_API_KEY`, `DOLPHIN_API_KEY`
+- **Cache Mode**: Falls back to in-memory `Map`. For cross-instance serverless caching, set `KV_REST_API_URL` + `KV_REST_API_TOKEN` (Vercel KV) or `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`.
+- **Default RPCs**:
+  - **Ethereum**: `https://gateway.tenderly.co/public/mainnet`
+  - **Base**: `https://base-rpc.publicnode.com`
 
 ### 3. Running the Offline Test Suite
 CallScope separates hermetic offline unit tests from live network suites:
@@ -177,7 +180,8 @@ Open **[http://localhost:5173](http://localhost:5173)** in your browser. All pin
 
 For sub-second cold starts and resilient serverless execution on Vercel, CallScope compiles its API entry points during `pnpm build` via `bundle-api.mjs`:
 - **`api/analyse.js`**: Core deterministic proposal analyzer (`POST /api/analyse`), executed in Phase 1.
-- **`api/review.js`**: Advisory review endpoint (`POST /api/review`), executed in Phase 2.
+- **`api/review.js`**: Advisory review endpoint (`POST /api/review`), executed in Phase 2. Recomputes analysis server-side on cache miss for stateless safety.
+- **`api/health.js`**: Health check and diagnostics endpoint (`GET /api/health`), reporting cache mode (`kv` or `memory`), sponsor readiness, schema version, and build SHA.
 
 Both prebundled outputs are tracked in the repository for reproducible, zero-configuration deployments.
 

@@ -3,23 +3,62 @@ import type { ProviderReview, SupportedNetwork } from '../src/types/analysis';
 import { getProposalCache, setProposalCache, buildCacheKey, checkIpRateLimit } from '../server/cache';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
+import { classifyProviderError } from '../server/providers/openai-compatible';
+import { executeAnalysis, sanitizePublicErrorMessage } from './_analyse';
 import { isSupportedNetwork } from '../server/chain/networks';
 import { isAddress } from 'viem';
 
-async function runWithOneRetry<T>(
-  fn: () => Promise<T>,
-  fallbackValue: T
-): Promise<T> {
-  try {
-    return await fn();
-  } catch {
-    // Retry once
+async function executeWithRetry(
+  providerFn: () => Promise<ProviderReview>,
+  providerName: string
+): Promise<ProviderReview> {
+  const maxAttempts = 2;
+  let attempts = 0;
+  let lastReview: ProviderReview | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    attempts = attempt;
     try {
-      return await fn();
-    } catch {
-      return fallbackValue;
+      const review = await providerFn();
+      review.attempts = attempts;
+      if (review.status === 'ok' || review.status === 'available') {
+        return review;
+      }
+      lastReview = review;
+      if (!review.retryable || attempt === maxAttempts) {
+        return review;
+      }
+      const jitter = Math.floor(Math.random() * 200) + 150;
+      await new Promise((r) => setTimeout(r, jitter));
+    } catch (err: unknown) {
+      const classification = classifyProviderError(err);
+      lastReview = {
+        provider: providerName,
+        status: classification.status,
+        errorClass: classification.errorClass,
+        reason: classification.reason,
+        retryable: classification.retryable,
+        error: classification.reason,
+        attempts,
+      };
+      if (!classification.retryable || attempt === maxAttempts) {
+        return lastReview;
+      }
+      const jitter = Math.floor(Math.random() * 200) + 150;
+      await new Promise((r) => setTimeout(r, jitter));
     }
   }
+
+  return (
+    lastReview || {
+      provider: providerName,
+      status: 'upstream_error',
+      errorClass: 'upstream_error',
+      reason: `${providerName} review failed after ${attempts} attempts.`,
+      error: `${providerName} review failed after ${attempts} attempts.`,
+      attempts,
+    }
+  );
 }
 
 export default async function handler(req: VercelRequest | Request, res?: VercelResponse) {
@@ -89,32 +128,39 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
   }
 
   const cacheKey = buildCacheKey(network as SupportedNetwork, governorAddress, proposalId.trim());
-  const cached = await getProposalCache(cacheKey);
+  let cached = await getProposalCache(cacheKey);
 
-  // Security guard: If deterministic analysis is not yet cached, prompt must not accept raw client actions
+  // Stateless-safe: On cache miss (e.g. distinct serverless instance), recompute the deterministic analysis server-side
+  // from verified proposal identifiers. Prompt input NEVER accepts client-supplied actions or descriptions.
   if (!cached) {
-    const err = {
-      error: 'Proposal Not Analyzed',
-      message: 'Deterministic analysis must be computed before requesting sponsor reviews.',
-    };
-    return isWebStandard ? new Response(JSON.stringify(err), { status: 404 }) : res!.status(404).json(err);
+    try {
+      cached = await executeAnalysis({
+        network: network as SupportedNetwork,
+        governorAddress,
+        proposalId: proposalId.trim(),
+        txHashOrUrl: typeof body.txHashOrUrl === 'string' ? body.txHashOrUrl.trim() : undefined,
+        reverifyLive: Boolean(body.reverifyLive),
+      });
+      await setProposalCache(cacheKey, cached, 300);
+    } catch (recomputeErr: unknown) {
+      const msg = recomputeErr instanceof Error ? recomputeErr.message : 'Recomputation failed';
+      const err = {
+        error: 'Analysis Error',
+        message: `Failed to recompute proposal analysis on cache miss: ${sanitizePublicErrorMessage(msg)}`,
+      };
+      return isWebStandard ? new Response(JSON.stringify(err), { status: 500 }) : res!.status(500).json(err);
+    }
   }
 
   const description = cached.proposal.description;
   const actions = cached.actions;
   const findings = cached.findings;
 
-  // Run each provider with independent timeout and 1 retry
+  // Run each provider with independent timeout and classified retry
   // One provider being slow or failing NEVER blocks or fails the other
   const [servResult, dolphinResult] = await Promise.all([
-    runWithOneRetry(
-      () => reviewWithServ(description, actions),
-      { status: 'error', error: 'SERV review timed out or failed after retry.' } as ProviderReview
-    ),
-    runWithOneRetry(
-      () => reviewWithDolphin(description, actions, findings),
-      { status: 'error', error: 'Dolphin review timed out or failed after retry.' } as ProviderReview
-    ),
+    executeWithRetry(() => reviewWithServ(description, actions), 'OpenServ SERV'),
+    executeWithRetry(() => reviewWithDolphin(description, actions, findings), 'Dolphin'),
   ]);
 
   const reviewsResponse = {

@@ -155,6 +155,7 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
 
   const getStatusBadge = (review: ProviderReview) => {
     switch (review.status) {
+      case 'ok':
       case 'available':
         return (
           <span className="review-status-badge status-available">
@@ -179,16 +180,66 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
             <span>Not configured</span>
           </span>
         );
+      case 'rate_limited':
+        return (
+          <span
+            className="review-status-badge status-rate-limited"
+            style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}
+          >
+            <span className="badge-dot" style={{ backgroundColor: '#fbbf24' }} aria-hidden="true" />
+            <span>Rate limited</span>
+          </span>
+        );
+      case 'timed_out':
+        return (
+          <span
+            className="review-status-badge status-timed-out"
+            style={{ color: '#fb923c', borderColor: 'rgba(251, 146, 60, 0.3)' }}
+          >
+            <span className="badge-dot" style={{ backgroundColor: '#fb923c' }} aria-hidden="true" />
+            <span>Timed out</span>
+          </span>
+        );
+      case 'auth_error':
+        return (
+          <span
+            className="review-status-badge status-auth-error"
+            style={{ color: '#f87171', borderColor: 'rgba(248, 113, 113, 0.3)' }}
+          >
+            <span className="badge-dot" style={{ backgroundColor: '#f87171' }} aria-hidden="true" />
+            <span>Auth error</span>
+          </span>
+        );
+      case 'guard_blocked':
+        return (
+          <span
+            className="review-status-badge status-guard-blocked"
+            style={{ color: '#f43f5e', borderColor: 'rgba(244, 63, 94, 0.3)' }}
+          >
+            <span className="badge-dot" style={{ backgroundColor: '#f43f5e' }} aria-hidden="true" />
+            <span>Guard blocked</span>
+          </span>
+        );
+      case 'schema_invalid':
+        return (
+          <span
+            className="review-status-badge status-schema-invalid"
+            style={{ color: '#e879f9', borderColor: 'rgba(232, 121, 249, 0.3)' }}
+          >
+            <span className="badge-dot" style={{ backgroundColor: '#e879f9' }} aria-hidden="true" />
+            <span>Schema invalid</span>
+          </span>
+        );
+      case 'upstream_error':
       case 'error':
       case 'unavailable':
+      default:
         return (
           <span className="review-status-badge status-error">
             <span className="badge-dot" aria-hidden="true" />
             <span>Unavailable</span>
           </span>
         );
-      default:
-        return null;
     }
   };
 
@@ -221,16 +272,36 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
     if (review.status === 'not_configured') {
       return (
         <p className="review-empty-text">
-          {providerName} API key was not configured in the server environment. Deterministic analysis was completed independently.
+          {review.reason ||
+            `${providerName} API key was not configured in the server environment. Deterministic analysis was completed independently.`}
         </p>
       );
     }
 
-    if (review.status === 'error' || review.status === 'unavailable') {
+    if (
+      review.status === 'rate_limited' ||
+      review.status === 'timed_out' ||
+      review.status === 'auth_error' ||
+      review.status === 'guard_blocked' ||
+      review.status === 'schema_invalid' ||
+      review.status === 'upstream_error' ||
+      review.status === 'error' ||
+      review.status === 'unavailable'
+    ) {
       return (
-        <p className="review-error-text">
-          {review.error || `${providerName} review was temporarily unavailable.`}
-        </p>
+        <div className="review-error-block" style={{ padding: '8px 0' }}>
+          <p className="review-error-text" style={{ margin: 0 }}>
+            {review.reason || review.error || `${providerName} review was temporarily unavailable.`}
+          </p>
+          {review.attempts !== undefined && review.attempts > 1 && (
+            <span
+              className="review-attempts-tag"
+              style={{ display: 'inline-block', marginTop: '4px', fontSize: '0.75rem', color: '#94a3b8' }}
+            >
+              (Attempts: {review.attempts})
+            </span>
+          )}
+        </div>
       );
     }
 

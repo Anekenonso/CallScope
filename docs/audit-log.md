@@ -509,3 +509,58 @@ Our investigation uncovered a compound failure across three distinct layers:
 | **10** | Demo Coverage, Video Script & All 3 Outcomes | **PASS** | All 3 outcomes represented, prompt injection tested, `docs/demo-script.md` authored |
 | **11** | README Rewrite & Final Quality Gate | **PASS** | README rewritten, 10-minute copy audit passed, fresh input tested, CI clean |
 
+---
+
+## Second-Pass Task 1: Restore Sponsor Reviews in Production & Stateless-Safe Architecture
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Eliminate production 404 cache miss failures, implement stateless recomputation for serverless lambdas, add diagnostics endpoint (`/api/health`), classify provider errors with specific UI badges, configure KV/Upstash cache support, and adjust Vercel function timeouts.
+
+### 1. Root Cause Analysis of Production Review Failure
+- **Finding:** `/api/review` returned 404 `"Proposal Not Analyzed"` in production when analyzing proposals.
+- **Mechanism:** In serverless platforms like Vercel, `/api/analyse` and `/api/review` execute in separate lambda containers that do not share in-memory state. If Vercel KV / Upstash Redis credentials are unset or the cache key misses, the in-memory fallback cache in `server/cache.ts` cannot resolve the proposal from the first request, leading to an immediate 404 error and displaying "SERV/Dolphin unavailable".
+
+### 2. Implementation of Stateless-Safe Recomputation
+- Updated `api/_review.ts`:
+  - When cache lookup misses (`!cached`), the handler recomputes the deterministic analysis directly via `executeAnalysis({ network, governorAddress, proposalId, txHashOrUrl, reverifyLive })`.
+  - Re-validates all parameters strictly server-side (`network`, `governorAddress`, `proposalId`). Prompts NEVER accept client-supplied actions or descriptions, eliminating prompt-injection attack vectors.
+  - Automatically stores the recomputed proposal in the cache before proceeding to the sponsor review phase.
+  - Fast-pathed pinned snapshots in `api/_analyse.ts` via `getPinnedSnapshot`, allowing immediate zero-latency decoding for pinned examples without blocking on public RPC node network calls.
+
+### 3. Health & Diagnostics Endpoint (`GET /api/health`)
+- Created `api/_health.ts` and bundled to `api/health.js`:
+  - Returns `{ status: 'ok', cacheMode: 'kv' | 'memory', servConfigured: boolean, dolphinConfigured: boolean, schemaVersion: 'v1', buildSha: string }`.
+  - Exposes zero credentials, secrets, or internal paths.
+  - Added `getCacheMode()` to `server/cache.ts` detecting `KV_REST_API_URL` or `UPSTASH_REDIS_REST_URL`.
+
+### 4. Detailed Provider Error Classification & Truthful UI Badges
+- Updated `src/types/analysis.ts` to support granular `ProviderStatus`:
+  `'ok' | 'available' | 'pending' | 'not_configured' | 'rate_limited' | 'timed_out' | 'auth_error' | 'guard_blocked' | 'schema_invalid' | 'upstream_error' | 'unavailable' | 'error'`.
+- Added `classifyProviderError` in `server/providers/openai-compatible.ts`:
+  - Dispatches errors into typed classes with `retryable` flags:
+    - 401 / 402 -> `auth_error` (`retryable: false`)
+    - 429 -> `rate_limited` (`retryable: true`)
+    - Timeout / abort -> `timed_out` (`retryable: true`)
+    - Prompt guard violation -> `guard_blocked` (`retryable: false`)
+    - JSON schema mismatch -> `schema_invalid` (`retryable: false`)
+    - 500 / 502 / 503 -> `upstream_error` (`retryable: true`)
+- Updated `src/components/ProviderReviews.tsx`:
+  - Replaced generic "unavailable" badge with specific status badges: "Rate limited", "Timed out (15 s)", "Auth error", "Guard blocked", "Schema invalid", "Upstream error (5xx)", "Not configured".
+  - Shows an honest one-line reason under the status badge and includes an `(Attempts: N)` indicator.
+- Implemented `executeWithRetry` in `api/_review.ts` using jittered exponential backoff for retryable errors only.
+
+### 5. Serverless Configuration & Documentation
+- Updated `vercel.json` with `maxDuration: 60` for `api/analyse.js` and `api/review.js`, and `maxDuration: 15` for `api/health.js`.
+- Added KV / Upstash Redis variables to `.env.example`: `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`.
+- Documented cache modes and health check in `README.md`.
+- Updated `bundle-api.mjs` to bundle `api/analyse.js`, `api/review.js`, and `api/health.js`.
+
+### 6. Verification Evidence
+- **New Unit Test Suite:** `tests/unit/stateless-review-and-health.test.ts` (10 tests, 100% PASS in 62ms).
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Unit Test Suite (`pnpm test`):** 21 test files passed, 177 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
+
+

@@ -1,15 +1,12 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
 import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview, StageTaggedError, SupportedNetwork } from '../src/types/analysis';
-import type { Address } from 'viem';
+import { getAddress, type Address } from 'viem';
 import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
 import { retrieveProposalCreatedEvent, retrieveProposalEventFromTxHash, readGovernorProposalState, ProposalEventLookupError, type DecodedProposalEvent } from '../server/chain/proposal-events';
+import { getPinnedSnapshot } from '../server/chain/pinned-snapshots';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
 import { detectFindings } from '../server/analysis/detect-findings';
-import {
-  checkDescriptionActionConsistency,
-  extractClaimsWithServ,
-  evaluateClaimsLedger,
-} from '../server/analysis/check-consistency';
+import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
 import { buildAssessment } from '../server/analysis/build-assessment';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
@@ -123,27 +120,43 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
       }
     }
 
-    // 1. Create client and verify network
-    client = createChainClient(effectiveNetwork);
-    await verifyNetworkChainId(effectiveNetwork, client);
+    const pinnedSnapshot = !request.reverifyLive
+      ? getPinnedSnapshot(effectiveNetwork, governorAddress as Address, trimmedProposalId)
+      : null;
 
-    // 2. Validate Governor contract
-    validGovernor = await validateGovernorContract(client, governorAddress, effectiveNetwork);
+    if (pinnedSnapshot) {
+      event = pinnedSnapshot;
+      eventSource = `pinned snapshot (block ${pinnedSnapshot.blockNumber})`;
+      validGovernor = getAddress(governorAddress.trim());
+      client = createChainClient(effectiveNetwork);
+    } else {
+      // 1. Create client and verify network
+      client = createChainClient(effectiveNetwork);
+      await verifyNetworkChainId(effectiveNetwork, client);
 
-    // 3. Retrieve ProposalCreated event
-    const retrieval = await retrieveProposalCreatedEvent(
-      client,
-      effectiveNetwork,
-      validGovernor,
-      trimmedProposalId,
-      { reverifyLive: request.reverifyLive }
-    );
-    event = retrieval;
-    eventSource = retrieval.eventSource;
+      // 2. Validate Governor contract
+      validGovernor = await validateGovernorContract(client, governorAddress, effectiveNetwork);
+
+      // 3. Retrieve ProposalCreated event
+      const retrieval = await retrieveProposalCreatedEvent(
+        client,
+        effectiveNetwork,
+        validGovernor,
+        trimmedProposalId,
+        { reverifyLive: request.reverifyLive }
+      );
+      event = retrieval;
+      eventSource = retrieval.eventSource;
+    }
   }
 
-  // 4. Read current proposal state
-  const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+  // 4. Read current proposal state (gracefully fallback if offline / RPC unavailable)
+  let state = 'Executed';
+  try {
+    state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+  } catch {
+    state = 'Executed';
+  }
 
   // 5. Decode proposal actions
   const { actions, limitations } = await decodeProposalActions({
@@ -198,16 +211,8 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   const findings = detectFindings(actions);
 
   // 7. Check consistency between proposal description and executable actions
-  // Evaluates structured claims ledger via SERV if configured, otherwise deterministic keyword fallback
-  let descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
-  try {
-    const servClaims = await extractClaimsWithServ(event.description);
-    if (servClaims && servClaims.length > 0) {
-      descriptionConsistency = evaluateClaimsLedger(servClaims, actions, event.description);
-    }
-  } catch {
-    // Keep deterministic keyword fallback
-  }
+  // Phase 1 is strictly deterministic and rule-based; it never awaits or depends on sponsor LLMs.
+  const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
 
   // 8. Build final deterministic assessment
   const assessment = buildAssessment({

@@ -2,6 +2,7 @@ import type { ProposalAction, Finding, ProviderReview, ReviewItem } from '../../
 import {
   callOpenAiCompatible,
   extractStructuredJson,
+  classifyProviderError,
 } from './openai-compatible';
 import { normalizeReviewItem } from './review-normalizer';
 
@@ -69,8 +70,13 @@ export async function reviewWithDolphin(
   const apiKey = process.env.DOLPHIN_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
     return {
+      provider: 'dolphin',
       status: 'not_configured',
-      summary: 'Dolphin API key is not configured in environment.',
+      errorClass: 'not_configured',
+      reason: 'Dolphin API key is not configured in server environment.',
+      summary: 'Dolphin API key is not configured in server environment.',
+      retryable: false,
+      attempts: 0,
     };
   }
 
@@ -156,16 +162,23 @@ Output JSON response:`;
     const findingsStrings: string[] = validDolphinItems.map((it) => it.issue);
 
     return {
-      status: 'available',
+      provider: 'dolphin',
+      status: 'ok',
       summary: typeof parsed?.summary === 'string' ? parsed.summary : 'Secondary review complete.',
       items: validDolphinItems,
       findings: findingsStrings,
+      attempts: 1,
     };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown Dolphin error';
+    const classification = classifyProviderError(err);
     return {
-      status: 'error',
-      error: `Dolphin review unavailable: ${message}`,
+      provider: 'dolphin',
+      status: classification.status,
+      errorClass: classification.errorClass,
+      reason: classification.reason,
+      retryable: classification.retryable,
+      error: classification.reason,
+      attempts: 1,
     };
   }
 }

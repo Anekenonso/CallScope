@@ -54,7 +54,22 @@ export function computeReviewerAgreement(
   } else if (serv.status === 'not_configured') {
     servVerdict = 'unavailable';
     servLabel = 'Not configured';
-  } else if (serv.status === 'error' || serv.status === 'unavailable') {
+  } else if (serv.status === 'rate_limited') {
+    servVerdict = 'unavailable';
+    servLabel = 'Rate limited';
+  } else if (serv.status === 'timed_out') {
+    servVerdict = 'unavailable';
+    servLabel = 'Timed out';
+  } else if (serv.status === 'auth_error') {
+    servVerdict = 'unavailable';
+    servLabel = 'Auth error';
+  } else if (serv.status === 'guard_blocked') {
+    servVerdict = 'flagged';
+    servLabel = 'Guard blocked: injection attempt detected';
+  } else if (serv.status === 'schema_invalid') {
+    servVerdict = 'unavailable';
+    servLabel = 'Schema invalid';
+  } else if (serv.status === 'upstream_error' || serv.status === 'error' || serv.status === 'unavailable') {
     servVerdict = 'unavailable';
     servLabel = 'Review unavailable';
   } else {
@@ -86,7 +101,22 @@ export function computeReviewerAgreement(
   } else if (dolphin.status === 'not_configured') {
     dolphinVerdict = 'unavailable';
     dolphinLabel = 'Not configured';
-  } else if (dolphin.status === 'error' || dolphin.status === 'unavailable') {
+  } else if (dolphin.status === 'rate_limited') {
+    dolphinVerdict = 'unavailable';
+    dolphinLabel = 'Rate limited';
+  } else if (dolphin.status === 'timed_out') {
+    dolphinVerdict = 'unavailable';
+    dolphinLabel = 'Timed out';
+  } else if (dolphin.status === 'auth_error') {
+    dolphinVerdict = 'unavailable';
+    dolphinLabel = 'Auth error';
+  } else if (dolphin.status === 'guard_blocked') {
+    dolphinVerdict = 'flagged';
+    dolphinLabel = 'Guard blocked: injection attempt detected';
+  } else if (dolphin.status === 'schema_invalid') {
+    dolphinVerdict = 'unavailable';
+    dolphinLabel = 'Schema invalid';
+  } else if (dolphin.status === 'upstream_error' || dolphin.status === 'error' || dolphin.status === 'unavailable') {
     dolphinVerdict = 'unavailable';
     dolphinLabel = 'Review unavailable';
   } else {

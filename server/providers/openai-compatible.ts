@@ -155,3 +155,97 @@ export function extractStructuredJson<T>(rawContent: string): T {
   }
 }
 
+/**
+ * Classify provider errors into exact typed states with retryability indications
+ */
+export function classifyProviderError(err: unknown): {
+  status: 'not_configured' | 'rate_limited' | 'timed_out' | 'auth_error' | 'guard_blocked' | 'schema_invalid' | 'upstream_error';
+  errorClass: 'not_configured' | 'rate_limited' | 'timed_out' | 'auth_error' | 'guard_blocked' | 'schema_invalid' | 'upstream_error';
+  reason: string;
+  retryable: boolean;
+} {
+  const message = err instanceof Error ? err.message : String(err || 'Unknown error');
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes('not configured') ||
+    lower.includes('api key is not configured') ||
+    lower.includes('api key is missing')
+  ) {
+    return {
+      status: 'not_configured',
+      errorClass: 'not_configured',
+      reason: 'API key is not configured in server environment.',
+      retryable: false,
+    };
+  }
+
+  if (
+    lower.includes('401') ||
+    lower.includes('402') ||
+    lower.includes('authentication failed') ||
+    lower.includes('payment required') ||
+    lower.includes('insufficient credits')
+  ) {
+    return {
+      status: 'auth_error',
+      errorClass: 'auth_error',
+      reason: 'Authentication failed or insufficient credits (HTTP 401/402).',
+      retryable: false,
+    };
+  }
+
+  if (lower.includes('429') || lower.includes('rate limit')) {
+    return {
+      status: 'rate_limited',
+      errorClass: 'rate_limited',
+      reason: 'Provider API rate limit reached (HTTP 429). Retry after cooldown.',
+      retryable: true,
+    };
+  }
+
+  if (
+    lower.includes('timeout') ||
+    lower.includes('timed out') ||
+    lower.includes('aborted') ||
+    lower.includes('aborterror')
+  ) {
+    return {
+      status: 'timed_out',
+      errorClass: 'timed_out',
+      reason: 'Provider request timed out before receiving completion.',
+      retryable: true,
+    };
+  }
+
+  if (
+    lower.includes('prompt_guard') ||
+    lower.includes('guard_blocked') ||
+    lower.includes('safety guard') ||
+    lower.includes('injection attempt')
+  ) {
+    return {
+      status: 'guard_blocked',
+      errorClass: 'guard_blocked',
+      reason: 'Proposal text triggered provider prompt injection safety guard.',
+      retryable: false,
+    };
+  }
+
+  if (lower.includes('schema') || lower.includes('json parse') || lower.includes('unexpected token') || lower.includes('failed to parse structured json')) {
+    return {
+      status: 'schema_invalid',
+      errorClass: 'schema_invalid',
+      reason: 'Provider returned output that did not match the expected JSON schema.',
+      retryable: false,
+    };
+  }
+
+  return {
+    status: 'upstream_error',
+    errorClass: 'upstream_error',
+    reason: `Provider server or network error: ${message}`,
+    retryable: true,
+  };
+}
+

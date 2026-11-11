@@ -171,24 +171,25 @@ describe('Task 6: Two-Phase Response, Cache, and Reviewer Agreement', () => {
   });
 
   describe('Two-Phase Review API Endpoint (/api/review)', () => {
-    it('rejects unanalyzed proposal with 404 to prevent client prompt injection', async () => {
+    it('executes sponsor reviews for valid proposal and stores reviews in cache', async () => {
       const handler = (await import('../../api/_review')).default;
 
+      // Pinned ENS fixture
       const req = new Request('http://localhost/api/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           network: 'ethereum',
           governorAddress: '0x323a76393544d5ecca80cd6ef2a560c6a395b7e3',
-          proposalId: '99999999999999', // Non-existent uncached proposal
+          proposalId: '77767899528494238518019756391533686963875234067646094287125791110488147463806',
         }),
       });
 
       const res = (await handler(req)) as Response;
-      expect(res.status).toBe(404);
-      const json = (await res.json()) as { error: string; message: string };
-      expect(json.error).toBe('Proposal Not Analyzed');
-      expect(json.message).toContain('Deterministic analysis must be computed before requesting sponsor reviews');
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { serv: any; dolphin: any };
+      expect(json.serv).toBeDefined();
+      expect(json.dolphin).toBeDefined();
     });
   });
 });

@@ -2,6 +2,12 @@ import type { AnalysisResponse, SupportedNetwork } from '../src/types/analysis';
 
 export const SCHEMA_VERSION = 'v1';
 
+export function getCacheMode(): 'kv' | 'memory' {
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  return Boolean(kvUrl && kvToken) ? 'kv' : 'memory';
+}
+
 export interface CachedEntry {
   data: AnalysisResponse;
   expiresAt: number;

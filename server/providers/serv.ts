@@ -2,6 +2,7 @@ import type { ProposalAction, ProviderReview, ReviewItem } from '../../src/types
 import {
   callOpenAiCompatible,
   extractStructuredJson,
+  classifyProviderError,
 } from './openai-compatible';
 import { normalizeReviewItem } from './review-normalizer';
 
@@ -49,8 +50,13 @@ export async function reviewWithServ(
   const apiKey = process.env.SERV_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
     return {
+      provider: 'serv',
       status: 'not_configured',
-      summary: 'OpenServ SERV API key is not configured in environment.',
+      errorClass: 'not_configured',
+      reason: 'OpenServ SERV API key is not configured in server environment.',
+      summary: 'OpenServ SERV API key is not configured in server environment.',
+      retryable: false,
+      attempts: 0,
     };
   }
 
@@ -118,16 +124,23 @@ Output JSON response:`;
     const findings: string[] = items.map((it) => it.issue);
 
     return {
-      status: 'available',
+      provider: 'serv',
+      status: 'ok',
       summary: typeof parsed?.summary === 'string' ? parsed.summary : 'Analysis complete.',
       items,
       findings,
+      attempts: 1,
     };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown SERV error';
+    const classification = classifyProviderError(err);
     return {
-      status: 'error',
-      error: `SERV review unavailable: ${message}`,
+      provider: 'serv',
+      status: classification.status,
+      errorClass: classification.errorClass,
+      reason: classification.reason,
+      retryable: classification.retryable,
+      error: classification.reason,
+      attempts: 1,
     };
   }
 }

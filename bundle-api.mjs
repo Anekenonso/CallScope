@@ -36,6 +36,24 @@ async function bundle() {
     },
   });
   console.log('Successfully bundled api/review.js');
+
+  await build({
+    configFile: false,
+    build: {
+      ssr: 'api/_health.ts',
+      outDir: 'api',
+      emptyOutDir: false,
+      copyPublicDir: false,
+      rollupOptions: {
+        external: ['viem', 'viem/chains'],
+        output: {
+          format: 'esm',
+          entryFileNames: 'health.js',
+        },
+      },
+    },
+  });
+  console.log('Successfully bundled api/health.js');
 }
 
 bundle();

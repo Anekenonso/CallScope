@@ -390,7 +390,7 @@ export function checkDescriptionActionConsistency(
   if (discrepancies.length > 0) {
     return {
       status: 'inconsistent',
-      explanation: `Keyword check only. Claims were not individually verified. Material discrepancies detected between proposal claims and executable calls: ${discrepancies.join(' ')}`,
+      explanation: `Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Material discrepancies detected between proposal claims and executable calls: ${discrepancies.join(' ')}`,
       omissions: omissions.length > 0 ? omissions : undefined,
       discrepancies,
       mode: 'keyword_fallback',
@@ -402,7 +402,7 @@ export function checkDescriptionActionConsistency(
     return {
       status: 'indeterminate',
       explanation:
-        'Keyword check only. Claims were not individually verified. Proposal contains undecoded actions that cannot be reliably verified against stated claims.',
+        'Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Proposal contains undecoded actions that cannot be reliably verified against stated claims.',
       omissions,
       mode: 'keyword_fallback',
     };
@@ -412,7 +412,7 @@ export function checkDescriptionActionConsistency(
   if (actions.length > 0 && omissions.length > 0) {
     return {
       status: 'indeterminate',
-      explanation: `Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: ${omissions.join(' ')}`,
+      explanation: `Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: ${omissions.join(' ')}`,
       omissions,
       mode: 'keyword_fallback',
     };
@@ -427,7 +427,7 @@ export function checkDescriptionActionConsistency(
     return {
       status: 'indeterminate',
       explanation:
-        'Keyword check only. Claims were not individually verified. Proposal description is too vague to establish verifiable consistency with executable actions.',
+        'Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Proposal description is too vague to establish verifiable consistency with executable actions.',
       mode: 'keyword_fallback',
     };
   }
@@ -435,7 +435,7 @@ export function checkDescriptionActionConsistency(
   return {
     status: 'consistent',
     explanation:
-      'Keyword check only. Claims were not individually verified. Executable actions match stated operations and recipients in the proposal description.',
+      'Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Executable actions match stated operations and recipients in the proposal description.',
     mode: 'keyword_fallback',
   };
 }

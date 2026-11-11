@@ -1,8 +1,8 @@
 export type SupportedNetwork = 'ethereum' | 'base';
 
-export type AssessmentOutcome = 
-  | 'review_recommended' 
-  | 'no_significant_issue_detected' 
+export type AssessmentOutcome =
+  | 'review_recommended'
+  | 'no_significant_issue_detected'
   | 'analysis_incomplete';
 
 export interface ProposalInfo {
@@ -129,12 +129,40 @@ export interface ReviewItem {
   claimRef?: string;
 }
 
+export type ProviderStatus =
+  | 'ok'
+  | 'available'
+  | 'pending'
+  | 'not_configured'
+  | 'rate_limited'
+  | 'timed_out'
+  | 'auth_error'
+  | 'guard_blocked'
+  | 'schema_invalid'
+  | 'upstream_error'
+  | 'unavailable'
+  | 'error';
+
+export type ProviderErrorClass =
+  | 'not_configured'
+  | 'rate_limited'
+  | 'timed_out'
+  | 'auth_error'
+  | 'guard_blocked'
+  | 'schema_invalid'
+  | 'upstream_error';
+
 export interface ProviderReview {
-  status: 'available' | 'unavailable' | 'error' | 'not_configured' | 'pending';
+  provider?: string;
+  status: ProviderStatus;
   summary?: string;
   items?: ReviewItem[];
   findings?: string[];
   error?: string;
+  reason?: string;
+  errorClass?: ProviderErrorClass;
+  retryable?: boolean;
+  attempts?: number;
 }
 
 export interface EvidenceItem {
