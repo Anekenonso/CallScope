@@ -126,9 +126,9 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
   cached.reviews = reviewsResponse;
   const ttl =
     cached.proposal.status === 'Executed' ||
-    cached.proposal.status === 'Defeated' ||
-    cached.proposal.status === 'Canceled' ||
-    cached.proposal.status === 'Expired'
+      cached.proposal.status === 'Defeated' ||
+      cached.proposal.status === 'Canceled' ||
+      cached.proposal.status === 'Expired'
       ? 86400
       : cached.proposal.status === 'Active' || cached.proposal.status === 'Pending'
         ? 60

@@ -177,8 +177,8 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
         roleSemantics.status === 'verified'
           ? `Action #${actionNum} grants privileged role: ${roleSemantics.roleName}`
           : roleSemantics.status === 'recognized_standard_hash'
-          ? `Action #${actionNum} grants privileged role (unconfirmed semantics): ${roleSemantics.roleName}`
-          : `Action #${actionNum} grants unrecognized role`;
+            ? `Action #${actionNum} grants privileged role (unconfirmed semantics): ${roleSemantics.roleName}`
+            : `Action #${actionNum} grants unrecognized role`;
 
       let descriptionText: string;
       if (action.roleCapability && action.roleCapability.status === 'resolved') {
@@ -228,8 +228,8 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
         roleSemantics.status === 'verified'
           ? `Action #${actionNum} revokes privileged role: ${roleSemantics.roleName}`
           : roleSemantics.status === 'recognized_standard_hash'
-          ? `Action #${actionNum} revokes role (unconfirmed semantics): ${roleSemantics.roleName}`
-          : `Action #${actionNum} revokes unrecognized role`;
+            ? `Action #${actionNum} revokes role (unconfirmed semantics): ${roleSemantics.roleName}`
+            : `Action #${actionNum} revokes unrecognized role`;
 
       let descriptionText: string;
       if (action.roleCapability && action.roleCapability.status === 'resolved') {

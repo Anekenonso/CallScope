@@ -12,7 +12,8 @@
     "test:live": "vitest run tests/live/",
     "test:all": "vitest run",
     "test:watch": "vitest",
-    "check:readme": "node --experimental-strip-types scripts/check-readme-consistency.ts"
+    "check:readme": "node --experimental-strip-types scripts/check-readme-consistency.ts",
+    "compare:sponsors": "node --experimental-strip-types scripts/compare-sponsors.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

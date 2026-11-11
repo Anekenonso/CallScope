@@ -39,3 +39,4 @@ jobs:
 
       - name: Build production distribution and serverless bundles
         run: pnpm build
+

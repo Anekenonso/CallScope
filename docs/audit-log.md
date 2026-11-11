@@ -398,3 +398,31 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm typecheck`: PASSED (exit code 0).
 - `pnpm test`: PASSED 18/18 test files (160 tests passed 100% offline).
 - `pnpm build`: PASSED (clean Vite client distribution + `api/analyse.js` + `api/review.js`).
+---
+
+## Task 9: Sponsor Depth and Measured Impact
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Deepen and rigorously benchmark the sponsor integration layer (OpenServ SERV and Dolphin). Document native vs fallback capabilities, verify deterministic assessment invariance, measure two-phase performance deltas, and analyze reviewer agreement outcomes.
+
+### 1. Architectural & Empirical Depth
+- **Sponsor Roles & Boundaries (`docs/sponsor-notes.md`):**
+  - **OpenServ SERV**: Primary semantic reviewer focusing on natural language claim extraction, stated intentions vs calldata consistency, and structured claim identification (`Claim` ledger). Operates with JSON schema support and extraction fallbacks.
+  - **Dolphin**: Secondary technical security and logic auditor. Subject to strict integrity constraints: 3-item cap, mandatory `actionRef` or `findingRef` pointing to verified deterministic engine findings, dropping any hallucinated references before reaching the UI.
+  - **Non-Negotiable Deterministic Invariance**: Both sponsors are strictly advisory. They cannot alter findings, actions, severities, or the final `assessment` outcome (`review_recommended`, `no_significant_issue_detected`, `analysis_incomplete`).
+- **Benchmark Script & Evidence (`scripts/compare-sponsors.ts` & `docs/sponsor-impact.md`):**
+  - Added `"compare:sponsors": "node --experimental-strip-types scripts/compare-sponsors.ts"` to `package.json`.
+  - Executed comparison on pinned fixtures:
+    - **ENS EP 6.50**: Assessment remains `review_recommended` with sponsors OFF (4555 ms) and ON. Agreement status: `agree` (`Reviewers agree`).
+    - **Unlock Protocol**: Assessment remains `analysis_incomplete` with sponsors OFF (8342 ms) and ON. Demonstrates disagreement detection when engine notes limitations while sponsors confirm transfer structure (`Reviewers disagree: human review needed`).
+  - Proved 100% outcome invariance between deterministic-only mode and sponsor-advisory mode.
+
+### 2. Verification Evidence
+- `pnpm compare:sponsors`: PASSED, generated `docs/sponsor-impact.md`.
+- `tests/unit/reviews-normalization.test.ts`: 7/7 passed.
+- `tests/unit/reviewer-agreement.test.ts`: 6/6 passed.
+- `pnpm check:readme`: PASSED (exit code 0).
+- `pnpm typecheck`: PASSED (exit code 0).
+- `pnpm test`: PASSED 18/18 test files (160 tests passed 100% offline).
+- `pnpm build`: PASSED (clean build of frontend and SSR bundles).
