@@ -1150,10 +1150,15 @@ a:hover {
   margin-bottom: 22px;
 }
 
+.details-grid > * {
+  min-width: 0;
+}
+
 .detail-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .detail-label {
@@ -1172,6 +1177,9 @@ a:hover {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .address-link {

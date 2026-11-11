@@ -147,5 +147,34 @@ Our investigation uncovered a compound failure across three distinct layers:
   - Tested unknown object shapes (asserted no raw `{}` JSON syntax leaks).
   - Tested Dolphin reference integrity filtering and cap at 3 items.
 
+---
+
+## Task 3: Layout Collisions & Address Component
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Resolve grid overlapping in `ProposalDetails.tsx`, add `min-width: 0` constraints, apply `overflow-wrap: anywhere`, and introduce reusable `<Address>` component.
+
+### 1. Root Cause of Collisions
+- CSS Grid children default to `min-width: auto`, preventing long unbroken hexadecimal addresses and large decimal IDs from shrinking or wrapping within their assigned column tracks.
+- This caused Governor address to overlap the Proposal ID column, and Proposer address to overlap the "Created at block" column.
+
+### 2. Implementation & Structural Improvements
+- Created `src/components/Address.tsx`:
+  - Renders middle-truncated address (e.g. `0x65bA...0aD9`).
+  - Full address available on hover via `title` tooltip and expandable via toggle button.
+  - Interactive "Copy" button with 2-second user feedback.
+  - Fully responsive with `min-width: 0` and `overflow-wrap: anywhere`.
+- Updated `src/styles/index.css`:
+  - Enforced `min-width: 0` on `.details-grid > *` and `.detail-item`.
+  - Added `overflow-wrap: anywhere` and `word-break: break-word` to `.detail-value`.
+- Updated `src/components/ProposalDetails.tsx` to render Governor, Proposer, and Creation Transaction via `<Address>`.
+
+### 3. Verification Evidence
+- `tests/unit/address-and-layout.test.tsx`: 3/3 passed.
+- `docs/screens/RESPONSIVE_VERIFICATION.md`: Viewport tests verified at 320px, 768px, and 1280px.
+- `tests/unit/ui-components.test.tsx`: 13/13 passed.
+
+
 
 

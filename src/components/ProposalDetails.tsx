@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ProposalInfo, SupportedNetwork } from '../types/analysis';
+import { Address } from './Address';
 
 interface ProposalDetailsProps {
   proposal: ProposalInfo;
@@ -13,15 +14,15 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
   governorAddress,
 }) => {
   const [showFullDescription, setShowFullDescription] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   const explorerBase =
     network === 'ethereum' ? 'https://etherscan.io' : 'https://basescan.org';
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedField(label);
-      setTimeout(() => setCopiedField(null), 2000);
+  const copyIdToClipboard = () => {
+    navigator.clipboard.writeText(proposal.id).then(() => {
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
     });
   };
 
@@ -73,37 +74,32 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
         <div className="detail-item">
           <span className="detail-label">Governor Contract</span>
           <span className="detail-value tabular-nums">
-            <a
-              href={`${explorerBase}/address/${governorAddress}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="address-link"
-              title="View on Explorer"
-            >
-              {governorAddress}
-            </a>
-            <button
-              type="button"
-              className="copy-btn"
-              onClick={() => copyToClipboard(governorAddress, 'Governor')}
-              aria-label="Copy Governor address"
-            >
-              {copiedField === 'Governor' ? 'Copied' : 'Copy'}
-            </button>
+            <Address
+              value={governorAddress}
+              explorerUrl={`${explorerBase}/address/${governorAddress}`}
+              label="Governor"
+            />
           </span>
         </div>
 
         <div className="detail-item">
           <span className="detail-label">Proposal ID</span>
-          <span className="detail-value tabular-nums break-all">
-            {proposal.id}
+          <span
+            className="detail-value tabular-nums"
+            style={{
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-all',
+              minWidth: 0,
+            }}
+          >
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{proposal.id}</span>
             <button
               type="button"
               className="copy-btn"
-              onClick={() => copyToClipboard(proposal.id, 'ID')}
+              onClick={copyIdToClipboard}
               aria-label="Copy Proposal ID"
             >
-              {copiedField === 'ID' ? 'Copied' : 'Copy'}
+              {copiedId ? 'Copied' : 'Copy'}
             </button>
           </span>
         </div>
@@ -112,22 +108,11 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
           <div className="detail-item">
             <span className="detail-label">Proposer</span>
             <span className="detail-value tabular-nums">
-              <a
-                href={`${explorerBase}/address/${proposal.proposer}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="address-link"
-              >
-                {proposal.proposer}
-              </a>
-              <button
-                type="button"
-                className="copy-btn"
-                onClick={() => copyToClipboard(proposal.proposer!, 'Proposer')}
-                aria-label="Copy Proposer address"
-              >
-                {copiedField === 'Proposer' ? 'Copied' : 'Copy'}
-              </button>
+              <Address
+                value={proposal.proposer}
+                explorerUrl={`${explorerBase}/address/${proposal.proposer}`}
+                label="Proposer"
+              />
             </span>
           </div>
         )}
@@ -151,15 +136,14 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
         {proposal.creationTransaction && (
           <div className="detail-item">
             <span className="detail-label">Creation transaction</span>
-            <span className="detail-value tabular-nums break-all">
-              <a
-                href={`${explorerBase}/tx/${proposal.creationTransaction}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="address-link"
-              >
-                {proposal.creationTransaction}
-              </a>
+            <span className="detail-value tabular-nums">
+              <Address
+                value={proposal.creationTransaction}
+                explorerUrl={`${explorerBase}/tx/${proposal.creationTransaction}`}
+                label="Creation transaction"
+                prefixLength={10}
+                suffixLength={8}
+              />
             </span>
           </div>
         )}
