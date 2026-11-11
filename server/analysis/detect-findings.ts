@@ -113,11 +113,12 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
 
     // Check for native value transfer
     if (action.value && action.value !== '0') {
+      const formatted = action.formattedAmount || `${action.value} wei`;
       findings.push({
         id: `NATIVE_VALUE_TRANSFER_${i}`,
         severity: 'medium',
         title: `Action #${actionNum} transfers native ETH`,
-        description: `Action transfers ${action.value} wei to ${action.target}.`,
+        description: `Action transfers ${formatted} (${action.value} wei) to ${action.target}.`,
         actionIndex: i,
         target: action.target,
         verified: true,
@@ -125,18 +126,32 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
       });
     }
 
-    // Check undecoded action
+    // Check undecoded action or known Safe transaction wrapper
     if (!action.decoded) {
-      findings.push({
-        id: `UNDECODED_ACTION_${i}`,
-        severity: 'high',
-        title: `Action #${actionNum} could not be decoded`,
-        description: action.decodeError || `Calldata with selector ${action.selector} to ${action.target} could not be decoded.`,
-        actionIndex: i,
-        target: action.target,
-        verified: false,
-        whyItMatters: 'Opaque or undecoded actions prevent delegates from verifying execution safety.',
-      });
+      if (action.isSafeWrapper || action.selector === '0x6a761202') {
+        findings.push({
+          id: `SAFE_WRAPPER_OPAQUE_${i}`,
+          severity: 'medium',
+          title: `Action #${actionNum} executes via Safe transaction wrapper`,
+          description: `Action targets ${action.targetName || action.target} using Gnosis/Safe execTransaction (0x6a761202). Inner payload calls are opaque and cannot be verified deterministically without multi-call simulation.`,
+          actionIndex: i,
+          target: action.target,
+          verified: true,
+          whyItMatters:
+            'Safe transaction wrappers conceal the underlying destination addresses, token amounts, and contract calls of the transaction.',
+        });
+      } else {
+        findings.push({
+          id: `UNDECODED_ACTION_${i}`,
+          severity: 'high',
+          title: `Action #${actionNum} could not be decoded`,
+          description: action.decodeError || `Calldata with selector ${action.selector} to ${action.target} could not be decoded.`,
+          actionIndex: i,
+          target: action.target,
+          verified: false,
+          whyItMatters: 'Opaque or undecoded actions prevent delegates from verifying execution safety.',
+        });
+      }
       continue;
     }
 
@@ -214,16 +229,39 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
 
     // 3. transferOwnership(address)
     if (fn === 'transferOwnership') {
-      const newOwner = action.args?.[0]?.value || '';
+      const newOwner = (action.args?.[0]?.value || '').toLowerCase();
+      const isZeroAddress =
+        newOwner === '0x0000000000000000000000000000000000000000' ||
+        newOwner === '0x0' ||
+        !newOwner;
+      const isTimelockOrGov =
+        /timelock|governor|governance/i.test(action.targetName || '') ||
+        /timelock|governor/i.test(action.args?.[0]?.name || '');
+
+      let severity: 'medium' | 'high' = 'high';
+      let title = `Action #${actionNum} transfers contract ownership`;
+      let description = `Transfers administrative ownership of ${action.targetName || action.target} to ${action.args?.[0]?.value || newOwner}. Delegates should confirm that the recipient address is the intended administrative controller or multisig.`;
+
+      if (isZeroAddress) {
+        severity = 'high';
+        title = `Action #${actionNum} renounces contract ownership`;
+        description = `Transfers ownership of ${action.targetName || action.target} to the zero address (0x0). This permanently removes contract ownership and eliminates owner-only administrative functions.`;
+      } else if (isTimelockOrGov) {
+        severity = 'medium';
+        title = `Action #${actionNum} transfers ownership to governance Timelock`;
+        description = `Transfers administrative ownership of ${action.targetName || action.target} to governance controller ${action.args?.[0]?.value || newOwner}. This places contract administrative controls under DAO governance.`;
+      }
+
       findings.push({
         id: `SENSITIVE_TRANSFER_OWNERSHIP_${i}`,
-        severity: 'critical',
-        title: `Action #${actionNum} transfers contract ownership`,
-        description: `Transfers owner rights of ${action.targetName || action.target} to ${newOwner}.`,
+        severity,
+        title,
+        description,
         actionIndex: i,
         target: action.target,
         verified: true,
-        whyItMatters: 'Transferring contract ownership relinquishes exclusive administrative control over the target contract.',
+        whyItMatters:
+          'Transferring contract ownership relinquishes exclusive administrative control over the target contract.',
       });
       continue;
     }
@@ -260,24 +298,48 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
       continue;
     }
 
-    // 6. Token approval checks (e.g. infinite approvals)
+    // 6. Token approval checks (both infinite and finite material approvals)
     if (fn === 'approve') {
       const spender = action.args?.[0]?.value || '';
       const amount = action.args?.[1]?.value || '';
-      const isInfinite = amount.startsWith('115792089237316195423570985008687907853269984665640564039457584007913129639935') ||
+      const isInfinite =
+        amount.startsWith('115792089237316195423570985008687907853269984665640564039457584007913129639935') ||
         amount.toLowerCase().startsWith('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
 
       if (isInfinite) {
         findings.push({
           id: `INFINITE_TOKEN_APPROVAL_${i}`,
           severity: 'high',
-          title: `Action #${actionNum} grants infinite token allowance`,
-          description: `Approves unlimited token allowance on ${action.targetName || action.target} to spender ${spender}.`,
+          title: `Action #${actionNum} grants unlimited token allowance`,
+          description: `Approves unlimited token allowance on ${action.targetName || action.target} to spender ${spender}. This grants the spender recurring withdrawal authority up to the entire treasury balance without further governance votes.`,
           actionIndex: i,
           target: action.target,
           verified: true,
-          whyItMatters: 'Unlimited token allowances permit the spender address to drain approved tokens up to the balance held.',
+          whyItMatters:
+            'Unlimited token allowances permit the spender address to drain approved tokens up to the balance held without transaction-level DAO approval.',
         });
+      } else {
+        let rawAmount = 0n;
+        try {
+          rawAmount = BigInt(amount);
+        } catch {
+          rawAmount = 0n;
+        }
+
+        if (rawAmount > 0n) {
+          const displayAmount = action.formattedAmount || `${amount} base units`;
+          findings.push({
+            id: `MATERIAL_TOKEN_APPROVAL_${i}`,
+            severity: 'medium',
+            title: `Action #${actionNum} grants material token approval`,
+            description: `Approves a token allowance of ${displayAmount} on ${action.targetName || action.target} to spender ${spender}. This authorizes the spender to withdraw up to this amount via transferFrom.`,
+            actionIndex: i,
+            target: action.target,
+            verified: true,
+            whyItMatters:
+              'Token approvals delegate withdrawal authority to an external contract or address rather than transferring funds directly. An approval does not automatically execute a transfer or configure an active payment stream.',
+          });
+        }
       }
     }
   }

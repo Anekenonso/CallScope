@@ -72,14 +72,26 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
                   <div className="action-title-group">
                     <div className="action-func-row">
                       <span className="action-function-name">
-                        {isDecoded ? (
+                        {act.isNativeTransfer ? (
+                          'Native ETH Transfer'
+                        ) : isDecoded ? (
                           act.functionName || act.signature || 'Call'
+                        ) : act.isSafeWrapper ? (
+                          'Safe Transaction Wrapper (execTransaction)'
                         ) : (
                           <span className="undecoded-label">Undecoded action ({act.selector})</span>
                         )}
                       </span>
                       {act.selector && (
                         <span className="action-selector-tag tabular-nums">{act.selector}</span>
+                      )}
+                      {act.isNativeTransfer && (
+                        <span className="action-selector-tag">Native ETH</span>
+                      )}
+                      {act.isSafeWrapper && (
+                        <span className="action-selector-tag" style={{ background: '#78350f', color: '#fef3c7' }}>
+                          Safe Wrapper
+                        </span>
                       )}
                     </div>
                     <div className="action-target">
@@ -102,14 +114,18 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
                 </div>
 
                 <div className="action-meta-badge">
-                  {act.value && act.value !== '0' && (
+                  {act.formattedAmount ? (
+                    <span className="value-badge tabular-nums">
+                      {act.formattedAmount}
+                    </span>
+                  ) : act.value && act.value !== '0' ? (
                     <span className="value-badge tabular-nums">
                       Value: {act.value} wei
                     </span>
-                  )}
+                  ) : null}
                   <span className={`decode-status-badge ${isDecoded ? 'status-decoded' : 'status-undecoded'}`}>
                     <span className="badge-dot" aria-hidden="true" />
-                    <span>{isDecoded ? 'Decoded' : 'Opaque'}</span>
+                    <span>{isDecoded ? 'Decoded' : act.isSafeWrapper ? 'Opaque (Wrapper)' : 'Opaque'}</span>
                   </span>
                 </div>
               </div>
@@ -126,7 +142,27 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
                       <div key={argIdx} className="arg-row">
                         <span className="arg-name">{arg.name || `param_${argIdx}`}</span>
                         <span className="arg-type">{arg.type}</span>
-                        <span className="arg-value tabular-nums break-all">{arg.value}</span>
+                        <div className="arg-value-group">
+                          {arg.formattedValue ? (
+                            <span className="arg-value tabular-nums break-all font-semibold">
+                              {arg.formattedValue}
+                              {arg.rawAmount && arg.rawAmount !== arg.formattedValue && (
+                                <span className="text-xs text-muted block opacity-75">
+                                  Raw: {arg.rawAmount} ({arg.decimals ?? 18} decimals)
+                                </span>
+                              )}
+                            </span>
+                          ) : arg.decimalsUnavailable ? (
+                            <span className="arg-value tabular-nums break-all">
+                              {arg.value}
+                              <span className="text-xs text-amber-500 block">
+                                (formatted amount unavailable — unverified decimals)
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="arg-value tabular-nums break-all">{arg.value}</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

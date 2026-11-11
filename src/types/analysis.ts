@@ -19,6 +19,11 @@ export interface DecodedArg {
   name: string;
   type: string;
   value: string;
+  formattedValue?: string;
+  rawAmount?: string;
+  decimals?: number;
+  symbol?: string;
+  decimalsUnavailable?: boolean;
 }
 
 export interface ProposalAction {
@@ -35,6 +40,13 @@ export interface ProposalAction {
   isProxy?: boolean;
   implementation?: string;
   decodeError?: string;
+  tokenDecimals?: number;
+  tokenSymbol?: string;
+  formattedAmount?: string;
+  decimalsUnavailable?: boolean;
+  isSafeWrapper?: boolean;
+  isNativeTransfer?: boolean;
+  limitations?: string[];
 }
 
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';

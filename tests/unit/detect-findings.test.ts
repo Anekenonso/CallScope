@@ -70,8 +70,9 @@ describe('Sensitive operation detection', () => {
     expect(findings[0]?.verified).toBe(true);
   });
 
-  it('detects transferOwnership as critical finding', () => {
-    const action: ProposalAction = {
+  it('detects transferOwnership with calibrated proportionate severity', () => {
+    // 1. Transfer to external address calibrated as high
+    const actionHigh: ProposalAction = {
       index: 0,
       target: dummyTarget,
       value: '0',
@@ -85,10 +86,30 @@ describe('Sensitive operation detection', () => {
       rawCalldata: '0xf2fde38b...',
     };
 
-    const findings = detectFindings([action]);
-    expect(findings).toHaveLength(1);
-    expect(findings[0]?.severity).toBe('critical');
-    expect(findings[0]?.title).toContain('transfers contract ownership');
+    const findingsHigh = detectFindings([actionHigh]);
+    expect(findingsHigh).toHaveLength(1);
+    expect(findingsHigh[0]?.severity).toBe('high');
+    expect(findingsHigh[0]?.title).toContain('transfers contract ownership');
+
+    // 2. Transfer to governance Timelock calibrated as medium
+    const actionMedium: ProposalAction = {
+      index: 0,
+      target: dummyTarget,
+      targetName: 'TimelockController',
+      value: '0',
+      signature: '',
+      selector: '0xf2fde38b',
+      decoded: true,
+      functionName: 'transferOwnership',
+      args: [
+        { name: 'newOwner', type: 'address', value: '0x2acbf518b3759f6e1fa163294eda55bf1d0ae051' },
+      ],
+      rawCalldata: '0xf2fde38b...',
+    };
+    const findingsMedium = detectFindings([actionMedium]);
+    expect(findingsMedium).toHaveLength(1);
+    expect(findingsMedium[0]?.severity).toBe('medium');
+    expect(findingsMedium[0]?.title).toContain('transfers ownership to governance Timelock');
   });
 
   it('detects upgradeTo and upgradeToAndCall as critical finding', () => {

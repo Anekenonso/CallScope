@@ -1,4 +1,4 @@
-import { http, createPublicClient, fallback, getAddress, keccak256, toBytes, decodeEventLog, parseAbi, zeroAddress, decodeFunctionData, parseAbiItem, toFunctionSelector, concatHex } from "viem";
+import { http, createPublicClient, fallback, getAddress, keccak256, toBytes, decodeEventLog, parseAbi, zeroAddress, formatUnits, formatEther, decodeFunctionData, parseAbiItem, toFunctionSelector, concatHex } from "viem";
 import { mainnet, base } from "viem/chains";
 const SUPPORTED_NETWORKS = {
   ethereum: {
@@ -772,6 +772,149 @@ async function resolveContractAbi(network, rawAddress, client, cache) {
   cache == null ? void 0 : cache.set(cacheKey, res);
   return res;
 }
+const KNOWN_VERIFIED_TOKENS = {
+  ethereum: {
+    // ENS Token
+    "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72": {
+      decimals: 18,
+      symbol: "ENS",
+      name: "Ethereum Name Service"
+    },
+    // USDC
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+      decimals: 6,
+      symbol: "USDC",
+      name: "USD Coin"
+    },
+    // USDT
+    "0xdac17f958d2ee523a2206206994597c13d831ec7": {
+      decimals: 6,
+      symbol: "USDT",
+      name: "Tether USD"
+    },
+    // DAI
+    "0x6b175474e89094c44da98b954eedeac495271d0f": {
+      decimals: 18,
+      symbol: "DAI",
+      name: "Dai Stablecoin"
+    },
+    // WETH
+    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": {
+      decimals: 18,
+      symbol: "WETH",
+      name: "Wrapped Ether"
+    }
+  },
+  base: {
+    // USDC on Base
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913": {
+      decimals: 6,
+      symbol: "USDC",
+      name: "USD Coin"
+    },
+    // WETH on Base
+    "0x4200000000000000000000000000000000000006": {
+      decimals: 18,
+      symbol: "WETH",
+      name: "Wrapped Ether"
+    },
+    // DAI on Base
+    "0x50c5725949a6f0c72e6c4a641f24049a917db0cb": {
+      decimals: 18,
+      symbol: "DAI",
+      name: "Dai Stablecoin"
+    }
+  }
+};
+const ERC20_METADATA_ABI = [
+  {
+    name: "decimals",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }]
+  },
+  {
+    name: "symbol",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }]
+  }
+];
+async function resolveTokenMetadata(network, targetAddress, client, cache) {
+  var _a;
+  const normAddr = targetAddress.toLowerCase();
+  const cacheKey = `${network}:${normAddr}`;
+  if (cache && cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+  const known = (_a = KNOWN_VERIFIED_TOKENS[network]) == null ? void 0 : _a[normAddr];
+  if (known) {
+    const meta = {
+      decimals: known.decimals,
+      symbol: known.symbol,
+      name: known.name,
+      verified: true
+    };
+    cache == null ? void 0 : cache.set(cacheKey, meta);
+    return meta;
+  }
+  if (client) {
+    try {
+      const [decimalsVal, symbolVal] = await Promise.all([
+        client.readContract({
+          address: targetAddress,
+          abi: ERC20_METADATA_ABI,
+          functionName: "decimals"
+        }),
+        client.readContract({
+          address: targetAddress,
+          abi: ERC20_METADATA_ABI,
+          functionName: "symbol"
+        }).catch(() => void 0)
+      ]);
+      if (typeof decimalsVal === "number" || typeof decimalsVal === "bigint") {
+        const decimals = Number(decimalsVal);
+        const symbol = typeof symbolVal === "string" ? symbolVal : void 0;
+        const meta = {
+          decimals,
+          symbol,
+          verified: true
+        };
+        cache == null ? void 0 : cache.set(cacheKey, meta);
+        return meta;
+      }
+    } catch {
+    }
+  }
+  const unavailableMeta = {
+    verified: false,
+    unavailable: true
+  };
+  cache == null ? void 0 : cache.set(cacheKey, unavailableMeta);
+  return unavailableMeta;
+}
+function formatTokenAmount(rawAmount, decimals, symbol) {
+  if (decimals === void 0 || decimals === null || isNaN(decimals)) {
+    return {
+      decimalsUnavailable: true
+    };
+  }
+  try {
+    const rawBigInt = typeof rawAmount === "string" ? BigInt(rawAmount) : rawAmount;
+    const formattedUnits = formatUnits(rawBigInt, decimals);
+    const withSymbol = symbol ? `${formattedUnits} ${symbol}` : formattedUnits;
+    return {
+      formatted: withSymbol,
+      decimalsUnavailable: false
+    };
+  } catch {
+    return {
+      decimalsUnavailable: true
+    };
+  }
+}
 function formatArgValue(val) {
   if (val === null || val === void 0) {
     return "";
@@ -852,6 +995,7 @@ async function decodeProposalActions(input) {
   const actions = [];
   const limitations = [];
   const abiCache = /* @__PURE__ */ new Map();
+  const tokenCache = /* @__PURE__ */ new Map();
   for (let i = 0; i < targets.length; i++) {
     const rawTarget = targets[i];
     const rawValue = values[i].toString();
@@ -876,6 +1020,51 @@ async function decodeProposalActions(input) {
       decoded: false,
       rawCalldata
     };
+    const hasEmptyCalldata = rawCalldata === "0x" || rawCalldata.trim() === "";
+    const hasNativeValue = rawValue !== "0";
+    if (hasEmptyCalldata && hasNativeValue) {
+      const ethFormatted = `${formatEther(BigInt(rawValue))} ETH`;
+      action.decoded = true;
+      action.functionName = "transfer";
+      action.selector = "0x";
+      action.signature = "transfer(address,uint256)";
+      action.isNativeTransfer = true;
+      action.targetName = action.targetName || "Recipient";
+      action.formattedAmount = ethFormatted;
+      action.tokenDecimals = 18;
+      action.tokenSymbol = "ETH";
+      action.args = [
+        {
+          name: "recipient",
+          type: "address",
+          value: targetAddress
+        },
+        {
+          name: "amount",
+          type: "uint256",
+          value: rawValue,
+          formattedValue: ethFormatted,
+          rawAmount: rawValue,
+          decimals: 18,
+          symbol: "ETH"
+        }
+      ];
+      actions.push(action);
+      continue;
+    }
+    if (selector === "0x6a761202") {
+      action.decoded = false;
+      action.isSafeWrapper = true;
+      action.functionName = "execTransaction (Safe Transaction Wrapper)";
+      action.selector = "0x6a761202";
+      action.signature = "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)";
+      action.decodeError = "Safe execTransaction wrapper detected (0x6a761202). Nested inner calls cannot be inspected; analysis is opaque.";
+      const safeLimitation = `Action #${i + 1} to ${targetAddress}: Executes via Safe wrapper (0x6a761202). Inner payload calls are opaque and cannot be inspected; analysis is marked incomplete.`;
+      action.limitations = [safeLimitation];
+      limitations.push(safeLimitation);
+      actions.push(action);
+      continue;
+    }
     if (rawSignature.trim() !== "") {
       const legacyResult = decodeLegacySignature(rawSignature, rawCalldata);
       if (legacyResult) {
@@ -883,6 +1072,7 @@ async function decodeProposalActions(input) {
         action.functionName = legacyResult.functionName;
         action.selector = legacyResult.selector;
         action.args = legacyResult.args;
+        await enrichTokenAmountMetadata(action, network, targetAddress, client, tokenCache);
         actions.push(action);
         continue;
       }
@@ -908,6 +1098,7 @@ async function decodeProposalActions(input) {
           action.decoded = true;
           action.functionName = decoded.functionName;
           action.args = abiFn ? mapDecodedArgs(abiFn, decoded.args) : [];
+          await enrichTokenAmountMetadata(action, network, targetAddress, client, tokenCache);
           actions.push(action);
           continue;
         } catch (decodeErr) {
@@ -931,6 +1122,42 @@ async function decodeProposalActions(input) {
     actions.push(action);
   }
   return { actions, limitations };
+}
+async function enrichTokenAmountMetadata(action, network, targetAddress, client, tokenCache) {
+  var _a, _b, _c, _d;
+  const fn = (action.functionName || "").toLowerCase();
+  if (fn !== "transfer" && fn !== "transferfrom" && fn !== "approve") {
+    return;
+  }
+  let amountArg;
+  if (fn === "transfer" || fn === "approve") {
+    amountArg = ((_a = action.args) == null ? void 0 : _a.find(
+      (a) => a.name.toLowerCase() === "amount" || a.name.toLowerCase() === "value"
+    )) || ((_b = action.args) == null ? void 0 : _b[1]);
+  } else if (fn === "transferfrom") {
+    amountArg = ((_c = action.args) == null ? void 0 : _c.find(
+      (a) => a.name.toLowerCase() === "amount" || a.name.toLowerCase() === "value"
+    )) || ((_d = action.args) == null ? void 0 : _d[2]);
+  }
+  if (!amountArg || !amountArg.value) {
+    return;
+  }
+  amountArg.rawAmount = amountArg.value;
+  const meta = await resolveTokenMetadata(network, targetAddress, client, tokenCache);
+  if (meta.verified && meta.decimals !== void 0) {
+    amountArg.decimals = meta.decimals;
+    amountArg.symbol = meta.symbol;
+    action.tokenDecimals = meta.decimals;
+    action.tokenSymbol = meta.symbol;
+    const formatted = formatTokenAmount(amountArg.value, meta.decimals, meta.symbol);
+    if (formatted.formatted) {
+      amountArg.formattedValue = formatted.formatted;
+      action.formattedAmount = formatted.formatted;
+    }
+  } else {
+    amountArg.decimalsUnavailable = true;
+    action.decimalsUnavailable = true;
+  }
 }
 const KNOWN_ROLE_HASHES = {
   "0x0000000000000000000000000000000000000000000000000000000000000000": {
@@ -1005,17 +1232,18 @@ function resolveRoleSemantics(roleHex, targetName) {
   };
 }
 function detectFindings(actions) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F;
   const findings = [];
   for (let i = 0; i < actions.length; i++) {
     const action = actions[i];
     const actionNum = i + 1;
     if (action.value && action.value !== "0") {
+      const formatted = action.formattedAmount || `${action.value} wei`;
       findings.push({
         id: `NATIVE_VALUE_TRANSFER_${i}`,
         severity: "medium",
         title: `Action #${actionNum} transfers native ETH`,
-        description: `Action transfers ${action.value} wei to ${action.target}.`,
+        description: `Action transfers ${formatted} (${action.value} wei) to ${action.target}.`,
         actionIndex: i,
         target: action.target,
         verified: true,
@@ -1023,16 +1251,29 @@ function detectFindings(actions) {
       });
     }
     if (!action.decoded) {
-      findings.push({
-        id: `UNDECODED_ACTION_${i}`,
-        severity: "high",
-        title: `Action #${actionNum} could not be decoded`,
-        description: action.decodeError || `Calldata with selector ${action.selector} to ${action.target} could not be decoded.`,
-        actionIndex: i,
-        target: action.target,
-        verified: false,
-        whyItMatters: "Opaque or undecoded actions prevent delegates from verifying execution safety."
-      });
+      if (action.isSafeWrapper || action.selector === "0x6a761202") {
+        findings.push({
+          id: `SAFE_WRAPPER_OPAQUE_${i}`,
+          severity: "medium",
+          title: `Action #${actionNum} executes via Safe transaction wrapper`,
+          description: `Action targets ${action.targetName || action.target} using Gnosis/Safe execTransaction (0x6a761202). Inner payload calls are opaque and cannot be verified deterministically without multi-call simulation.`,
+          actionIndex: i,
+          target: action.target,
+          verified: true,
+          whyItMatters: "Safe transaction wrappers conceal the underlying destination addresses, token amounts, and contract calls of the transaction."
+        });
+      } else {
+        findings.push({
+          id: `UNDECODED_ACTION_${i}`,
+          severity: "high",
+          title: `Action #${actionNum} could not be decoded`,
+          description: action.decodeError || `Calldata with selector ${action.selector} to ${action.target} could not be decoded.`,
+          actionIndex: i,
+          target: action.target,
+          verified: false,
+          whyItMatters: "Opaque or undecoded actions prevent delegates from verifying execution safety."
+        });
+      }
       continue;
     }
     const fn = action.functionName || "";
@@ -1071,12 +1312,26 @@ function detectFindings(actions) {
       continue;
     }
     if (fn === "transferOwnership") {
-      const newOwner = ((_r = (_q = action.args) == null ? void 0 : _q[0]) == null ? void 0 : _r.value) || "";
+      const newOwner = (((_r = (_q = action.args) == null ? void 0 : _q[0]) == null ? void 0 : _r.value) || "").toLowerCase();
+      const isZeroAddress = newOwner === "0x0000000000000000000000000000000000000000" || newOwner === "0x0" || !newOwner;
+      const isTimelockOrGov = /timelock|governor|governance/i.test(action.targetName || "") || /timelock|governor/i.test(((_t = (_s = action.args) == null ? void 0 : _s[0]) == null ? void 0 : _t.name) || "");
+      let severity = "high";
+      let title = `Action #${actionNum} transfers contract ownership`;
+      let description = `Transfers administrative ownership of ${action.targetName || action.target} to ${((_v = (_u = action.args) == null ? void 0 : _u[0]) == null ? void 0 : _v.value) || newOwner}. Delegates should confirm that the recipient address is the intended administrative controller or multisig.`;
+      if (isZeroAddress) {
+        severity = "high";
+        title = `Action #${actionNum} renounces contract ownership`;
+        description = `Transfers ownership of ${action.targetName || action.target} to the zero address (0x0). This permanently removes contract ownership and eliminates owner-only administrative functions.`;
+      } else if (isTimelockOrGov) {
+        severity = "medium";
+        title = `Action #${actionNum} transfers ownership to governance Timelock`;
+        description = `Transfers administrative ownership of ${action.targetName || action.target} to governance controller ${((_x = (_w = action.args) == null ? void 0 : _w[0]) == null ? void 0 : _x.value) || newOwner}. This places contract administrative controls under DAO governance.`;
+      }
       findings.push({
         id: `SENSITIVE_TRANSFER_OWNERSHIP_${i}`,
-        severity: "critical",
-        title: `Action #${actionNum} transfers contract ownership`,
-        description: `Transfers owner rights of ${action.targetName || action.target} to ${newOwner}.`,
+        severity,
+        title,
+        description,
         actionIndex: i,
         target: action.target,
         verified: true,
@@ -1085,7 +1340,7 @@ function detectFindings(actions) {
       continue;
     }
     if (fn === "upgradeTo" || fn === "upgradeToAndCall") {
-      const newImpl = ((_t = (_s = action.args) == null ? void 0 : _s[0]) == null ? void 0 : _t.value) || "";
+      const newImpl = ((_z = (_y = action.args) == null ? void 0 : _y[0]) == null ? void 0 : _z.value) || "";
       findings.push({
         id: `SENSITIVE_UPGRADE_${i}`,
         severity: "critical",
@@ -1099,7 +1354,7 @@ function detectFindings(actions) {
       continue;
     }
     if (fn === "changeAdmin") {
-      const newAdmin = ((_v = (_u = action.args) == null ? void 0 : _u[0]) == null ? void 0 : _v.value) || "";
+      const newAdmin = ((_B = (_A = action.args) == null ? void 0 : _A[0]) == null ? void 0 : _B.value) || "";
       findings.push({
         id: `SENSITIVE_CHANGE_ADMIN_${i}`,
         severity: "critical",
@@ -1113,27 +1368,58 @@ function detectFindings(actions) {
       continue;
     }
     if (fn === "approve") {
-      const spender = ((_x = (_w = action.args) == null ? void 0 : _w[0]) == null ? void 0 : _x.value) || "";
-      const amount = ((_z = (_y = action.args) == null ? void 0 : _y[1]) == null ? void 0 : _z.value) || "";
+      const spender = ((_D = (_C = action.args) == null ? void 0 : _C[0]) == null ? void 0 : _D.value) || "";
+      const amount = ((_F = (_E = action.args) == null ? void 0 : _E[1]) == null ? void 0 : _F.value) || "";
       const isInfinite = amount.startsWith("115792089237316195423570985008687907853269984665640564039457584007913129639935") || amount.toLowerCase().startsWith("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       if (isInfinite) {
         findings.push({
           id: `INFINITE_TOKEN_APPROVAL_${i}`,
           severity: "high",
-          title: `Action #${actionNum} grants infinite token allowance`,
-          description: `Approves unlimited token allowance on ${action.targetName || action.target} to spender ${spender}.`,
+          title: `Action #${actionNum} grants unlimited token allowance`,
+          description: `Approves unlimited token allowance on ${action.targetName || action.target} to spender ${spender}. This grants the spender recurring withdrawal authority up to the entire treasury balance without further governance votes.`,
           actionIndex: i,
           target: action.target,
           verified: true,
-          whyItMatters: "Unlimited token allowances permit the spender address to drain approved tokens up to the balance held."
+          whyItMatters: "Unlimited token allowances permit the spender address to drain approved tokens up to the balance held without transaction-level DAO approval."
         });
+      } else {
+        let rawAmount = 0n;
+        try {
+          rawAmount = BigInt(amount);
+        } catch {
+          rawAmount = 0n;
+        }
+        if (rawAmount > 0n) {
+          const displayAmount = action.formattedAmount || `${amount} base units`;
+          findings.push({
+            id: `MATERIAL_TOKEN_APPROVAL_${i}`,
+            severity: "medium",
+            title: `Action #${actionNum} grants material token approval`,
+            description: `Approves a token allowance of ${displayAmount} on ${action.targetName || action.target} to spender ${spender}. This authorizes the spender to withdraw up to this amount via transferFrom.`,
+            actionIndex: i,
+            target: action.target,
+            verified: true,
+            whyItMatters: "Token approvals delegate withdrawal authority to an external contract or address rather than transferring funds directly. An approval does not automatically execute a transfer or configure an active payment stream."
+          });
+        }
       }
     }
   }
   return findings;
 }
+function extractExplicitRecipientAddresses(description) {
+  const explicit = /* @__PURE__ */ new Set();
+  const recipientPattern = /(?:to|recipient|beneficiary|destination|send\s+to|transfer\s+to|pay\s+to|grant\s+to|winner|wallet|payout\s+to)[:\s]+(0x[a-fA-F0-9]{40})/gi;
+  let match;
+  while ((match = recipientPattern.exec(description)) !== null) {
+    if (match[1]) {
+      explicit.add(match[1].toLowerCase());
+    }
+  }
+  return explicit;
+}
 function checkDescriptionActionConsistency(description, actions) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D;
   if (!description || description.trim().length === 0) {
     return {
       status: "indeterminate",
@@ -1155,17 +1441,22 @@ function checkDescriptionActionConsistency(description, actions) {
   for (const addr of addressMatches) {
     mentionedAddresses.add(addr.toLowerCase());
   }
-  const mentionsTransfer = /transfer|fund|allocation|disbursement|treasury|usdc|dai|payment|budget/i.test(
+  const explicitRecipients = extractExplicitRecipientAddresses(description);
+  const mentionsTransfer = /\b(transfer|fund|funds|allocation|disbursement|treasury|usdc|dai|payment|budget)\b/i.test(
     description
   );
-  const mentionsRole = /role|proposer|executor|admin|permission|security council|signer|multisig/i.test(
+  const mentionsRole = /\b(role|proposer|executor|admin|permission|permissions|security\s+council|signer|multisig)\b/i.test(
     description
   );
-  const mentionsUpgrade = /upgrade|implementation|logic|proxy|migrate/i.test(description);
-  const mentionsOwnership = /ownership|owner|transfer\s+ownership/i.test(description);
+  const mentionsUpgrade = /\b(upgrade|implementation|logic|proxy|migrate)\b/i.test(description);
+  const mentionsOwnership = /\b(ownership|owner|transfer\s+ownership|renounce)\b/i.test(description);
+  const describesStream = /\b(stream|streaming|daily\s+stream|daily\s+usdc|sablier|superfluid|continuous\s+stream)\b/i.test(
+    description
+  );
+  const describesApproval = /\b(approve|approval|allowance)\b/i.test(description);
   const claimedAmountMatches = [
     ...description.matchAll(
-      /(?:transfer|disburse|send|grant|pay|allocation\s+of)\s+(?:of\s+)?(\$?\d[\d,]*(?:\.\d+)?)\s*([a-zA-Z$]+)?/gi
+      /(?:transfer|disburse|send|grant|pay|allocation\s+of|stream\s+of|stream)\s+(?:of\s+)?(\$?\d[\d,]*(?:\.\d+)?)\s*([a-zA-Z$]+)?/gi
     )
   ];
   const claimedNumericValues = [];
@@ -1176,7 +1467,8 @@ function checkDescriptionActionConsistency(description, actions) {
       claimedNumericValues.push(num);
     }
   }
-  const executedTransferAmounts = [];
+  const executedAmounts = [];
+  let hasActualTransferAction = false;
   for (let i = 0; i < actions.length; i++) {
     const action = actions[i];
     const actionNum = i + 1;
@@ -1188,8 +1480,43 @@ function checkDescriptionActionConsistency(description, actions) {
       continue;
     }
     const fn = (action.functionName || "").toLowerCase();
+    if (action.isNativeTransfer || action.value && action.value !== "0" && fn === "transfer") {
+      hasActualTransferAction = true;
+      const recipient = ((_b = (_a = action.args) == null ? void 0 : _a.find((a) => a.name.toLowerCase() === "recipient")) == null ? void 0 : _b.value) || action.target || "";
+      const recipientLower = recipient.toLowerCase();
+      let rawAmount = 0n;
+      try {
+        rawAmount = BigInt(action.value || "0");
+      } catch {
+        rawAmount = 0n;
+      }
+      if (rawAmount > 0n) {
+        executedAmounts.push({
+          raw: rawAmount,
+          decimals: 18,
+          symbol: "ETH"
+        });
+      }
+      if (!mentionsTransfer) {
+        discrepancies.push(
+          `Action #${actionNum} transfers native ETH, but description does not describe funds disbursement.`
+        );
+      }
+      if (recipient && !mentionedAddresses.has(recipientLower) && !descLower.includes(recipientLower)) {
+        if (explicitRecipients.size > 0 && !explicitRecipients.has(recipientLower)) {
+          discrepancies.push(
+            `Recipient mismatch: Action #${actionNum} sends native ETH to ${recipient}, which contradicts the explicit recipient stated in description.`
+          );
+        } else {
+          omissions.push(
+            `Action #${actionNum}: Native ETH recipient ${recipient} is not specified by address in the description.`
+          );
+        }
+      }
+      continue;
+    }
     if (fn === "grantrole" || fn === "revokerole") {
-      const recipient = ((_b = (_a = action.args) == null ? void 0 : _a.find((a) => a.name.toLowerCase().includes("account") || a.type === "address")) == null ? void 0 : _b.value) || ((_d = (_c = action.args) == null ? void 0 : _c[1]) == null ? void 0 : _d.value) || "";
+      const recipient = ((_d = (_c = action.args) == null ? void 0 : _c.find((a) => a.name.toLowerCase().includes("account") || a.type === "address")) == null ? void 0 : _d.value) || ((_f = (_e = action.args) == null ? void 0 : _e[1]) == null ? void 0 : _f.value) || "";
       const recipientLower = recipient.toLowerCase();
       if (!mentionsRole) {
         discrepancies.push(
@@ -1197,9 +1524,9 @@ function checkDescriptionActionConsistency(description, actions) {
         );
       }
       if (recipient && !mentionedAddresses.has(recipientLower) && !descLower.includes(recipientLower)) {
-        if (mentionedAddresses.size > 0) {
+        if (explicitRecipients.size > 0 && !explicitRecipients.has(recipientLower)) {
           discrepancies.push(
-            `Recipient mismatch: Action #${actionNum} grants permissions to ${recipient}, which does not match address stated in description.`
+            `Recipient mismatch: Action #${actionNum} grants permissions to ${recipient}, which contradicts address stated in description.`
           );
         } else {
           omissions.push(
@@ -1208,27 +1535,28 @@ function checkDescriptionActionConsistency(description, actions) {
         }
       }
     } else if (fn === "transfer" || fn === "transferfrom") {
+      hasActualTransferAction = true;
       let recipient = "";
       let rawAmount = 0n;
       if (fn === "transfer") {
-        recipient = ((_f = (_e = action.args) == null ? void 0 : _e.find(
+        recipient = ((_h = (_g = action.args) == null ? void 0 : _g.find(
           (a) => a.name.toLowerCase() === "to" || a.name.toLowerCase() === "recipient" || a.name.toLowerCase() === "dst"
-        )) == null ? void 0 : _f.value) || ((_h = (_g = action.args) == null ? void 0 : _g[0]) == null ? void 0 : _h.value) || "";
-        const amountStr = ((_j = (_i = action.args) == null ? void 0 : _i.find(
+        )) == null ? void 0 : _h.value) || ((_j = (_i = action.args) == null ? void 0 : _i[0]) == null ? void 0 : _j.value) || "";
+        const amountStr = ((_l = (_k = action.args) == null ? void 0 : _k.find(
           (a) => a.name.toLowerCase() === "amount" || a.name.toLowerCase() === "value"
-        )) == null ? void 0 : _j.value) || ((_l = (_k = action.args) == null ? void 0 : _k[1]) == null ? void 0 : _l.value) || "0";
+        )) == null ? void 0 : _l.value) || ((_n = (_m = action.args) == null ? void 0 : _m[1]) == null ? void 0 : _n.value) || "0";
         try {
           rawAmount = BigInt(amountStr);
         } catch {
           rawAmount = 0n;
         }
       } else {
-        recipient = ((_n = (_m = action.args) == null ? void 0 : _m.find(
+        recipient = ((_p = (_o = action.args) == null ? void 0 : _o.find(
           (a) => a.name.toLowerCase() === "to" || a.name.toLowerCase() === "recipient" || a.name.toLowerCase() === "dst"
-        )) == null ? void 0 : _n.value) || ((_p = (_o = action.args) == null ? void 0 : _o[1]) == null ? void 0 : _p.value) || "";
-        const amountStr = ((_r = (_q = action.args) == null ? void 0 : _q.find(
+        )) == null ? void 0 : _p.value) || ((_r = (_q = action.args) == null ? void 0 : _q[1]) == null ? void 0 : _r.value) || "";
+        const amountStr = ((_t = (_s = action.args) == null ? void 0 : _s.find(
           (a) => a.name.toLowerCase() === "amount" || a.name.toLowerCase() === "value"
-        )) == null ? void 0 : _r.value) || ((_t = (_s = action.args) == null ? void 0 : _s[2]) == null ? void 0 : _t.value) || "0";
+        )) == null ? void 0 : _t.value) || ((_v = (_u = action.args) == null ? void 0 : _u[2]) == null ? void 0 : _v.value) || "0";
         try {
           rawAmount = BigInt(amountStr);
         } catch {
@@ -1236,7 +1564,12 @@ function checkDescriptionActionConsistency(description, actions) {
         }
       }
       if (rawAmount > 0n) {
-        executedTransferAmounts.push(rawAmount);
+        executedAmounts.push({
+          raw: rawAmount,
+          decimals: action.tokenDecimals,
+          decimalsUnavailable: action.decimalsUnavailable,
+          symbol: action.tokenSymbol
+        });
       }
       const recipientLower = recipient.toLowerCase();
       if (!mentionsTransfer) {
@@ -1245,7 +1578,7 @@ function checkDescriptionActionConsistency(description, actions) {
         );
       }
       if (recipient && !mentionedAddresses.has(recipientLower) && !descLower.includes(recipientLower)) {
-        if (mentionedAddresses.size > 0) {
+        if (explicitRecipients.size > 0 && !explicitRecipients.has(recipientLower)) {
           discrepancies.push(
             `Recipient mismatch: Action #${actionNum} executes call to ${recipient}, which does not match address stated in description.`
           );
@@ -1254,6 +1587,36 @@ function checkDescriptionActionConsistency(description, actions) {
             `Action #${actionNum}: Token recipient ${recipient} (${action.targetName || "token"}) is not specified in the description text.`
           );
         }
+      }
+    } else if (fn === "approve") {
+      const spender = ((_x = (_w = action.args) == null ? void 0 : _w.find(
+        (a) => a.name.toLowerCase() === "spender" || a.name.toLowerCase() === "usr" || a.type === "address"
+      )) == null ? void 0 : _x.value) || ((_z = (_y = action.args) == null ? void 0 : _y[0]) == null ? void 0 : _z.value) || "";
+      const amountStr = ((_B = (_A = action.args) == null ? void 0 : _A.find(
+        (a) => a.name.toLowerCase() === "amount" || a.name.toLowerCase() === "value"
+      )) == null ? void 0 : _B.value) || ((_D = (_C = action.args) == null ? void 0 : _C[1]) == null ? void 0 : _D.value) || "0";
+      let rawAmount = 0n;
+      try {
+        rawAmount = BigInt(amountStr);
+      } catch {
+        rawAmount = 0n;
+      }
+      executedAmounts.push({
+        raw: rawAmount,
+        decimals: action.tokenDecimals,
+        decimalsUnavailable: action.decimalsUnavailable,
+        symbol: action.tokenSymbol,
+        isApproval: true,
+        spender
+      });
+      if (describesStream) {
+        discrepancies.push(
+          `Action #${actionNum} executes a token approval (\`approve\`) to ${spender} on ${action.targetName || action.target}, but the proposal describes establishing a payment stream (daily stream). A token approval only delegates withdrawal allowance and does not configure or initiate an active stream.`
+        );
+      } else if (mentionsTransfer && !describesApproval && !hasActualTransferAction) {
+        discrepancies.push(
+          `Action #${actionNum} executes a token approval (\`approve\`) rather than a direct transfer or disbursement as described in the proposal. An approval grants withdrawal allowance to ${spender} but does not transfer treasury funds.`
+        );
       }
     } else if (fn === "upgradeto" || fn === "upgradetoandcall") {
       if (!mentionsUpgrade) {
@@ -1269,17 +1632,22 @@ function checkDescriptionActionConsistency(description, actions) {
       }
     }
   }
+  const nonApprovalAmounts = executedAmounts.filter((ea) => !ea.isApproval);
   for (const claimed of claimedNumericValues) {
-    const matchesAny = executedTransferAmounts.some((amt) => {
-      const amtStr = amt.toString();
-      if (amtStr === claimed.toString()) return true;
-      const amt6 = Number(amt) / 1e6;
-      if (Math.abs(amt6 - claimed) < 1e-3) return true;
-      const amt18 = Number(amt) / 1e18;
-      if (Math.abs(amt18 - claimed) < 1e-3) return true;
+    const matchesAny = nonApprovalAmounts.some((ea) => {
+      if (ea.raw.toString() === claimed.toString()) return true;
+      if (ea.decimals !== void 0 && !ea.decimalsUnavailable) {
+        const scaled = Number(ea.raw) / Math.pow(10, ea.decimals);
+        if (Math.abs(scaled - claimed) < 1e-3) return true;
+      } else if (!ea.decimalsUnavailable) {
+        const amt6 = Number(ea.raw) / 1e6;
+        if (Math.abs(amt6 - claimed) < 1e-3) return true;
+        const amt18 = Number(ea.raw) / 1e18;
+        if (Math.abs(amt18 - claimed) < 1e-3) return true;
+      }
       return false;
     });
-    if (executedTransferAmounts.length > 0 && !matchesAny) {
+    if (nonApprovalAmounts.length > 0 && !matchesAny) {
       discrepancies.push(
         `Amount mismatch: Description claims transfer of ${claimed}, but no executable action matches this amount.`
       );
@@ -1307,7 +1675,7 @@ function checkDescriptionActionConsistency(description, actions) {
       omissions
     };
   }
-  const mentionsAnyOperation = mentionsTransfer || mentionsRole || mentionsUpgrade || mentionsOwnership;
+  const mentionsAnyOperation = mentionsTransfer || mentionsRole || mentionsUpgrade || mentionsOwnership || describesApproval;
   if (actions.length > 0 && (!mentionsAnyOperation || mentionedAddresses.size === 0 && claimedNumericValues.length === 0)) {
     return {
       status: "indeterminate",
