@@ -76,10 +76,20 @@ Instead of using unconstrained text completions, CallScope requests structured J
 
 ## 3. Dolphin Integration (`server/providers/dolphin.ts`)
 
-Dolphin (`deepseek-ai/DeepSeek-V4.1-Flash`) serves as an adversarial second opinion:
-- **Scope**: Challenges unverified assumptions, inspects role grants, and identifies execution anomalies.
-- **Reference Integrity Gate**: Dolphin is strictly capped at a maximum of 3 items. Every item **must** carry a valid `actionRef` (index into `actions`) or `findingRef` (ID of an existing deterministic finding). Items with invalid or missing references are automatically dropped by the server.
-- **Secondary Review**: Dolphin reviews cannot modify findings or downgrade severity. If Dolphin flags a risk on an action that the engine considered routine, the discrepancy is surfaced in the Reviewer Agreement Strip for delegate scrutiny.
+Dolphin operates as an **adversarial scenario generator and second-opinion auditor**:
+- **Inference Model & Infrastructure**: Hosted on Dolphin Lighthouse infrastructure (`https://lighthouse.dphn.ai/run/text-v/v1/chat/completions`) powered by `deepseek-ai/DeepSeek-V4.1-Flash`. Attributed explicitly in the UI and documentation.
+- **Adversarial Attack Scenario Generation**: Generates up to 3 concrete multi-step attack scenarios targeting proposal execution hazards:
+  - Schema: `{ id, title, preconditions[], steps[{ actionRef, findingRef, description }], impact, severityHint }`.
+- **Deterministic Engine Rebuttal Loop (`evaluateScenarioRebuttal`)**:
+  Every proposed scenario is cross-examined by the deterministic engine against verified bytecode, calldata arguments, role capabilities, recipient profiles, and findings:
+  1. `refuted_by_data`: Scenario assumptions are directly disproved by deterministic facts (e.g. action transfers 0 ETH, or contract source proves role is strictly limited to `cancel()`, or referenced action/finding does not exist).
+  2. `not_refuted`: Scenario mechanism is substantiated by on-chain findings or verified role capabilities (e.g. role grants `schedule()` on TimelockController, or high-severity finding confirms hazard).
+  3. `needs_human`: Scenario relies on off-chain assumptions (multisig signer compromise, off-chain social engineering) requiring delegate discretion.
+- **Reference Integrity Gate**: Secondary observations outside scenarios are capped at 3 items; each must reference a valid `actionRef` or `findingRef`.
+- **Tri-Reviewer Agreement Strip**: The UI dynamically compares three independent pillars:
+  1. Deterministic Engine: baseline assessment outcome (`review_recommended` vs `no_significant_issue_detected`).
+  2. OpenServ SERV: extended claims ledger check (`inconsistent`, `partially_verified`, or `consistent`).
+  3. Dolphin: adversarial attack scenarios (`not_refuted`, `needs_human`, or `refuted_by_data`).
 
 ---
 

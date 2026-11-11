@@ -223,6 +223,7 @@ export const App: React.FC = () => {
                 serv={result.reviews?.serv}
                 dolphin={result.reviews?.dolphin}
                 assessment={result.assessment}
+                extendedConsistency={result.extendedConsistency}
               />
 
               <EvidenceLinks

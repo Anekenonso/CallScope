@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { AssessmentOutcome, ProviderReview, ReviewItem, ReviewItemKind } from '../types/analysis';
+import type { AssessmentOutcome, ProviderReview, ReviewItem, ReviewItemKind, DescriptionConsistency } from '../types/analysis';
 import { normalizeReviewItem } from '../../server/providers/review-normalizer';
 import { computeReviewerAgreement } from '../lib/reviewer-agreement';
 
@@ -7,6 +7,7 @@ interface ProviderReviewsProps {
   serv: ProviderReview;
   dolphin: ProviderReview;
   assessment?: AssessmentOutcome;
+  extendedConsistency?: DescriptionConsistency;
 }
 
 const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
@@ -150,8 +151,8 @@ const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
   );
 };
 
-export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin, assessment }) => {
-  const agreement = computeReviewerAgreement(assessment, serv, dolphin);
+export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin, assessment, extendedConsistency }) => {
+  const agreement = computeReviewerAgreement(assessment, serv, dolphin, extendedConsistency);
 
   const getStatusBadge = (review: ProviderReview) => {
     switch (review.status) {
@@ -314,6 +315,106 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
       <div className="review-body">
         {review.summary && <p className="review-summary-text">{review.summary}</p>}
 
+        {review.scenarios && review.scenarios.length > 0 && (
+          <div className="review-scenarios-block" style={{ marginTop: '14px', marginBottom: '14px' }}>
+            <h4
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: '#cbd5e1',
+                marginBottom: '10px',
+              }}
+            >
+              Adversarial Scenarios &amp; Rebuttal Audit
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {review.scenarios.map((sc) => {
+                const isRefuted = sc.rebuttalStatus === 'refuted_by_data';
+                const isNotRefuted = sc.rebuttalStatus === 'not_refuted';
+                return (
+                  <div
+                    key={sc.id}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                      border: `1px solid ${
+                        isRefuted
+                          ? 'rgba(34, 197, 94, 0.3)'
+                          : isNotRefuted
+                            ? 'rgba(239, 68, 68, 0.3)'
+                            : 'rgba(59, 130, 246, 0.3)'
+                      }`,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#f8fafc' }}>{sc.title}</span>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {sc.severityHint && (
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                              color: '#cbd5e1',
+                            }}
+                          >
+                            {sc.severityHint}
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: isRefuted
+                              ? 'rgba(34, 197, 94, 0.2)'
+                              : isNotRefuted
+                                ? 'rgba(239, 68, 68, 0.2)'
+                                : 'rgba(59, 130, 246, 0.2)',
+                            color: isRefuted ? '#4ade80' : isNotRefuted ? '#f87171' : '#60a5fa',
+                          }}
+                        >
+                          {isRefuted
+                            ? '✓ Refuted by Engine Facts'
+                            : isNotRefuted
+                              ? '⚠ Not Refuted (Plausible Risk)'
+                              : '⚑ Needs Delegate Review'}
+                        </span>
+                      </div>
+                    </div>
+                    {sc.impact && (
+                      <p style={{ margin: '6px 0 4px', fontSize: '0.8rem', color: '#94a3b8' }}>
+                        <strong style={{ color: '#cbd5e1' }}>Impact:</strong> {sc.impact}
+                      </p>
+                    )}
+                    {sc.refutedBy && (
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          padding: '6px 10px',
+                          borderRadius: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          fontSize: '0.75rem',
+                          color: isRefuted ? '#86efac' : isNotRefuted ? '#fca5a5' : '#93c5fd',
+                        }}
+                      >
+                        <strong>Engine Audit:</strong> {sc.refutedBy}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {items.length > 0 && (
           <ul className="review-observations-list">
             {items.map((item, idx) => (
@@ -448,7 +549,7 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
           <div className="review-card-header">
             <div className="review-provider-title">
               <span className="provider-name">Dolphin</span>
-              <span className="provider-role">Secondary security reviewer</span>
+              <span className="provider-role">Dolphin Lighthouse · deepseek-ai/DeepSeek-V4.1-Flash</span>
             </div>
             {getStatusBadge(dolphin)}
           </div>

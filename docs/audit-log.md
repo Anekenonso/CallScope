@@ -779,6 +779,47 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Test Suite (`pnpm vitest run tests/unit/`):** 24 test files passed, 207 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas (`api/analyse.js`, `api/review.js`, `api/health.js`).
 
+---
+
+## Second-Pass Task 7: Dolphin Adversarial Attack Scenarios & Engine Rebuttal Loop
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Natively leverage Dolphin for multi-step attack scenario generation, implement the deterministic engine rebuttal loop (`evaluateScenarioRebuttal`) cross-examining proposed scenarios against on-chain facts, attribute the underlying inference engine (`deepseek-ai/DeepSeek-V4.1-Flash` on Lighthouse) honestly, and upgrade the Reviewer Agreement Strip to compare the baseline engine, SERV extended claims check, and Dolphin attack scenarios.
+
+### 1. Architectural Design & Implementation
+- **Lighthouse Model Attribution (`docs/sponsor-notes.md` & `ProviderReviews.tsx`):**
+  - Explicitly verified and documented that Dolphin's endpoint (`https://lighthouse.dphn.ai/run/text-v/v1/chat/completions`) runs `deepseek-ai/DeepSeek-V4.1-Flash`. Attributed in UI subtitle as `Dolphin Lighthouse · deepseek-ai/DeepSeek-V4.1-Flash`.
+- **Attack Scenario Schema (`src/types/analysis.ts`):**
+  - Added `AttackScenario` with `id`, `title`, `preconditions`, `steps` (`actionRef`, `findingRef`, `description`), `impact`, `severityHint`, `rebuttalStatus`, and `refutedBy`.
+- **Deterministic Engine Rebuttal Loop (`server/providers/dolphin.ts`):**
+  - Implemented `evaluateScenarioRebuttal(scenario, actions, findings, description)`:
+    - **Refuted by data (`refuted_by_data`):** Proves scenario is false when action references are invalid, finding references do not exist, claims native ETH draining on a 0 ETH transaction, claims arbitrary scheduling when verified contract capabilities prove role is cancel-only, or claims unverified contract on a verified address.
+    - **Not refuted (`not_refuted`):** Proves scenario is plausible when verified role capabilities confirm the power (e.g. `schedule()` on TimelockController) or align with high/critical deterministic security findings.
+    - **Needs human review (`needs_human`):** Assigns when the attack relies on external off-chain assumptions (multisig private key theft, signer collusion, social engineering) that cannot be proved or disproved on-chain.
+- **Tri-Reviewer Agreement Strip (`src/lib/reviewer-agreement.ts` & `src/components/ProviderReviews.tsx`):**
+  - Compares:
+    1. Deterministic Engine: baseline assessment outcome (`review_recommended` vs `no_significant_issue_detected`).
+    2. OpenServ SERV: extended claims ledger check (`inconsistent`, `partially_verified`, or `consistent`).
+    3. Dolphin: adversarial attack scenarios (`not_refuted`, `needs_human`, or `refuted_by_data`).
+  - Added scenario rendering in `ProviderReviews.tsx` with severity tags, engine audit explanations, and colored status badges:
+    - Green: `✓ Refuted by Engine Facts`
+    - Amber/Red: `⚠ Not Refuted (Plausible Risk)`
+    - Blue: `⚑ Needs Delegate Review`
+
+### 2. Verification Evidence
+- **Unit Tests (`tests/unit/dolphin-scenarios.test.ts`):** 11/11 passed.
+  - Proved out-of-bounds actionRef and non-existent findingRef are refuted by data.
+  - Proved 0 ETH transfers claiming treasury drain are refuted by data.
+  - Proved cancel-only role capability refutes proposal scheduling scenarios.
+  - Proved verified schedule() capability correctly substantiates attack scenario (`not_refuted`).
+  - Proved multisig collusion/theft scenarios are tagged `needs_human`.
+  - Proved all agreement strip states (`agree` clean, `agree` flagged, `disagree`, `single_available`).
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm vitest run tests/unit/`):** 25 test files passed, 218 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
+
 
 
 

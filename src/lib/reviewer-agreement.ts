@@ -1,4 +1,4 @@
-import type { AssessmentOutcome, ProviderReview } from '../types/analysis';
+import type { AssessmentOutcome, ProviderReview, DescriptionConsistency } from '../types/analysis';
 
 export interface ReviewerStance {
   name: 'Deterministic Engine' | 'OpenServ SERV' | 'Dolphin';
@@ -16,11 +16,12 @@ export interface ReviewerAgreement {
 export function computeReviewerAgreement(
   assessment: AssessmentOutcome | undefined,
   serv: ProviderReview | undefined,
-  dolphin: ProviderReview | undefined
+  dolphin: ProviderReview | undefined,
+  extendedConsistency?: DescriptionConsistency
 ): ReviewerAgreement {
   const stances: ReviewerStance[] = [];
 
-  // 1. Engine stance
+  // 1. Engine stance (Authoritative deterministic baseline)
   let engineVerdict: 'flagged' | 'clear' | 'pending' = 'clear';
   let engineLabel = 'No significant issues detected';
 
@@ -44,7 +45,7 @@ export function computeReviewerAgreement(
     label: engineLabel,
   });
 
-  // 2. SERV stance
+  // 2. OpenServ SERV stance (Extended claims check & tool-grounded investigator)
   let servVerdict: 'flagged' | 'clear' | 'unavailable' | 'pending' = 'unavailable';
   let servLabel = 'Not configured';
 
@@ -72,6 +73,20 @@ export function computeReviewerAgreement(
   } else if (serv.status === 'upstream_error' || serv.status === 'error' || serv.status === 'unavailable') {
     servVerdict = 'unavailable';
     servLabel = 'Review unavailable';
+  } else if (extendedConsistency && extendedConsistency.status) {
+    if (extendedConsistency.status === 'inconsistent') {
+      servVerdict = 'flagged';
+      servLabel = 'Contradiction detected in claims ledger';
+    } else if (extendedConsistency.status === 'partially_verified') {
+      servVerdict = 'flagged';
+      servLabel = 'Partially verified / off-chain claims';
+    } else if (extendedConsistency.status === 'consistent') {
+      servVerdict = 'clear';
+      servLabel = 'All verified claims match actions';
+    } else {
+      servVerdict = 'clear';
+      servLabel = 'Extended claims check indeterminate';
+    }
   } else {
     const hasFlags = (serv.items || []).some(
       (item) => item.kind === 'contradiction' || item.kind === 'unsupported_claim' || item.kind === 'risk'
@@ -91,7 +106,7 @@ export function computeReviewerAgreement(
     label: servLabel,
   });
 
-  // 3. Dolphin stance
+  // 3. Dolphin stance (Adversarial attack scenarios & rebuttal loop)
   let dolphinVerdict: 'flagged' | 'clear' | 'unavailable' | 'pending' = 'unavailable';
   let dolphinLabel = 'Not configured';
 
@@ -119,6 +134,20 @@ export function computeReviewerAgreement(
   } else if (dolphin.status === 'upstream_error' || dolphin.status === 'error' || dolphin.status === 'unavailable') {
     dolphinVerdict = 'unavailable';
     dolphinLabel = 'Review unavailable';
+  } else if (dolphin.scenarios && dolphin.scenarios.length > 0) {
+    const unrefuted = dolphin.scenarios.filter((s) => s.rebuttalStatus === 'not_refuted');
+    const needsHuman = dolphin.scenarios.filter((s) => s.rebuttalStatus === 'needs_human');
+
+    if (unrefuted.length > 0) {
+      dolphinVerdict = 'flagged';
+      dolphinLabel = `${unrefuted.length} unrefuted attack scenario(s)`;
+    } else if (needsHuman.length > 0) {
+      dolphinVerdict = 'flagged';
+      dolphinLabel = `${needsHuman.length} scenario(s) require delegate review`;
+    } else {
+      dolphinVerdict = 'clear';
+      dolphinLabel = 'All proposed scenarios refuted by engine facts';
+    }
   } else {
     const hasFlags = (dolphin.items || []).some(
       (item) => item.kind === 'risk' || item.kind === 'contradiction' || item.kind === 'unsupported_claim'

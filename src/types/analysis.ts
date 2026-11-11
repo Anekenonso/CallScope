@@ -154,12 +154,32 @@ export type ProviderErrorClass =
   | 'schema_invalid'
   | 'upstream_error';
 
+export type ScenarioRebuttalStatus = 'refuted_by_data' | 'not_refuted' | 'needs_human';
+
+export interface AttackScenarioStep {
+  actionRef?: number;
+  findingRef?: string;
+  description?: string;
+}
+
+export interface AttackScenario {
+  id: string;
+  title: string;
+  preconditions: string[];
+  steps: AttackScenarioStep[];
+  impact: string;
+  severityHint?: 'critical' | 'high' | 'medium' | 'low';
+  rebuttalStatus: ScenarioRebuttalStatus;
+  refutedBy?: string;
+}
+
 export interface ProviderReview {
   provider?: string;
   status: ProviderStatus;
   summary?: string;
   items?: ReviewItem[];
   findings?: string[];
+  scenarios?: AttackScenario[];
   error?: string;
   reason?: string;
   errorClass?: ProviderErrorClass;
