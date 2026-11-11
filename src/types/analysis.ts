@@ -63,11 +63,41 @@ export interface Finding {
   whyItMatters: string;
 }
 
+export type ClaimCategory =
+  | 'recipient'
+  | 'amount'
+  | 'role'
+  | 'capability'
+  | 'duration'
+  | 'ownership'
+  | 'upgrade'
+  | 'other';
+
+export type ClaimStatus = 'verified' | 'contradicted' | 'not_checkable';
+
+export interface Claim {
+  id: string;
+  quote: string;
+  category: ClaimCategory;
+  params?: Record<string, unknown>;
+  status?: ClaimStatus;
+  explanation?: string;
+  evidenceRef?: { actionIndex?: number; argName?: string };
+}
+
+export type ConsistencyStatus =
+  | 'consistent'
+  | 'inconsistent'
+  | 'partially_verified'
+  | 'indeterminate';
+
 export interface DescriptionConsistency {
-  status: 'consistent' | 'inconsistent' | 'indeterminate';
+  status: ConsistencyStatus;
   explanation: string;
   omissions?: string[];
   discrepancies?: string[];
+  claims?: Claim[];
+  mode?: 'claims_ledger' | 'keyword_fallback';
 }
 
 export type ReviewItemKind = 'supported' | 'unsupported_claim' | 'risk' | 'contradiction' | 'note';

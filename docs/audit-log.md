@@ -178,3 +178,63 @@ Our investigation uncovered a compound failure across three distinct layers:
 
 
 
+---
+
+## Task 4: Replace Keyword Consistency with a Deterministic Claims Ledger
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Replace keyword regex matching with structured claim extraction and deterministic category comparators, detecting contradictions such as the ENS EP 6.50 security council proposal grant vs text claims.
+
+### 1. Root Cause & Previous Limitation
+- The legacy `check-consistency.ts` relied on coarse keyword regular expressions. Because the ENS EP 6.50 proposal text mentioned `PROPOSER_ROLE` and addresses, the keyword check marked the proposal "Consistent: executable actions match the stated operations, recipients, and intended effects".
+- In reality, the proposal's motivation section explicitly asserted: *"The Security Council was originally established in EP 5.13 as a 4-of-8 multisig with a single power: to cancel malicious proposals made to ENS DAO. It cannot propose, amend, or initiate any governance action."*
+- Action #1 executed `grantRole(PROPOSER_ROLE, 0x2acbf518b3759f6e1fa163294eda55bf1d0ae051)`, granting full proposal creation power on the TimelockController.
+
+### 2. Implementation & Architecture
+- **Type Definitions (`src/types/analysis.ts`):**
+  - Added `ClaimCategory`: `'recipient' | 'amount' | 'role' | 'capability' | 'duration' | 'ownership' | 'upgrade' | 'other'`.
+  - Added `ClaimStatus`: `'verified' | 'contradicted' | 'not_checkable'`.
+  - Added `Claim` interface with `id`, `quote`, `category`, `params`, `status`, `explanation`, and `evidenceRef`.
+  - Added `ConsistencyStatus`: `'consistent' | 'inconsistent' | 'partially_verified' | 'indeterminate'`.
+  - Added `claims` and `mode` to `DescriptionConsistency`.
+- **Claim Extraction (`server/analysis/claims-ledger.ts`):**
+  - `extractClaimsWithServ`: Requests structured JSON output from OpenServ SERV (`response_format: { type: 'json_object' }`).
+  - **Verbatim Substring Guard:** Every extracted claim must have a `quote` that is an exact, case-sensitive substring of the proposal text; otherwise dropped.
+  - `extractFallbackClaims`: Deterministic regex/clause heuristic extraction for offline runs or when SERV is unconfigured.
+- **Deterministic Category Comparators:**
+  - `capability`: Detects assertions denying proposal power (`cannot propose`, `lacks proposal`, `single power: cancel`) and compares against `grantRole(PROPOSER_ROLE)` to flag contradictions.
+  - `role`: Verifies role grant and revocation claims against executable action selectors and arguments.
+  - `recipient`: Matches addresses against targets or action parameters.
+  - `amount`: Matches numeric amounts against raw BigInt, 6-decimal (USDC), 18-decimal, and formatted values.
+  - `duration`, `ownership`, `upgrade`: Evaluates executable action properties; marks off-chain commitments as `not_checkable`.
+- **Consistency Precedence Engine (`evaluateClaimsLedger`):**
+  - If any claim is `contradicted`: status is `inconsistent`.
+  - If `verifiedCount >= 1`, 0 `contradicted`, 0 `not_checkable`, and all sensitive actions (roles, upgrades, ownership, native value) covered by verified claims: status is `consistent`.
+  - If some claims verified but off-chain or non-sensitive claims are `not_checkable` or sensitive actions uncovered: status is `partially_verified`.
+  - Otherwise: status is `indeterminate`.
+- **Truthful Fallback Mode:**
+  - In `server/analysis/check-consistency.ts`, if SERV is unconfigured or fails, executes deterministic keyword check labeled `"Keyword check only. Claims were not individually verified."` with `mode: 'keyword_fallback'`. Removed all occurrences of "intended effects".
+- **Assessment Engine Update (`server/analysis/build-assessment.ts`):**
+  - Updated to classify `partially_verified` under `analysis_incomplete` (since off-chain or uncovered claims cannot be deterministically verified on-chain).
+- **UI Claims Ledger Table (`src/components/ConsistencyView.tsx` & `src/styles/index.css`):**
+  - Replaced single static card with a responsive Claims Ledger table:
+    - Quoted verbatim text
+    - Category badge
+    - Status badge (`✓ Verified`, `✕ Contradicted`, `⊘ Not Checkable`)
+    - Calldata Evidence link (`Action #1 (role)`) with anchor jump to the action card.
+  - Added "Keyword fallback" badge and banner when running in fallback mode.
+
+### 3. Verification Evidence
+- `tests/unit/claims-ledger.test.ts`: 8/8 passed.
+  - Verbatim substring guard dropped hallucinated sentences.
+  - Detected contradiction between "cannot propose" and `PROPOSER_ROLE` on ENS proposal calldata.
+  - Verified recipient and amount claims on Unlock Base transfer calldata.
+  - Verified sensitive action coverage rule and `partially_verified` status.
+  - Verified truthful fallback labeling without "intended effects" phrasing.
+- `tests/unit/build-assessment.test.ts`: 8/8 passed (verified `partially_verified` maps to `analysis_incomplete`).
+- `tests/unit/sponsor-providers.test.ts`: 16/16 passed.
+- `tests/unit/real-render.test.tsx` & `tests/unit/ui-components.test.tsx`: 14/14 passed.
+- All 16 test files in `tests/unit/` (140 tests) passed offline with 0 failures.
+- `pnpm typecheck` passed with 0 errors.
+- `pnpm build` passed with clean SSR bundle and client distribution.

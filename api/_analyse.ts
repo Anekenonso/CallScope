@@ -5,7 +5,11 @@ import { createChainClient, verifyNetworkChainId, validateGovernorContract } fro
 import { retrieveProposalCreatedEvent, retrieveProposalEventFromTxHash, readGovernorProposalState, ProposalEventLookupError, type DecodedProposalEvent } from '../server/chain/proposal-events';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
 import { detectFindings } from '../server/analysis/detect-findings';
-import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
+import {
+  checkDescriptionActionConsistency,
+  extractClaimsWithServ,
+  evaluateClaimsLedger,
+} from '../server/analysis/check-consistency';
 import { buildAssessment } from '../server/analysis/build-assessment';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
@@ -150,7 +154,16 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   const findings = detectFindings(actions);
 
   // 7. Check consistency between proposal description and executable actions
-  const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
+  // Evaluates structured claims ledger via SERV if configured, otherwise deterministic keyword fallback
+  let descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
+  try {
+    const servClaims = await extractClaimsWithServ(event.description);
+    if (servClaims && servClaims.length > 0) {
+      descriptionConsistency = evaluateClaimsLedger(servClaims, actions, event.description);
+    }
+  } catch {
+    // Keep deterministic keyword fallback
+  }
 
   // 8. Build final deterministic assessment
   const assessment = buildAssessment({

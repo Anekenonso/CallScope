@@ -118,6 +118,21 @@ describe('buildAssessment precedence engine', () => {
     expect(outcome).toBe('analysis_incomplete');
   });
 
+  it('yields analysis_incomplete when description consistency is partially_verified', () => {
+    const partiallyVerified: DescriptionConsistency = {
+      status: 'partially_verified',
+      explanation: 'Some claims could not be verified on-chain.',
+    };
+
+    const outcome = buildAssessment({
+      actions: [dummyAction],
+      findings: [],
+      consistency: partiallyVerified,
+      limitations: [],
+    });
+    expect(outcome).toBe('analysis_incomplete');
+  });
+
   it('review_recommended takes precedence over analysis_incomplete when high severity finding exists', () => {
     const undecodedAction: ProposalAction = {
       index: 0,

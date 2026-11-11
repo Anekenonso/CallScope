@@ -261,7 +261,12 @@ describe('Dolphin provider adapter', () => {
             role: 'assistant',
             content: JSON.stringify({
               summary: 'Dolphin: No secondary governance risks identified.',
-              findings: ['Standard transfer within expected operational parameters.'],
+              findings: [
+                {
+                  issue: 'Standard transfer within expected operational parameters.',
+                  actionRef: 0,
+                },
+              ],
             }),
           },
         },

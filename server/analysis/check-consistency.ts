@@ -1,4 +1,11 @@
 import type { ProposalAction, DescriptionConsistency } from '../../src/types/analysis';
+import {
+  extractClaimsWithServ,
+  extractFallbackClaims,
+  evaluateClaimsLedger,
+} from './claims-ledger';
+
+export { extractClaimsWithServ, extractFallbackClaims, evaluateClaimsLedger };
 
 interface ExecutedAmountInfo {
   raw: bigint;
@@ -383,9 +390,10 @@ export function checkDescriptionActionConsistency(
   if (discrepancies.length > 0) {
     return {
       status: 'inconsistent',
-      explanation: `Material discrepancies detected between proposal claims and executable calls: ${discrepancies.join(' ')}`,
+      explanation: `Keyword check only. Claims were not individually verified. Material discrepancies detected between proposal claims and executable calls: ${discrepancies.join(' ')}`,
       omissions: omissions.length > 0 ? omissions : undefined,
       discrepancies,
+      mode: 'keyword_fallback',
     };
   }
 
@@ -394,8 +402,9 @@ export function checkDescriptionActionConsistency(
     return {
       status: 'indeterminate',
       explanation:
-        'Proposal contains undecoded actions that cannot be reliably verified against stated claims.',
+        'Keyword check only. Claims were not individually verified. Proposal contains undecoded actions that cannot be reliably verified against stated claims.',
       omissions,
+      mode: 'keyword_fallback',
     };
   }
 
@@ -403,8 +412,9 @@ export function checkDescriptionActionConsistency(
   if (actions.length > 0 && omissions.length > 0) {
     return {
       status: 'indeterminate',
-      explanation: `Claims cannot be reliably verified against executable actions: ${omissions.join(' ')}`,
+      explanation: `Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: ${omissions.join(' ')}`,
       omissions,
+      mode: 'keyword_fallback',
     };
   }
 
@@ -417,13 +427,15 @@ export function checkDescriptionActionConsistency(
     return {
       status: 'indeterminate',
       explanation:
-        'Proposal description is too vague to establish verifiable consistency with executable actions.',
+        'Keyword check only. Claims were not individually verified. Proposal description is too vague to establish verifiable consistency with executable actions.',
+      mode: 'keyword_fallback',
     };
   }
 
   return {
     status: 'consistent',
     explanation:
-      'Executable actions match the stated operations, recipients, and intended effects in the proposal description.',
+      'Keyword check only. Claims were not individually verified. Executable actions match stated operations and recipients in the proposal description.',
+    mode: 'keyword_fallback',
   };
 }
