@@ -600,5 +600,58 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Test Suite (`pnpm test`):** 22 test files passed, 180 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean Vite bundle and serverless lambdas (`api/analyse.js`, `api/review.js`, `api/health.js`).
 
+---
+
+## Second-Pass Task 3: Exact Claims Ledger Comparators & Strict ABI Semantics
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Make the deterministic claims ledger strictly typed and exact. Replace floating-point conversions with BigInt integer math and real token decimals. Enforce ABI recipient semantics (`transfer`, `transferFrom`, native transfer, `grantRole`). Compute role hashes dynamically via `keccak256(toHex(NAME))`. Gate capability claims strictly on `role-capabilities.ts` outputs.
+
+### 1. Root Cause & Permissive Matching Findings
+- **Amounts:** Previously used `parseFloat(rawNum)` with `Math.round(cleanNum * 1e6)` and a loose `0.001` floating-point tolerance on `formattedValue`. Unspecified tokens could match any token action indiscriminately.
+- **Recipients:** Previously checked if the claimed address matched `act.target` (which for ERC-20 transfers is the token contract address itself!) or *any* decoded address argument in the action (matching `from`, `spender`, or intermediate parameters as recipients).
+- **Roles:** Previously hard-coded the PROPOSER_ROLE hash (`0xb09aa5aeb3...`) and relied on phrase triggers like `"cannot propose"`. If a role was granted to a different address than claimed, it could still be marked verified.
+- **Capabilities:** Evaluated independently of whether verified source code was actually available or unparseable, potentially flagging false contradictions on unverified roles.
+
+### 2. Implementation of Exact Comparators (`server/analysis/claims-ledger.ts`)
+- **Lossless BigInt Decimal Parsing (`parseUnitsExact`):**
+  - Parses decimal strings like `"400.00"` or `"1,000.5"` directly into integer BigInt base units without floating-point conversion loss.
+  - Rejects amounts with fractional precision exceeding token decimals.
+- **Token Denomination Binding:**
+  - Evaluates amounts against actions matching the specific token ticker (`USDC`, `ETH`, etc.) or token contract address.
+  - If a proposal transfers multiple tokens and a claim does not specify a denomination, evaluates strictly to `not_checkable`.
+  - Rejects "right amount, wrong token" false positives (e.g. 400 DAI claimed vs 400 USDC action).
+- **Strict ABI Recipient Resolution (`getActionRecipient`):**
+  - `transfer(to, amount)`: recipient is `to`.
+  - `transferFrom(from, to, amount)`: recipient is `to` (arg index 1), NEVER `from` (arg index 0) or spender.
+  - Native value transfer: recipient is the action's `target`.
+  - `grantRole(role, account)`: recipient is `account`.
+  - `transferOwnership(newOwner)`: recipient is `newOwner`.
+  - Token contracts and arbitrary parameters are never treated as recipients.
+- **Dynamic Keccak256 Role Hashes:**
+  - Computes `keccak256(toHex(roleName))` dynamically for standard role constants (`PROPOSER_ROLE`, `EXECUTOR_ROLE`, etc.).
+  - Matches both the role hash AND the claimed account address. If granted to a different address, flags an explicit contradiction.
+  - Dropped all hard-coded role hashes.
+- **Role Capability Integration:**
+  - Evaluates capability claims against `action.roleCapability` produced by `role-capabilities.ts`.
+  - If `roleCapability.status === 'unresolved'` (source unverified or unparseable), strictly evaluates to `not_checkable` (never false contradicted or verified).
+  - If `roleCapability.status === 'resolved'`, checks actual function gates (e.g. `schedule`, `propose`) derived from verified contract source.
+
+### 3. Verification Evidence
+- **Unit Test Suite (`tests/unit/claims-ledger.test.ts`):** 15/15 tests PASS (expanded with 6 dedicated regression tests for false-positive traps):
+  1. `parseUnitsExact`: Exact BigInt conversion for `"400.00"` (6 decimals -> `400000000n`), `"1,000.5"` (18 decimals), and decimal overflow rejection.
+  2. False-Positive Trap 1: Right amount wrong token (400 DAI claimed vs 400 USDC action) -> `not_checkable`.
+  3. False-Positive Trap 2: Ambiguous amount in multi-token proposal without denomination -> `not_checkable`.
+  4. False-Positive Trap 3: `transferFrom` recipient resolution (verifies `to`, rejects `from` and token target).
+  5. False-Positive Trap 4: Token contract target itself is never matched as a recipient.
+  6. False-Positive Trap 5: Role granted to different address than claimed -> `contradicted`.
+  7. False-Positive Trap 6: Unverified role capability -> `not_checkable` (never false contradicted).
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm test`):** 22 test files passed, 187 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
+
+
 
 

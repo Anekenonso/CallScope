@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { detectFindings } from '../../server/analysis/detect-findings';
 import { checkDescriptionActionConsistency } from '../../server/analysis/check-consistency';
 import { buildAssessment } from '../../server/analysis/build-assessment';
-import { executeAnalysis } from '../../api/analyse.js';
+import { executeAnalysis } from '../../api/_analyse';
 import type { ProposalAction } from '../../src/types/analysis';
 
 describe('Adversarial Prompt Injection Resistance (Rule 0.1)', () => {

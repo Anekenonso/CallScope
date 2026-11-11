@@ -3,6 +3,8 @@ import {
   evaluateClaimsLedger,
   extractFallbackClaims,
   extractClaimsWithServ,
+  parseUnitsExact,
+  getActionRecipient,
 } from '../../server/analysis/claims-ledger';
 import { checkDescriptionActionConsistency } from '../../server/analysis/check-consistency';
 import type { Claim, ProposalAction } from '../../src/types/analysis';
@@ -32,6 +34,16 @@ After two years, any address may call \`renounceTimelockRoleByExpiration()\` to 
     selector: '0x2f2ff15d',
     decoded: true,
     functionName: 'grantRole',
+    roleCapability: {
+      status: 'resolved',
+      capabilities: [
+        { fn: 'schedule', gatedBy: 'PROPOSER_ROLE' },
+        { fn: 'scheduleBatch', gatedBy: 'PROPOSER_ROLE' },
+        { fn: 'cancel', gatedBy: 'PROPOSER_ROLE' },
+      ],
+      summary: 'can schedule and cancel on TimelockController (per verified source)',
+      sourceOrigin: 'verified_source',
+    },
     args: [
       {
         name: 'role',
@@ -61,6 +73,9 @@ David Moderator: 400 USDC to 0xca7632327567796e51920f6b16373e92c7823854`;
     selector: '0xa9059cbb',
     decoded: true,
     functionName: 'transfer',
+    tokenDecimals: 6,
+    tokenSymbol: 'USDC',
+    formattedAmount: '400 USDC',
     args: [
       { name: 'to', type: 'address', value: '0xca7632327567796e51920f6b16373e92c7823854' },
       { name: 'amount', type: 'uint256', value: '400000000' }, // 400 USDC (6 decimals)
@@ -194,6 +209,148 @@ David Moderator: 400 USDC to 0xca7632327567796e51920f6b16373e92c7823854`;
       } finally {
         if (savedKey) process.env.SERV_API_KEY = savedKey;
       }
+    });
+  });
+
+  describe('Strict Claims Ledger Comparators & False-Positive Traps (Task 3)', () => {
+    it('parses decimal amounts without floating point loss via parseUnitsExact', () => {
+      expect(parseUnitsExact('400.00', 6)).toBe(400000000n);
+      expect(parseUnitsExact('1,000.5', 18)).toBe(1000500000000000000000n);
+      expect(parseUnitsExact('0.000001', 6)).toBe(1n);
+      expect(parseUnitsExact('0.0000001', 6)).toBeNull(); // Exceeds 6 decimals
+      expect(parseUnitsExact('invalid', 6)).toBeNull();
+    });
+
+    it('rejects "right amount wrong token" false positive (e.g. 400 DAI claimed vs 400 USDC action)', () => {
+      const claim: Claim = {
+        id: 'claim-dai',
+        quote: '400 DAI',
+        category: 'amount',
+      };
+      const desc = 'Grant of 400 DAI to team';
+      const result = evaluateClaimsLedger([claim], [unlockAction], desc);
+      expect(result.claims?.[0]?.status).toBe('not_checkable');
+      expect(result.claims?.[0]?.explanation).toContain('USDC');
+    });
+
+    it('marks amount not_checkable if proposal contains multiple tokens and claim does not name the token', () => {
+      const claim: Claim = {
+        id: 'claim-ambiguous',
+        quote: '400',
+        category: 'amount',
+      };
+      const desc = 'Transfer 400 to recipient';
+      const ethAction: ProposalAction = {
+        index: 1,
+        target: '0x1111111111111111111111111111111111111111',
+        value: '10000000000000000000', // 10 ETH
+        signature: '',
+        selector: '0x',
+        decoded: false,
+        rawCalldata: '0x',
+        isNativeTransfer: true,
+        tokenSymbol: 'ETH',
+        tokenDecimals: 18,
+      };
+
+      const result = evaluateClaimsLedger([claim], [unlockAction, ethAction], desc);
+      expect(result.claims?.[0]?.status).toBe('not_checkable');
+      expect(result.claims?.[0]?.explanation).toContain('multiple tokens');
+    });
+
+    it('identifies recipient strictly per ABI: transferFrom recipient is "to", NEVER "from" or spender', () => {
+      const transferFromAction: ProposalAction = {
+        index: 0,
+        target: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC contract (target)
+        value: '0',
+        signature: 'transferFrom(address,address,uint256)',
+        selector: '0x23b872dd',
+        decoded: true,
+        functionName: 'transferFrom',
+        args: [
+          { name: 'from', type: 'address', value: '0x1111111111111111111111111111111111111111' },
+          { name: 'to', type: 'address', value: '0x2222222222222222222222222222222222222222' },
+          { name: 'amount', type: 'uint256', value: '100000000' },
+        ],
+        rawCalldata: '0x23b872dd...',
+      };
+
+      const recipientInfo = getActionRecipient(transferFromAction);
+      expect(recipientInfo).not.toBeNull();
+      expect(recipientInfo?.recipient.toLowerCase()).toBe('0x2222222222222222222222222222222222222222');
+      expect(recipientInfo?.recipient.toLowerCase()).not.toBe('0x1111111111111111111111111111111111111111');
+      expect(recipientInfo?.recipient.toLowerCase()).not.toBe('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48');
+
+      // Claim asserting 0x11111111... is recipient fails
+      const fromClaim: Claim = {
+        id: 'c1',
+        quote: '0x1111111111111111111111111111111111111111',
+        category: 'recipient',
+      };
+      const desc = 'Send funds to 0x1111111111111111111111111111111111111111 and 0x2222222222222222222222222222222222222222';
+      const resultFrom = evaluateClaimsLedger([fromClaim], [transferFromAction], desc);
+      expect(resultFrom.claims?.[0]?.status).toBe('not_checkable');
+
+      // Claim asserting 0x22222222... is recipient succeeds
+      const toClaim: Claim = {
+        id: 'c2',
+        quote: '0x2222222222222222222222222222222222222222',
+        category: 'recipient',
+      };
+      const resultTo = evaluateClaimsLedger([toClaim], [transferFromAction], desc);
+      expect(resultTo.claims?.[0]?.status).toBe('verified');
+      expect(resultTo.claims?.[0]?.evidenceRef?.argName).toBe('to');
+    });
+
+    it('never matches the token contract target itself as a recipient', () => {
+      const usdcContractClaim: Claim = {
+        id: 'c-token',
+        quote: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        category: 'recipient',
+      };
+      const desc = 'USDC contract at 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      const result = evaluateClaimsLedger([usdcContractClaim], [unlockAction], desc);
+      expect(result.claims?.[0]?.status).toBe('not_checkable');
+    });
+
+    it('detects contradiction when role is granted to a different address than claimed', () => {
+      const wrongAccountClaim: Claim = {
+        id: 'c-wrong-acc',
+        quote: 'granting PROPOSER_ROLE to 0x000000000000000000000000000000000000dEaD',
+        category: 'role',
+        params: {
+          role: 'PROPOSER_ROLE',
+          account: '0x000000000000000000000000000000000000dEaD',
+        },
+      };
+      const desc = 'Proposal specification: granting PROPOSER_ROLE to 0x000000000000000000000000000000000000dEaD';
+      const result = evaluateClaimsLedger([wrongAccountClaim], [ensAction], desc);
+      expect(result.status).toBe('inconsistent');
+      expect(result.claims?.[0]?.status).toBe('contradicted');
+      expect(result.claims?.[0]?.explanation).toContain('Contradiction');
+      expect(result.claims?.[0]?.explanation).toContain('0x2acbf518b3759f6e1fa163294eda55bf1d0ae051');
+    });
+
+    it('evaluates capability claim as not_checkable when role capability is unresolved (never false contradicted or verified)', () => {
+      const unresolvedAction: ProposalAction = {
+        ...ensAction,
+        roleCapability: {
+          status: 'unresolved',
+          sourceOrigin: 'unresolved',
+          summary: 'Verified source code unavailable or unparseable.',
+        },
+      };
+
+      const capabilityClaim: Claim = {
+        id: 'c-cap',
+        quote: 'It cannot propose, amend, or initiate any governance action.',
+        category: 'capability',
+      };
+
+      const result = evaluateClaimsLedger([capabilityClaim], [unresolvedAction], ensDescription);
+      expect(result.claims?.[0]?.status).toBe('not_checkable');
+      expect(result.claims?.[0]?.explanation).toContain('unresolved');
+      expect(result.status).not.toBe('inconsistent');
     });
   });
 });

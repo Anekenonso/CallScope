@@ -1,3 +1,4 @@
+import { isAddress, getAddress, type Address } from 'viem';
 import type {
   Claim,
   ClaimCategory,
@@ -7,6 +8,7 @@ import type {
 } from '../../src/types/analysis';
 import { callOpenAiCompatible, extractStructuredJson } from '../providers/openai-compatible';
 import { SERV_ENDPOINT } from '../providers/serv';
+import { computeRoleHash } from './role-capabilities';
 
 const SENSITIVE_SELECTORS = new Set([
   '0x2f2ff15d', // grantRole(bytes32,address)
@@ -16,6 +18,88 @@ const SENSITIVE_SELECTORS = new Set([
   '0x4f1ef286', // upgradeToAndCall(address,bytes)
   '0x8f283970', // changeAdmin(address)
 ]);
+
+/**
+ * Parse an exact decimal numeric string to BigInt integer base units without floating point precision loss.
+ * e.g. "400.00" with decimals 6 -> 400000000n
+ * e.g. "1,000.5" with decimals 18 -> 1000500000000000000000n
+ */
+export function parseUnitsExact(amountStr: string, decimals: number): bigint | null {
+  const clean = amountStr.replace(/,/g, '').trim();
+  if (!/^\d+(\.\d+)?$/.test(clean)) return null;
+  const parts = clean.split('.');
+  const intPart = parts[0]!;
+  const fracPart = parts[1] || '';
+  if (fracPart.length > decimals) return null; // Exceeds token decimal resolution
+  const paddedFrac = fracPart.padEnd(decimals, '0');
+  try {
+    return BigInt(intPart) * 10n ** BigInt(decimals) + BigInt(paddedFrac);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves the semantic recipient of an action per strict ABI specifications:
+ * - transfer(to, amount): recipient is 'to'
+ * - transferFrom(from, to, amount): recipient is 'to' (never 'from' or spender)
+ * - native value transfer: recipient is the action's target
+ * - grantRole(role, account): recipient is 'account'
+ * - transferOwnership(newOwner): recipient is 'newOwner'
+ * Never matches arbitrary address args or the token contract itself as the recipient.
+ */
+export interface ActionRecipientInfo {
+  recipient: Address;
+  argName: string;
+}
+
+export function getActionRecipient(act: ProposalAction): ActionRecipientInfo | null {
+  if (act.isNativeTransfer || (act.value && act.value !== '0' && (!act.decoded || act.selector === '0x'))) {
+    if (isAddress(act.target)) {
+      return { recipient: getAddress(act.target), argName: 'target' };
+    }
+  }
+
+  if (!act.decoded || !act.functionName) {
+    if (act.value && act.value !== '0' && isAddress(act.target)) {
+      return { recipient: getAddress(act.target), argName: 'target' };
+    }
+    return null;
+  }
+
+  const fn = act.functionName;
+
+  if (fn === 'transfer') {
+    const toArg = act.args?.find((a) => a.name === 'to' || a.name === 'recipient' || a.name === '_to') || act.args?.[0];
+    if (toArg?.value && typeof toArg.value === 'string' && isAddress(toArg.value)) {
+      return { recipient: getAddress(toArg.value), argName: toArg.name || 'to' };
+    }
+  }
+
+  if (fn === 'transferFrom') {
+    // Recipient is 'to' (arg index 1), NEVER 'from' (arg index 0)
+    const toArg = act.args?.find((a) => a.name === 'to' || a.name === 'recipient' || a.name === '_to') || act.args?.[1];
+    if (toArg?.value && typeof toArg.value === 'string' && isAddress(toArg.value)) {
+      return { recipient: getAddress(toArg.value), argName: toArg.name || 'to' };
+    }
+  }
+
+  if (fn === 'grantRole' || fn === 'revokeRole') {
+    const accArg = act.args?.find((a) => a.name === 'account' || a.name === '_account') || act.args?.[1];
+    if (accArg?.value && typeof accArg.value === 'string' && isAddress(accArg.value)) {
+      return { recipient: getAddress(accArg.value), argName: accArg.name || 'account' };
+    }
+  }
+
+  if (fn === 'transferOwnership') {
+    const ownerArg = act.args?.find((a) => a.name === 'newOwner' || a.name === 'owner') || act.args?.[0];
+    if (ownerArg?.value && typeof ownerArg.value === 'string' && isAddress(ownerArg.value)) {
+      return { recipient: getAddress(ownerArg.value), argName: ownerArg.name || 'newOwner' };
+    }
+  }
+
+  return null;
+}
 
 /**
  * Extract claims from proposal description using OpenServ SERV with structured JSON output.
@@ -51,7 +135,7 @@ CRITICAL SECURITY AND ACCURACY RULES:
       "id": "claim-1",
       "quote": "exact verbatim substring from description",
       "category": "recipient" | "amount" | "role" | "capability" | "duration" | "ownership" | "upgrade" | "other",
-      "params": { ...optional parsed fields like recipient, amount, role, capability... }
+      "params": { ...optional parsed fields like recipient, amount, token, symbol, role... }
     }
   ]
 }
@@ -123,15 +207,14 @@ Output JSON:`;
 
 /**
  * Deterministic heuristic claim extraction fallback when SERV is offline or unconfigured.
- * Extracts explicit sentences or clauses matching addresses, amounts, and role statements.
  */
 export function extractFallbackClaims(description: string): Claim[] {
   const claims: Claim[] = [];
   let idCounter = 1;
 
-  // 1. Role capability statements (e.g. "cannot propose...", "single power: to cancel...")
+  // 1. Role capability statements
   const capabilityMatches = description.match(
-    /[^.?!;\n]*\b(?:cannot propose|single power|proposer_role|cancel malicious proposals)[^.?!;\n]*/gi
+    /[^.?!;\n]*\b(?:cannot|can not|lacks|single power|only power|restricted to|cancel malicious proposals)[^.?!;\n]*/gi
   );
   if (capabilityMatches) {
     for (const match of capabilityMatches) {
@@ -140,17 +223,32 @@ export function extractFallbackClaims(description: string): Claim[] {
         claims.push({
           id: `claim-${idCounter++}`,
           quote,
-          category: quote.toLowerCase().includes('cannot propose') || quote.toLowerCase().includes('single power')
-            ? 'capability'
-            : 'role',
+          category: 'capability',
         });
       }
     }
   }
 
-  // 2. Transfer recipient & amount lines
+  // 2. Role grant/revoke statements
+  const roleMatches = description.match(
+    /[^.?!;\n]*\b(?:grant|revoke|renounce|proposer_role|executor_role|admin_role|[A-Za-z0-9_]+_ROLE)\b[^.?!;\n]*/gi
+  );
+  if (roleMatches) {
+    for (const match of roleMatches) {
+      const quote = match.trim();
+      if (description.includes(quote) && quote.length > 10) {
+        claims.push({
+          id: `claim-${idCounter++}`,
+          quote,
+          category: 'role',
+        });
+      }
+    }
+  }
+
+  // 3. Transfer recipient & amount lines
   const transferMatches = description.match(
-    /[^.?!;\n]*\b(?:transfer|send|grant|payout|allocation)\b[^.?!;\n]*(?:0x[a-fA-F0-9]{40}|\d[\d,]*(?:\.\d+)?)[^.?!;\n]*/gi
+    /[^.?!;\n]*\b(?:transfer|send|grant|payout|allocation|payment)\b[^.?!;\n]*(?:0x[a-fA-F0-9]{40}|\d[\d,]*(?:\.\d+)?)[^.?!;\n]*/gi
   );
   if (transferMatches) {
     for (const match of transferMatches) {
@@ -179,92 +277,191 @@ export function extractFallbackClaims(description: string): Claim[] {
 }
 
 /**
- * Evaluate capability claims against executable actions
+ * Evaluate capability claims against executable actions and verified role capabilities.
+ * Rules:
+ * - Compares against the output of role-capabilities.ts (action.roleCapability).
+ * - If the role's capability was 'unresolved' (or missing), evaluates to 'not_checkable',
+ *   NEVER 'contradicted' or 'verified'.
+ * - Drops hard-coded hashes and phrase triggers from logic.
  */
 function evaluateCapabilityClaim(
   claim: Claim,
   actions: ProposalAction[]
 ): { status: ClaimStatus; explanation: string; evidenceRef?: { actionIndex?: number; argName?: string } } {
-  const quoteLower = claim.quote.toLowerCase();
+  // Find all role actions in proposal
+  const roleActions = actions.filter(
+    (act) => act.decoded && (act.functionName === 'grantRole' || act.functionName === 'revokeRole')
+  );
 
-  // Check for claims asserting lack of proposal power
-  if (
-    quoteLower.includes('cannot propose') ||
-    quoteLower.includes('can not propose') ||
-    quoteLower.includes('lacks proposal') ||
-    (quoteLower.includes('single power') && !quoteLower.includes('proposer'))
-  ) {
-    // Check if any action grants PROPOSER_ROLE
-    for (const act of actions) {
-      if (act.decoded && act.functionName === 'grantRole') {
-        const roleArg = act.args?.find((a) => a.name === 'role');
-        const roleVal = String(roleArg?.value || '').toLowerCase();
-        // OpenZeppelin PROPOSER_ROLE = keccak256("PROPOSER_ROLE") = 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
-        if (
-          roleVal === '0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1' ||
-          act.rawCalldata.toLowerCase().includes('b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1')
-        ) {
-          return {
-            status: 'contradicted',
-            explanation: `Contradiction: Description states entity cannot propose ("${claim.quote}"), but Action #${act.index + 1} grants PROPOSER_ROLE.`,
-            evidenceRef: { actionIndex: act.index, argName: 'role' },
-          };
-        }
+  if (roleActions.length === 0) {
+    return {
+      status: 'not_checkable',
+      explanation: 'Capability assertion cannot be verified because proposal contains no role management actions.',
+    };
+  }
+
+  for (const act of roleActions) {
+    // If role capability was unresolved, strictly return not_checkable
+    if (!act.roleCapability || act.roleCapability.status === 'unresolved') {
+      return {
+        status: 'not_checkable',
+        explanation: `Role capability for Action #${act.index + 1} (${act.functionName}) is unresolved; verified contract source code is unavailable or unparseable.`,
+      };
+    }
+
+    const capabilities = act.roleCapability.capabilities || [];
+
+    const quoteLower = claim.quote.toLowerCase();
+    const assertsLimitedPower =
+      quoteLower.includes('cannot') ||
+      quoteLower.includes('can not') ||
+      quoteLower.includes('lacks') ||
+      quoteLower.includes('unable') ||
+      quoteLower.includes('single power') ||
+      quoteLower.includes('only power');
+
+    // If description claims entity cannot propose/initiate or has single power,
+    // but the verified source gates functions such as schedule/propose on this role:
+    if (assertsLimitedPower) {
+      const proposalGates = capabilities.filter((c) =>
+        c.fn.toLowerCase().includes('schedule') || c.fn.toLowerCase().includes('propose')
+      );
+
+      if (proposalGates.length > 0) {
+        const grantedFunctions = proposalGates.map((g) => g.fn).join(', ');
+        const roleName = proposalGates[0]?.gatedBy || 'role';
+        return {
+          status: 'contradicted',
+          explanation: `Contradiction: Description asserts entity has restricted capability ("${claim.quote}"), but Action #${act.index + 1} grants ${roleName}, which confers verified functions: ${grantedFunctions}.`,
+          evidenceRef: { actionIndex: act.index, argName: 'role' },
+        };
+      }
+    }
+
+    // Check positive capability match (e.g. claim asserts power to cancel)
+    if (quoteLower.includes('cancel')) {
+      const cancelGate = capabilities.find((c) => c.fn.toLowerCase().includes('cancel'));
+      if (cancelGate) {
+        return {
+          status: 'verified',
+          explanation: `Description asserts power to cancel, which matches verified source function "${cancelGate.fn}" gated by the granted role.`,
+          evidenceRef: { actionIndex: act.index, argName: 'role' },
+        };
       }
     }
   }
 
   return {
     status: 'not_checkable',
-    explanation: 'Capability assertion is not directly testable against standard function selectors.',
+    explanation: 'Capability assertion is not directly testable against verified function role gates.',
   };
 }
 
 /**
- * Evaluate role claims against executable actions
+ * Evaluate role claims against executable actions.
+ * Rules:
+ * - Dynamically computes keccak256(toHex(NAME)) from the named role.
+ * - Matches that hash AND the account argument.
+ * - Drops hard-coded hashes from logic.
  */
 function evaluateRoleClaim(
   claim: Claim,
   actions: ProposalAction[]
 ): { status: ClaimStatus; explanation: string; evidenceRef?: { actionIndex?: number; argName?: string } } {
+  // Extract named role from params or quote
+  let roleName: string | undefined = undefined;
+  if (typeof claim.params?.role === 'string' && claim.params.role.trim().length > 0) {
+    roleName = claim.params.role.trim().toUpperCase();
+  } else {
+    const match = claim.quote.match(/\b([A-Za-z0-9_]+_ROLE)\b/i);
+    if (match?.[1]) {
+      roleName = match[1].toUpperCase();
+    }
+  }
+
+  if (!roleName) {
+    return {
+      status: 'not_checkable',
+      explanation: 'Role statement does not name a testable standard role constant (e.g. PROPOSER_ROLE).',
+    };
+  }
+
+  // Compute expected 32-byte role hash dynamically
+  const expectedHash = computeRoleHash(roleName).toLowerCase();
+
   const quoteLower = claim.quote.toLowerCase();
-  const isGrant = quoteLower.includes('grant') || quoteLower.includes('proposer_role');
   const isRevoke = quoteLower.includes('revoke') || quoteLower.includes('renounce');
+  const expectedFn = isRevoke ? 'revokeRole' : 'grantRole';
+
+  // Extract claimed account from params or quote if present
+  let claimedAccount: Address | undefined = undefined;
+  if (typeof claim.params?.account === 'string' && isAddress(claim.params.account)) {
+    claimedAccount = getAddress(claim.params.account);
+  } else {
+    const addrMatch = claim.quote.match(/0x[a-fA-F0-9]{40}/i);
+    if (addrMatch?.[0] && isAddress(addrMatch[0])) {
+      claimedAccount = getAddress(addrMatch[0]);
+    }
+  }
 
   for (const act of actions) {
-    if (!act.decoded) continue;
-    if (act.functionName === 'grantRole' && isGrant) {
-      return {
-        status: 'verified',
-        explanation: `Claimed role grant matches Action #${act.index + 1} (${act.functionName}).`,
-        evidenceRef: { actionIndex: act.index, argName: 'role' },
-      };
+    if (!act.decoded || act.functionName !== expectedFn) continue;
+
+    const roleArg = act.args?.find((a) => a.name === 'role') || act.args?.[0];
+    const accountArg = act.args?.find((a) => a.name === 'account') || act.args?.[1];
+
+    const actualRoleHash = String(roleArg?.value || '').toLowerCase();
+    if (actualRoleHash !== expectedHash) {
+      continue;
     }
-    if (act.functionName === 'revokeRole' && isRevoke) {
-      return {
-        status: 'verified',
-        explanation: `Claimed role revocation matches Action #${act.index + 1} (${act.functionName}).`,
-        evidenceRef: { actionIndex: act.index, argName: 'role' },
-      };
+
+    const actualAccountStr = String(accountArg?.value || '');
+    const actualAccount = isAddress(actualAccountStr) ? getAddress(actualAccountStr) : null;
+
+    if (claimedAccount) {
+      if (actualAccount && actualAccount.toLowerCase() === claimedAccount.toLowerCase()) {
+        return {
+          status: 'verified',
+          explanation: `Claimed ${roleName} grant to ${claimedAccount} matches Action #${act.index + 1}.`,
+          evidenceRef: { actionIndex: act.index, argName: 'role' },
+        };
+      } else {
+        return {
+          status: 'contradicted',
+          explanation: `Contradiction: Claim asserts ${roleName} granted to ${claimedAccount}, but Action #${act.index + 1} grants ${roleName} to ${actualAccountStr}.`,
+          evidenceRef: { actionIndex: act.index, argName: 'account' },
+        };
+      }
     }
+
+    // Role hash matches and no specific account was claimed
+    return {
+      status: 'verified',
+      explanation: `Claimed ${roleName} operation matches Action #${act.index + 1} (${act.functionName}).`,
+      evidenceRef: { actionIndex: act.index, argName: 'role' },
+    };
   }
 
   return {
     status: 'not_checkable',
-    explanation: 'Role statement could not be conclusively verified against executable actions.',
+    explanation: `Claimed ${roleName} ${isRevoke ? 'revocation' : 'grant'} does not match any executable calldata.`,
   };
 }
 
 /**
- * Evaluate recipient address claims against actions
+ * Evaluate recipient address claims against actions using strict ABI semantics.
  */
 function evaluateRecipientClaim(
   claim: Claim,
   actions: ProposalAction[]
 ): { status: ClaimStatus; explanation: string; evidenceRef?: { actionIndex?: number; argName?: string } } {
-  const addrs = (claim.quote.match(/0x[a-fA-F0-9]{40}/gi) || []).map((a) => a.toLowerCase());
-  if (claim.params?.recipient && typeof claim.params.recipient === 'string') {
-    addrs.push(claim.params.recipient.toLowerCase());
+  const addrs: Address[] = [];
+  const matches = claim.quote.match(/0x[a-fA-F0-9]{40}/gi) || [];
+  for (const m of matches) {
+    if (isAddress(m)) addrs.push(getAddress(m));
+  }
+  if (claim.params?.recipient && typeof claim.params.recipient === 'string' && isAddress(claim.params.recipient)) {
+    addrs.push(getAddress(claim.params.recipient));
   }
 
   if (addrs.length === 0) {
@@ -274,42 +471,93 @@ function evaluateRecipientClaim(
     };
   }
 
-  for (const addr of addrs) {
+  for (const claimedAddr of addrs) {
     for (const act of actions) {
-      if (act.target.toLowerCase() === addr) {
+      const recipientInfo = getActionRecipient(act);
+      if (recipientInfo && recipientInfo.recipient.toLowerCase() === claimedAddr.toLowerCase()) {
         return {
           status: 'verified',
-          explanation: `Claimed recipient ${addr} matches Action #${act.index + 1} target.`,
-          evidenceRef: { actionIndex: act.index, argName: 'target' },
+          explanation: `Claimed recipient ${claimedAddr} matches Action #${act.index + 1} (${act.functionName || 'call'} ${recipientInfo.argName}).`,
+          evidenceRef: { actionIndex: act.index, argName: recipientInfo.argName },
         };
-      }
-      if (act.decoded && act.args) {
-        for (const arg of act.args) {
-          if (typeof arg.value === 'string' && arg.value.toLowerCase() === addr) {
-            return {
-              status: 'verified',
-              explanation: `Claimed recipient ${addr} matches Action #${act.index + 1} argument "${arg.name}".`,
-              evidenceRef: { actionIndex: act.index, argName: arg.name },
-            };
-          }
-        }
       }
     }
   }
 
   return {
     status: 'not_checkable',
-    explanation: 'Recipient address does not appear in executable action parameters.',
+    explanation: 'Recipient address does not match any authorized recipient argument (to, account, newOwner, or transfer target).',
   };
 }
 
 /**
- * Evaluate amount claims against actions
+ * Evaluate amount claims against actions.
+ * Rules:
+ * - Uses exact BigInt math with real token decimals (from decoded transfer metadata).
+ * - Binds each amount to a specific token symbol/address and an action.
+ * - Does not match an amount if the proposal references multiple tokens and the claim doesn't name the token (mark not_checkable).
  */
 function evaluateAmountClaim(
   claim: Claim,
   actions: ProposalAction[]
 ): { status: ClaimStatus; explanation: string; evidenceRef?: { actionIndex?: number; argName?: string } } {
+  // 1. Identify all tokens referenced across value-bearing actions in proposal
+  const valueBearingActions = actions.filter((act) => {
+    if (act.value && act.value !== '0') return true;
+    if (act.decoded && (act.functionName === 'transfer' || act.functionName === 'transferFrom')) return true;
+    return false;
+  });
+
+  if (valueBearingActions.length === 0) {
+    return {
+      status: 'not_checkable',
+      explanation: 'Proposal contains no executable value-bearing transfers.',
+    };
+  }
+
+  const tokensInProposal = new Set<string>();
+  for (const act of valueBearingActions) {
+    if (act.tokenSymbol) {
+      tokensInProposal.add(act.tokenSymbol.toUpperCase());
+    } else if (act.isNativeTransfer || (act.value && act.value !== '0')) {
+      tokensInProposal.add('ETH');
+    } else if (act.target) {
+      tokensInProposal.add(act.target.toLowerCase());
+    }
+  }
+
+  // 2. Identify token claimed
+  let claimedToken: string | undefined = undefined;
+  if (typeof claim.params?.symbol === 'string' && claim.params.symbol.trim().length > 0) {
+    claimedToken = claim.params.symbol.trim().toUpperCase();
+  } else if (typeof claim.params?.token === 'string' && claim.params.token.trim().length > 0) {
+    claimedToken = claim.params.token.trim().toUpperCase();
+  } else {
+    for (const sym of tokensInProposal) {
+      const tokenRegex = new RegExp(`\\b${sym}\\b`, 'i');
+      if (tokenRegex.test(claim.quote)) {
+        claimedToken = sym;
+        break;
+      }
+    }
+    // Also check standard token ticker symbols
+    if (!claimedToken) {
+      const tickerMatch = claim.quote.match(/\b(USDC|USDT|DAI|ETH|WETH|ENS)\b/i);
+      if (tickerMatch?.[1]) {
+        claimedToken = tickerMatch[1].toUpperCase();
+      }
+    }
+  }
+
+  // If proposal references multiple tokens and the claim doesn't name the token, mark not_checkable
+  if (tokensInProposal.size > 1 && !claimedToken) {
+    return {
+      status: 'not_checkable',
+      explanation: 'Proposal transfers multiple tokens, but claim amount does not specify a token denomination.',
+    };
+  }
+
+  // 3. Extract exact numeric amount string from claim
   const numMatches = claim.quote.match(/\b\d[\d,]*(?:\.\d+)?\b/g);
   if (!numMatches || numMatches.length === 0) {
     return {
@@ -318,59 +566,55 @@ function evaluateAmountClaim(
     };
   }
 
-  for (const rawNum of numMatches) {
-    const cleanNum = parseFloat(rawNum.replace(/,/g, ''));
-    if (isNaN(cleanNum) || cleanNum <= 0) continue;
+  let mismatchedTokenMsg: string | undefined = undefined;
 
-    for (const act of actions) {
-      if (act.decoded && act.args) {
-        for (const arg of act.args) {
-          if (arg.name === 'amount' || arg.name === 'value') {
-            const rawVal = BigInt(arg.value ? String(arg.value) : '0');
-            // Check raw BigInt match
-            if (rawVal.toString() === cleanNum.toString()) {
-              return {
-                status: 'verified',
-                explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (${arg.name}: ${arg.value}).`,
-                evidenceRef: { actionIndex: act.index, argName: arg.name },
-              };
-            }
-            // Check 6 decimals (e.g. USDC, USDT)
-            if (rawVal === BigInt(Math.round(cleanNum * 1e6))) {
-              return {
-                status: 'verified',
-                explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (6 decimals, ${rawVal} base units).`,
-                evidenceRef: { actionIndex: act.index, argName: arg.name },
-              };
-            }
-            // Check 18 decimals (e.g. standard tokens, ETH)
-            if (cleanNum < 1e12 && rawVal === BigInt(Math.round(cleanNum * 1e18))) {
-              return {
-                status: 'verified',
-                explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (18 decimals, ${rawVal} base units).`,
-                evidenceRef: { actionIndex: act.index, argName: arg.name },
-              };
-            }
-            // Check formattedValue if present
-            if (arg.formattedValue) {
-              const formatted = parseFloat(arg.formattedValue.replace(/,/g, ''));
-              if (!isNaN(formatted) && Math.abs(formatted - cleanNum) < 0.001) {
-                return {
-                  status: 'verified',
-                  explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (${arg.name}: ${arg.formattedValue}).`,
-                  evidenceRef: { actionIndex: act.index, argName: arg.name },
-                };
-              }
-            }
-          }
+  for (const rawNum of numMatches) {
+    // 4. Test candidate value-bearing actions
+    for (const act of valueBearingActions) {
+      const actSymbol = act.tokenSymbol?.toUpperCase() || (act.isNativeTransfer ? 'ETH' : undefined);
+
+      // If claim specifies a token, action MUST match that token
+      if (claimedToken && actSymbol && claimedToken !== actSymbol) {
+        mismatchedTokenMsg = `Claim specifies amount in ${claimedToken}, which does not match proposal transfer token (${actSymbol}).`;
+        continue;
+      }
+
+      const decimals = act.tokenDecimals ?? (act.isNativeTransfer ? 18 : 18);
+      const claimedBaseUnits = parseUnitsExact(rawNum, decimals);
+      if (claimedBaseUnits === null) {
+        continue;
+      }
+
+      // Check action base units
+      let actionBaseUnits: bigint | null = null;
+      let argName = 'value';
+
+      if (act.decoded && (act.functionName === 'transfer' || act.functionName === 'transferFrom')) {
+        const amountArg =
+          act.args?.find((a) => a.name === 'amount' || a.name === 'value') ||
+          (act.functionName === 'transfer' ? act.args?.[1] : act.args?.[2]);
+        if (amountArg?.value) {
+          actionBaseUnits = BigInt(String(amountArg.value));
+          argName = amountArg.name || 'amount';
         }
+      } else if (act.value && act.value !== '0') {
+        actionBaseUnits = BigInt(act.value);
+        argName = 'value';
+      }
+
+      if (actionBaseUnits !== null && actionBaseUnits === claimedBaseUnits) {
+        return {
+          status: 'verified',
+          explanation: `Claimed amount ${rawNum} ${actSymbol || ''} matches Action #${act.index + 1} (${act.formattedAmount || actionBaseUnits.toString()} base units).`,
+          evidenceRef: { actionIndex: act.index, argName },
+        };
       }
     }
   }
 
   return {
     status: 'not_checkable',
-    explanation: 'Amount could not be matched exactly to action parameters.',
+    explanation: mismatchedTokenMsg || 'Amount could not be matched exactly to action parameters or token denomination.',
   };
 }
 

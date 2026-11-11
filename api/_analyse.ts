@@ -153,7 +153,11 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   // 4. Read current proposal state (gracefully fallback if offline / RPC unavailable)
   let state = 'Executed';
   try {
-    state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+    const statePromise = readGovernorProposalState(client, validGovernor, trimmedProposalId);
+    state = await Promise.race([
+      statePromise,
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+    ]);
   } catch {
     state = 'Executed';
   }
@@ -197,12 +201,24 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
 
       if (accountArg) {
         const proposalTs = event.voteStart ? Number(event.voteStart) : undefined;
-        action.recipientProfile = await profileRecipient(
-          client,
-          effectiveNetwork,
-          accountArg,
-          proposalTs
-        );
+        try {
+          const profilePromise = profileRecipient(
+            client,
+            effectiveNetwork,
+            accountArg,
+            proposalTs
+          );
+          action.recipientProfile = await Promise.race([
+            profilePromise,
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500)),
+          ]);
+        } catch {
+          action.recipientProfile = {
+            type: 'contract',
+            isVerified: false,
+            summary: `Recipient: ${accountArg.slice(0, 10)}... (profile timeout)`,
+          };
+        }
       }
     }
   }

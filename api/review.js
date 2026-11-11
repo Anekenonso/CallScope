@@ -616,7 +616,7 @@ function createChainClient(network) {
   const candidateUrls = getRpcUrls(network);
   const transports = candidateUrls.map(
     (url) => http(url, {
-      timeout: 8e3,
+      timeout: 3500,
       retryCount: 0
     })
   );
@@ -2341,6 +2341,238 @@ function detectFindings(actions) {
   }
   return findings;
 }
+const KNOWN_ROLE_NAMES = [
+  "DEFAULT_ADMIN_ROLE",
+  "PROPOSER_ROLE",
+  "EXECUTOR_ROLE",
+  "CANCELLER_ROLE",
+  "TIMELOCK_ADMIN_ROLE",
+  "MINTER_ROLE",
+  "PAUSER_ROLE",
+  "UPGRADER_ROLE"
+];
+function computeRoleHash(name) {
+  if (name === "DEFAULT_ADMIN_ROLE") {
+    return "0x0000000000000000000000000000000000000000000000000000000000000000";
+  }
+  return keccak256(stringToBytes(name));
+}
+function parseSolidityRoleCapabilities(sourceCode) {
+  const roleMap = /* @__PURE__ */ new Map();
+  for (const name of KNOWN_ROLE_NAMES) {
+    roleMap.set(name, name);
+    roleMap.set(computeRoleHash(name).toLowerCase(), name);
+  }
+  const roleDefRegex = /bytes32\s+(?:public|private|internal)?\s*(?:constant)?\s*([a-zA-Z0-9_]+)\s*=\s*(?:keccak256\s*\(\s*["']([a-zA-Z0-9_]+)["']\s*\)|(0x[a-fA-F0-9]{64}))/g;
+  let match;
+  while ((match = roleDefRegex.exec(sourceCode)) !== null) {
+    const varName = match[1];
+    const strLiteral = match[2];
+    const hexLiteral = match[3];
+    const standardName = strLiteral || varName;
+    roleMap.set(varName, standardName);
+    if (hexLiteral) {
+      roleMap.set(hexLiteral.toLowerCase(), standardName);
+    }
+  }
+  const gates = [];
+  const fnRegex = /function\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)\s*([^{;]*)(?:\{|;)/g;
+  while ((match = fnRegex.exec(sourceCode)) !== null) {
+    const fnName = match[1];
+    const modifiersAndRest = match[3];
+    const startIndex = match.index;
+    const bodySnippet = sourceCode.slice(startIndex, startIndex + 500);
+    const modifierMatch = modifiersAndRest.match(
+      /(?:onlyRole|onlyRoleOrOpenRole)\s*\(\s*([a-zA-Z0-9_]+|(?:0x[a-fA-F0-9]{64}))\s*\)/i
+    );
+    if (modifierMatch == null ? void 0 : modifierMatch[1]) {
+      const rawRole = modifierMatch[1];
+      const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
+      gates.push({ fn: fnName, gatedBy: resolvedRole });
+      continue;
+    }
+    const bodyCheckMatch = bodySnippet.match(
+      /(?:_checkRole|hasRole)\s*\(\s*([a-zA-Z0-9_]+|(?:0x[a-fA-F0-9]{64}))/i
+    );
+    if (bodyCheckMatch == null ? void 0 : bodyCheckMatch[1]) {
+      const rawRole = bodyCheckMatch[1];
+      const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
+      gates.push({ fn: fnName, gatedBy: resolvedRole });
+    }
+  }
+  return { roleMap, gates };
+}
+function formatRoleCapabilitySummary(roleName, targetName, gates) {
+  const matchingGates = gates.filter(
+    (g) => g.gatedBy.toLowerCase() === roleName.toLowerCase()
+  );
+  const uniqueFns = Array.from(new Set(matchingGates.map((g) => g.fn)));
+  if (uniqueFns.length === 0) {
+    return {
+      capabilities: [],
+      summary: `unresolved permissions on ${targetName}`
+    };
+  }
+  const hasSchedule = uniqueFns.some((f) => f.toLowerCase().includes("schedule"));
+  const hasCancel = uniqueFns.some((f) => f.toLowerCase().includes("cancel"));
+  const hasExecute = uniqueFns.some((f) => f.toLowerCase().includes("execute"));
+  let actionPhrases = [];
+  if (hasSchedule && hasCancel) {
+    actionPhrases.push("schedule and cancel");
+  } else if (hasSchedule) {
+    actionPhrases.push("schedule");
+  } else if (hasCancel) {
+    actionPhrases.push("cancel");
+  } else if (hasExecute) {
+    actionPhrases.push("execute");
+  } else {
+    actionPhrases.push(`call ${uniqueFns.join(", ")}`);
+  }
+  const summary = `can ${actionPhrases.join(" and ")} on ${targetName} (per verified source)`;
+  return { capabilities: matchingGates, summary };
+}
+function getBlockscoutDomain(network) {
+  return network === "ethereum" ? "eth.blockscout.com" : "base.blockscout.com";
+}
+async function fetchContractSourceCode(network, address) {
+  const domain = getBlockscoutDomain(network);
+  const url = `https://${domain}/api/v2/smart-contracts/${address}`;
+  const timeoutMs = parseInt(process.env.BLOCKSCOUT_TIMEOUT_MS || "5000", 10);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || typeof data !== "object") return null;
+    let sourceCode = typeof data.source_code === "string" ? data.source_code : "";
+    if (!sourceCode && Array.isArray(data.additional_sources)) {
+      sourceCode = data.additional_sources.map((s) => s.source_code || "").join("\n");
+    }
+    const contractName = typeof data.name === "string" ? data.name : void 0;
+    return { sourceCode: sourceCode || void 0, contractName };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function resolveRoleCapabilitiesFromSource(network, targetAddress, targetName, roleHex, providedSourceCode) {
+  let source = providedSourceCode;
+  if (!source) {
+    const fetched = await fetchContractSourceCode(network, targetAddress);
+    source = fetched == null ? void 0 : fetched.sourceCode;
+  }
+  if (!source || source.trim().length === 0) {
+    return {
+      status: "unresolved",
+      sourceOrigin: "unresolved",
+      summary: "capability: unresolved"
+    };
+  }
+  try {
+    const { roleMap, gates } = parseSolidityRoleCapabilities(source);
+    const resolvedRoleName = roleMap.get(roleHex.toLowerCase()) || roleMap.get(roleHex) || "UNKNOWN_ROLE";
+    const { capabilities, summary } = formatRoleCapabilitySummary(
+      resolvedRoleName,
+      targetName || "target contract",
+      gates
+    );
+    if (capabilities.length === 0) {
+      return {
+        status: "unresolved",
+        sourceOrigin: "unresolved",
+        summary: "capability: unresolved"
+      };
+    }
+    return {
+      status: "resolved",
+      capabilities,
+      summary,
+      sourceOrigin: "verified_source"
+    };
+  } catch {
+    return {
+      status: "unresolved",
+      sourceOrigin: "unresolved",
+      summary: "capability: unresolved"
+    };
+  }
+}
+async function profileRecipient(client, network, recipientAddress, proposalTimestamp) {
+  let formattedAddr;
+  try {
+    formattedAddr = getAddress(recipientAddress);
+  } catch {
+    return {
+      type: "EOA",
+      summary: "Recipient: EOA"
+    };
+  }
+  let isContract = false;
+  try {
+    const code = await client.getCode({ address: formattedAddr });
+    isContract = Boolean(code && code !== "0x");
+  } catch {
+  }
+  if (!isContract) {
+    return {
+      type: "EOA",
+      summary: "Recipient: EOA"
+    };
+  }
+  let isVerified = false;
+  let deployedTimestamp;
+  const domain = getBlockscoutDomain(network);
+  {
+    try {
+      const [scRes, addrRes] = await Promise.allSettled([
+        fetch(`https://${domain}/api/v2/smart-contracts/${formattedAddr}`, {
+          headers: { "User-Agent": "Callscope/1.0", Accept: "application/json" }
+        }).then((r) => r.ok ? r.json() : null),
+        fetch(`https://${domain}/api/v2/addresses/${formattedAddr}`, {
+          headers: { "User-Agent": "Callscope/1.0", Accept: "application/json" }
+        }).then((r) => r.ok ? r.json() : null)
+      ]);
+      const scData = scRes.status === "fulfilled" ? scRes.value : null;
+      const addrData = addrRes.status === "fulfilled" ? addrRes.value : null;
+      if ((scData == null ? void 0 : scData.is_verified) || (scData == null ? void 0 : scData.source_code) || (scData == null ? void 0 : scData.abi)) {
+        isVerified = true;
+      }
+      if (addrData == null ? void 0 : addrData.is_verified) {
+        isVerified = true;
+      }
+      if (scData == null ? void 0 : scData.verified_at) {
+        deployedTimestamp = Math.floor(new Date(scData.verified_at).getTime() / 1e3);
+      }
+    } catch {
+    }
+  }
+  let daysBefore;
+  let ageText = "";
+  if (proposalTimestamp && deployedTimestamp && proposalTimestamp >= deployedTimestamp) {
+    daysBefore = Math.floor((proposalTimestamp - deployedTimestamp) / 86400);
+    ageText = daysBefore === 0 ? "deployed on same day as proposal" : `deployed ${daysBefore} days before proposal`;
+  }
+  const verifiedStatus = isVerified ? "verified" : "unverified";
+  const summaryParts = ["Recipient: contract", verifiedStatus];
+  if (ageText) {
+    summaryParts.push(ageText);
+  }
+  return {
+    type: "contract",
+    isVerified,
+    deployedDaysBefore: daysBefore,
+    deployedTimestamp,
+    summary: summaryParts.join(", ")
+  };
+}
 const SENSITIVE_SELECTORS = /* @__PURE__ */ new Set([
   "0x2f2ff15d",
   // grantRole(bytes32,address)
@@ -2355,6 +2587,60 @@ const SENSITIVE_SELECTORS = /* @__PURE__ */ new Set([
   "0x8f283970"
   // changeAdmin(address)
 ]);
+function parseUnitsExact(amountStr, decimals) {
+  const clean = amountStr.replace(/,/g, "").trim();
+  if (!/^\d+(\.\d+)?$/.test(clean)) return null;
+  const parts = clean.split(".");
+  const intPart = parts[0];
+  const fracPart = parts[1] || "";
+  if (fracPart.length > decimals) return null;
+  const paddedFrac = fracPart.padEnd(decimals, "0");
+  try {
+    return BigInt(intPart) * 10n ** BigInt(decimals) + BigInt(paddedFrac);
+  } catch {
+    return null;
+  }
+}
+function getActionRecipient(act) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  if (act.isNativeTransfer || act.value && act.value !== "0" && (!act.decoded || act.selector === "0x")) {
+    if (isAddress(act.target)) {
+      return { recipient: getAddress(act.target), argName: "target" };
+    }
+  }
+  if (!act.decoded || !act.functionName) {
+    if (act.value && act.value !== "0" && isAddress(act.target)) {
+      return { recipient: getAddress(act.target), argName: "target" };
+    }
+    return null;
+  }
+  const fn = act.functionName;
+  if (fn === "transfer") {
+    const toArg = ((_a = act.args) == null ? void 0 : _a.find((a) => a.name === "to" || a.name === "recipient" || a.name === "_to")) || ((_b = act.args) == null ? void 0 : _b[0]);
+    if ((toArg == null ? void 0 : toArg.value) && typeof toArg.value === "string" && isAddress(toArg.value)) {
+      return { recipient: getAddress(toArg.value), argName: toArg.name || "to" };
+    }
+  }
+  if (fn === "transferFrom") {
+    const toArg = ((_c = act.args) == null ? void 0 : _c.find((a) => a.name === "to" || a.name === "recipient" || a.name === "_to")) || ((_d = act.args) == null ? void 0 : _d[1]);
+    if ((toArg == null ? void 0 : toArg.value) && typeof toArg.value === "string" && isAddress(toArg.value)) {
+      return { recipient: getAddress(toArg.value), argName: toArg.name || "to" };
+    }
+  }
+  if (fn === "grantRole" || fn === "revokeRole") {
+    const accArg = ((_e = act.args) == null ? void 0 : _e.find((a) => a.name === "account" || a.name === "_account")) || ((_f = act.args) == null ? void 0 : _f[1]);
+    if ((accArg == null ? void 0 : accArg.value) && typeof accArg.value === "string" && isAddress(accArg.value)) {
+      return { recipient: getAddress(accArg.value), argName: accArg.name || "account" };
+    }
+  }
+  if (fn === "transferOwnership") {
+    const ownerArg = ((_g = act.args) == null ? void 0 : _g.find((a) => a.name === "newOwner" || a.name === "owner")) || ((_h = act.args) == null ? void 0 : _h[0]);
+    if ((ownerArg == null ? void 0 : ownerArg.value) && typeof ownerArg.value === "string" && isAddress(ownerArg.value)) {
+      return { recipient: getAddress(ownerArg.value), argName: ownerArg.name || "newOwner" };
+    }
+  }
+  return null;
+}
 async function extractClaimsWithServ(description2) {
   const apiKey = process.env.SERV_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
@@ -2383,7 +2669,7 @@ CRITICAL SECURITY AND ACCURACY RULES:
       "id": "claim-1",
       "quote": "exact verbatim substring from description",
       "category": "recipient" | "amount" | "role" | "capability" | "duration" | "ownership" | "upgrade" | "other",
-      "params": { ...optional parsed fields like recipient, amount, role, capability... }
+      "params": { ...optional parsed fields like recipient, amount, token, symbol, role... }
     }
   ]
 }
@@ -2443,58 +2729,130 @@ Output JSON:`;
 }
 function evaluateCapabilityClaim(claim, actions) {
   var _a;
-  const quoteLower = claim.quote.toLowerCase();
-  if (quoteLower.includes("cannot propose") || quoteLower.includes("can not propose") || quoteLower.includes("lacks proposal") || quoteLower.includes("single power") && !quoteLower.includes("proposer")) {
-    for (const act of actions) {
-      if (act.decoded && act.functionName === "grantRole") {
-        const roleArg = (_a = act.args) == null ? void 0 : _a.find((a) => a.name === "role");
-        const roleVal = String((roleArg == null ? void 0 : roleArg.value) || "").toLowerCase();
-        if (roleVal === "0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1" || act.rawCalldata.toLowerCase().includes("b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1")) {
-          return {
-            status: "contradicted",
-            explanation: `Contradiction: Description states entity cannot propose ("${claim.quote}"), but Action #${act.index + 1} grants PROPOSER_ROLE.`,
-            evidenceRef: { actionIndex: act.index, argName: "role" }
-          };
-        }
+  const roleActions = actions.filter(
+    (act) => act.decoded && (act.functionName === "grantRole" || act.functionName === "revokeRole")
+  );
+  if (roleActions.length === 0) {
+    return {
+      status: "not_checkable",
+      explanation: "Capability assertion cannot be verified because proposal contains no role management actions."
+    };
+  }
+  for (const act of roleActions) {
+    if (!act.roleCapability || act.roleCapability.status === "unresolved") {
+      return {
+        status: "not_checkable",
+        explanation: `Role capability for Action #${act.index + 1} (${act.functionName}) is unresolved; verified contract source code is unavailable or unparseable.`
+      };
+    }
+    const capabilities = act.roleCapability.capabilities || [];
+    const quoteLower = claim.quote.toLowerCase();
+    const assertsLimitedPower = quoteLower.includes("cannot") || quoteLower.includes("can not") || quoteLower.includes("lacks") || quoteLower.includes("unable") || quoteLower.includes("single power") || quoteLower.includes("only power");
+    if (assertsLimitedPower) {
+      const proposalGates = capabilities.filter(
+        (c) => c.fn.toLowerCase().includes("schedule") || c.fn.toLowerCase().includes("propose")
+      );
+      if (proposalGates.length > 0) {
+        const grantedFunctions = proposalGates.map((g) => g.fn).join(", ");
+        const roleName = ((_a = proposalGates[0]) == null ? void 0 : _a.gatedBy) || "role";
+        return {
+          status: "contradicted",
+          explanation: `Contradiction: Description asserts entity has restricted capability ("${claim.quote}"), but Action #${act.index + 1} grants ${roleName}, which confers verified functions: ${grantedFunctions}.`,
+          evidenceRef: { actionIndex: act.index, argName: "role" }
+        };
+      }
+    }
+    if (quoteLower.includes("cancel")) {
+      const cancelGate = capabilities.find((c) => c.fn.toLowerCase().includes("cancel"));
+      if (cancelGate) {
+        return {
+          status: "verified",
+          explanation: `Description asserts power to cancel, which matches verified source function "${cancelGate.fn}" gated by the granted role.`,
+          evidenceRef: { actionIndex: act.index, argName: "role" }
+        };
       }
     }
   }
   return {
     status: "not_checkable",
-    explanation: "Capability assertion is not directly testable against standard function selectors."
+    explanation: "Capability assertion is not directly testable against verified function role gates."
   };
 }
 function evaluateRoleClaim(claim, actions) {
+  var _a, _b, _c, _d, _e, _f;
+  let roleName = void 0;
+  if (typeof ((_a = claim.params) == null ? void 0 : _a.role) === "string" && claim.params.role.trim().length > 0) {
+    roleName = claim.params.role.trim().toUpperCase();
+  } else {
+    const match = claim.quote.match(/\b([A-Za-z0-9_]+_ROLE)\b/i);
+    if (match == null ? void 0 : match[1]) {
+      roleName = match[1].toUpperCase();
+    }
+  }
+  if (!roleName) {
+    return {
+      status: "not_checkable",
+      explanation: "Role statement does not name a testable standard role constant (e.g. PROPOSER_ROLE)."
+    };
+  }
+  const expectedHash = computeRoleHash(roleName).toLowerCase();
   const quoteLower = claim.quote.toLowerCase();
-  const isGrant = quoteLower.includes("grant") || quoteLower.includes("proposer_role");
   const isRevoke = quoteLower.includes("revoke") || quoteLower.includes("renounce");
+  const expectedFn = isRevoke ? "revokeRole" : "grantRole";
+  let claimedAccount = void 0;
+  if (typeof ((_b = claim.params) == null ? void 0 : _b.account) === "string" && isAddress(claim.params.account)) {
+    claimedAccount = getAddress(claim.params.account);
+  } else {
+    const addrMatch = claim.quote.match(/0x[a-fA-F0-9]{40}/i);
+    if ((addrMatch == null ? void 0 : addrMatch[0]) && isAddress(addrMatch[0])) {
+      claimedAccount = getAddress(addrMatch[0]);
+    }
+  }
   for (const act of actions) {
-    if (!act.decoded) continue;
-    if (act.functionName === "grantRole" && isGrant) {
-      return {
-        status: "verified",
-        explanation: `Claimed role grant matches Action #${act.index + 1} (${act.functionName}).`,
-        evidenceRef: { actionIndex: act.index, argName: "role" }
-      };
+    if (!act.decoded || act.functionName !== expectedFn) continue;
+    const roleArg = ((_c = act.args) == null ? void 0 : _c.find((a) => a.name === "role")) || ((_d = act.args) == null ? void 0 : _d[0]);
+    const accountArg = ((_e = act.args) == null ? void 0 : _e.find((a) => a.name === "account")) || ((_f = act.args) == null ? void 0 : _f[1]);
+    const actualRoleHash = String((roleArg == null ? void 0 : roleArg.value) || "").toLowerCase();
+    if (actualRoleHash !== expectedHash) {
+      continue;
     }
-    if (act.functionName === "revokeRole" && isRevoke) {
-      return {
-        status: "verified",
-        explanation: `Claimed role revocation matches Action #${act.index + 1} (${act.functionName}).`,
-        evidenceRef: { actionIndex: act.index, argName: "role" }
-      };
+    const actualAccountStr = String((accountArg == null ? void 0 : accountArg.value) || "");
+    const actualAccount = isAddress(actualAccountStr) ? getAddress(actualAccountStr) : null;
+    if (claimedAccount) {
+      if (actualAccount && actualAccount.toLowerCase() === claimedAccount.toLowerCase()) {
+        return {
+          status: "verified",
+          explanation: `Claimed ${roleName} grant to ${claimedAccount} matches Action #${act.index + 1}.`,
+          evidenceRef: { actionIndex: act.index, argName: "role" }
+        };
+      } else {
+        return {
+          status: "contradicted",
+          explanation: `Contradiction: Claim asserts ${roleName} granted to ${claimedAccount}, but Action #${act.index + 1} grants ${roleName} to ${actualAccountStr}.`,
+          evidenceRef: { actionIndex: act.index, argName: "account" }
+        };
+      }
     }
+    return {
+      status: "verified",
+      explanation: `Claimed ${roleName} operation matches Action #${act.index + 1} (${act.functionName}).`,
+      evidenceRef: { actionIndex: act.index, argName: "role" }
+    };
   }
   return {
     status: "not_checkable",
-    explanation: "Role statement could not be conclusively verified against executable actions."
+    explanation: `Claimed ${roleName} ${isRevoke ? "revocation" : "grant"} does not match any executable calldata.`
   };
 }
 function evaluateRecipientClaim(claim, actions) {
   var _a;
-  const addrs = (claim.quote.match(/0x[a-fA-F0-9]{40}/gi) || []).map((a) => a.toLowerCase());
-  if (((_a = claim.params) == null ? void 0 : _a.recipient) && typeof claim.params.recipient === "string") {
-    addrs.push(claim.params.recipient.toLowerCase());
+  const addrs = [];
+  const matches = claim.quote.match(/0x[a-fA-F0-9]{40}/gi) || [];
+  for (const m of matches) {
+    if (isAddress(m)) addrs.push(getAddress(m));
+  }
+  if (((_a = claim.params) == null ? void 0 : _a.recipient) && typeof claim.params.recipient === "string" && isAddress(claim.params.recipient)) {
+    addrs.push(getAddress(claim.params.recipient));
   }
   if (addrs.length === 0) {
     return {
@@ -2502,34 +2860,72 @@ function evaluateRecipientClaim(claim, actions) {
       explanation: "No explicit address in recipient claim."
     };
   }
-  for (const addr of addrs) {
+  for (const claimedAddr of addrs) {
     for (const act of actions) {
-      if (act.target.toLowerCase() === addr) {
+      const recipientInfo = getActionRecipient(act);
+      if (recipientInfo && recipientInfo.recipient.toLowerCase() === claimedAddr.toLowerCase()) {
         return {
           status: "verified",
-          explanation: `Claimed recipient ${addr} matches Action #${act.index + 1} target.`,
-          evidenceRef: { actionIndex: act.index, argName: "target" }
+          explanation: `Claimed recipient ${claimedAddr} matches Action #${act.index + 1} (${act.functionName || "call"} ${recipientInfo.argName}).`,
+          evidenceRef: { actionIndex: act.index, argName: recipientInfo.argName }
         };
-      }
-      if (act.decoded && act.args) {
-        for (const arg of act.args) {
-          if (typeof arg.value === "string" && arg.value.toLowerCase() === addr) {
-            return {
-              status: "verified",
-              explanation: `Claimed recipient ${addr} matches Action #${act.index + 1} argument "${arg.name}".`,
-              evidenceRef: { actionIndex: act.index, argName: arg.name }
-            };
-          }
-        }
       }
     }
   }
   return {
     status: "not_checkable",
-    explanation: "Recipient address does not appear in executable action parameters."
+    explanation: "Recipient address does not match any authorized recipient argument (to, account, newOwner, or transfer target)."
   };
 }
 function evaluateAmountClaim(claim, actions) {
+  var _a, _b, _c, _d, _e, _f;
+  const valueBearingActions = actions.filter((act) => {
+    if (act.value && act.value !== "0") return true;
+    if (act.decoded && (act.functionName === "transfer" || act.functionName === "transferFrom")) return true;
+    return false;
+  });
+  if (valueBearingActions.length === 0) {
+    return {
+      status: "not_checkable",
+      explanation: "Proposal contains no executable value-bearing transfers."
+    };
+  }
+  const tokensInProposal = /* @__PURE__ */ new Set();
+  for (const act of valueBearingActions) {
+    if (act.tokenSymbol) {
+      tokensInProposal.add(act.tokenSymbol.toUpperCase());
+    } else if (act.isNativeTransfer || act.value && act.value !== "0") {
+      tokensInProposal.add("ETH");
+    } else if (act.target) {
+      tokensInProposal.add(act.target.toLowerCase());
+    }
+  }
+  let claimedToken = void 0;
+  if (typeof ((_a = claim.params) == null ? void 0 : _a.symbol) === "string" && claim.params.symbol.trim().length > 0) {
+    claimedToken = claim.params.symbol.trim().toUpperCase();
+  } else if (typeof ((_b = claim.params) == null ? void 0 : _b.token) === "string" && claim.params.token.trim().length > 0) {
+    claimedToken = claim.params.token.trim().toUpperCase();
+  } else {
+    for (const sym of tokensInProposal) {
+      const tokenRegex = new RegExp(`\\b${sym}\\b`, "i");
+      if (tokenRegex.test(claim.quote)) {
+        claimedToken = sym;
+        break;
+      }
+    }
+    if (!claimedToken) {
+      const tickerMatch = claim.quote.match(/\b(USDC|USDT|DAI|ETH|WETH|ENS)\b/i);
+      if (tickerMatch == null ? void 0 : tickerMatch[1]) {
+        claimedToken = tickerMatch[1].toUpperCase();
+      }
+    }
+  }
+  if (tokensInProposal.size > 1 && !claimedToken) {
+    return {
+      status: "not_checkable",
+      explanation: "Proposal transfers multiple tokens, but claim amount does not specify a token denomination."
+    };
+  }
   const numMatches = claim.quote.match(/\b\d[\d,]*(?:\.\d+)?\b/g);
   if (!numMatches || numMatches.length === 0) {
     return {
@@ -2537,53 +2933,43 @@ function evaluateAmountClaim(claim, actions) {
       explanation: "No explicit numeric amount found in claim."
     };
   }
+  let mismatchedTokenMsg = void 0;
   for (const rawNum of numMatches) {
-    const cleanNum = parseFloat(rawNum.replace(/,/g, ""));
-    if (isNaN(cleanNum) || cleanNum <= 0) continue;
-    for (const act of actions) {
-      if (act.decoded && act.args) {
-        for (const arg of act.args) {
-          if (arg.name === "amount" || arg.name === "value") {
-            const rawVal = BigInt(arg.value ? String(arg.value) : "0");
-            if (rawVal.toString() === cleanNum.toString()) {
-              return {
-                status: "verified",
-                explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (${arg.name}: ${arg.value}).`,
-                evidenceRef: { actionIndex: act.index, argName: arg.name }
-              };
-            }
-            if (rawVal === BigInt(Math.round(cleanNum * 1e6))) {
-              return {
-                status: "verified",
-                explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (6 decimals, ${rawVal} base units).`,
-                evidenceRef: { actionIndex: act.index, argName: arg.name }
-              };
-            }
-            if (cleanNum < 1e12 && rawVal === BigInt(Math.round(cleanNum * 1e18))) {
-              return {
-                status: "verified",
-                explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (18 decimals, ${rawVal} base units).`,
-                evidenceRef: { actionIndex: act.index, argName: arg.name }
-              };
-            }
-            if (arg.formattedValue) {
-              const formatted = parseFloat(arg.formattedValue.replace(/,/g, ""));
-              if (!isNaN(formatted) && Math.abs(formatted - cleanNum) < 1e-3) {
-                return {
-                  status: "verified",
-                  explanation: `Claimed amount ${cleanNum} matches Action #${act.index + 1} (${arg.name}: ${arg.formattedValue}).`,
-                  evidenceRef: { actionIndex: act.index, argName: arg.name }
-                };
-              }
-            }
-          }
+    for (const act of valueBearingActions) {
+      const actSymbol = ((_c = act.tokenSymbol) == null ? void 0 : _c.toUpperCase()) || (act.isNativeTransfer ? "ETH" : void 0);
+      if (claimedToken && actSymbol && claimedToken !== actSymbol) {
+        mismatchedTokenMsg = `Claim specifies amount in ${claimedToken}, which does not match proposal transfer token (${actSymbol}).`;
+        continue;
+      }
+      const decimals = act.tokenDecimals ?? (act.isNativeTransfer ? 18 : 18);
+      const claimedBaseUnits = parseUnitsExact(rawNum, decimals);
+      if (claimedBaseUnits === null) {
+        continue;
+      }
+      let actionBaseUnits = null;
+      let argName = "value";
+      if (act.decoded && (act.functionName === "transfer" || act.functionName === "transferFrom")) {
+        const amountArg = ((_d = act.args) == null ? void 0 : _d.find((a) => a.name === "amount" || a.name === "value")) || (act.functionName === "transfer" ? (_e = act.args) == null ? void 0 : _e[1] : (_f = act.args) == null ? void 0 : _f[2]);
+        if (amountArg == null ? void 0 : amountArg.value) {
+          actionBaseUnits = BigInt(String(amountArg.value));
+          argName = amountArg.name || "amount";
         }
+      } else if (act.value && act.value !== "0") {
+        actionBaseUnits = BigInt(act.value);
+        argName = "value";
+      }
+      if (actionBaseUnits !== null && actionBaseUnits === claimedBaseUnits) {
+        return {
+          status: "verified",
+          explanation: `Claimed amount ${rawNum} ${actSymbol || ""} matches Action #${act.index + 1} (${act.formattedAmount || actionBaseUnits.toString()} base units).`,
+          evidenceRef: { actionIndex: act.index, argName }
+        };
       }
     }
   }
   return {
     status: "not_checkable",
-    explanation: "Amount could not be matched exactly to action parameters."
+    explanation: mismatchedTokenMsg || "Amount could not be matched exactly to action parameters or token denomination."
   };
 }
 function evaluateClaimsLedger(claims, actions, description2) {
@@ -2988,238 +3374,6 @@ function buildAssessment(input) {
   }
   return "no_significant_issue_detected";
 }
-const KNOWN_ROLE_NAMES = [
-  "DEFAULT_ADMIN_ROLE",
-  "PROPOSER_ROLE",
-  "EXECUTOR_ROLE",
-  "CANCELLER_ROLE",
-  "TIMELOCK_ADMIN_ROLE",
-  "MINTER_ROLE",
-  "PAUSER_ROLE",
-  "UPGRADER_ROLE"
-];
-function computeRoleHash(name) {
-  if (name === "DEFAULT_ADMIN_ROLE") {
-    return "0x0000000000000000000000000000000000000000000000000000000000000000";
-  }
-  return keccak256(stringToBytes(name));
-}
-function parseSolidityRoleCapabilities(sourceCode) {
-  const roleMap = /* @__PURE__ */ new Map();
-  for (const name of KNOWN_ROLE_NAMES) {
-    roleMap.set(name, name);
-    roleMap.set(computeRoleHash(name).toLowerCase(), name);
-  }
-  const roleDefRegex = /bytes32\s+(?:public|private|internal)?\s*(?:constant)?\s*([a-zA-Z0-9_]+)\s*=\s*(?:keccak256\s*\(\s*["']([a-zA-Z0-9_]+)["']\s*\)|(0x[a-fA-F0-9]{64}))/g;
-  let match;
-  while ((match = roleDefRegex.exec(sourceCode)) !== null) {
-    const varName = match[1];
-    const strLiteral = match[2];
-    const hexLiteral = match[3];
-    const standardName = strLiteral || varName;
-    roleMap.set(varName, standardName);
-    if (hexLiteral) {
-      roleMap.set(hexLiteral.toLowerCase(), standardName);
-    }
-  }
-  const gates = [];
-  const fnRegex = /function\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)\s*([^{;]*)(?:\{|;)/g;
-  while ((match = fnRegex.exec(sourceCode)) !== null) {
-    const fnName = match[1];
-    const modifiersAndRest = match[3];
-    const startIndex = match.index;
-    const bodySnippet = sourceCode.slice(startIndex, startIndex + 500);
-    const modifierMatch = modifiersAndRest.match(
-      /(?:onlyRole|onlyRoleOrOpenRole)\s*\(\s*([a-zA-Z0-9_]+|(?:0x[a-fA-F0-9]{64}))\s*\)/i
-    );
-    if (modifierMatch == null ? void 0 : modifierMatch[1]) {
-      const rawRole = modifierMatch[1];
-      const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
-      gates.push({ fn: fnName, gatedBy: resolvedRole });
-      continue;
-    }
-    const bodyCheckMatch = bodySnippet.match(
-      /(?:_checkRole|hasRole)\s*\(\s*([a-zA-Z0-9_]+|(?:0x[a-fA-F0-9]{64}))/i
-    );
-    if (bodyCheckMatch == null ? void 0 : bodyCheckMatch[1]) {
-      const rawRole = bodyCheckMatch[1];
-      const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
-      gates.push({ fn: fnName, gatedBy: resolvedRole });
-    }
-  }
-  return { roleMap, gates };
-}
-function formatRoleCapabilitySummary(roleName, targetName, gates) {
-  const matchingGates = gates.filter(
-    (g) => g.gatedBy.toLowerCase() === roleName.toLowerCase()
-  );
-  const uniqueFns = Array.from(new Set(matchingGates.map((g) => g.fn)));
-  if (uniqueFns.length === 0) {
-    return {
-      capabilities: [],
-      summary: `unresolved permissions on ${targetName}`
-    };
-  }
-  const hasSchedule = uniqueFns.some((f) => f.toLowerCase().includes("schedule"));
-  const hasCancel = uniqueFns.some((f) => f.toLowerCase().includes("cancel"));
-  const hasExecute = uniqueFns.some((f) => f.toLowerCase().includes("execute"));
-  let actionPhrases = [];
-  if (hasSchedule && hasCancel) {
-    actionPhrases.push("schedule and cancel");
-  } else if (hasSchedule) {
-    actionPhrases.push("schedule");
-  } else if (hasCancel) {
-    actionPhrases.push("cancel");
-  } else if (hasExecute) {
-    actionPhrases.push("execute");
-  } else {
-    actionPhrases.push(`call ${uniqueFns.join(", ")}`);
-  }
-  const summary = `can ${actionPhrases.join(" and ")} on ${targetName} (per verified source)`;
-  return { capabilities: matchingGates, summary };
-}
-function getBlockscoutDomain(network) {
-  return network === "ethereum" ? "eth.blockscout.com" : "base.blockscout.com";
-}
-async function fetchContractSourceCode(network, address) {
-  const domain = getBlockscoutDomain(network);
-  const url = `https://${domain}/api/v2/smart-contracts/${address}`;
-  const timeoutMs = parseInt(process.env.BLOCKSCOUT_TIMEOUT_MS || "5000", 10);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
-        Accept: "application/json"
-      },
-      signal: controller.signal
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data || typeof data !== "object") return null;
-    let sourceCode = typeof data.source_code === "string" ? data.source_code : "";
-    if (!sourceCode && Array.isArray(data.additional_sources)) {
-      sourceCode = data.additional_sources.map((s) => s.source_code || "").join("\n");
-    }
-    const contractName = typeof data.name === "string" ? data.name : void 0;
-    return { sourceCode: sourceCode || void 0, contractName };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-async function resolveRoleCapabilitiesFromSource(network, targetAddress, targetName, roleHex, providedSourceCode) {
-  let source = providedSourceCode;
-  if (!source) {
-    const fetched = await fetchContractSourceCode(network, targetAddress);
-    source = fetched == null ? void 0 : fetched.sourceCode;
-  }
-  if (!source || source.trim().length === 0) {
-    return {
-      status: "unresolved",
-      sourceOrigin: "unresolved",
-      summary: "capability: unresolved"
-    };
-  }
-  try {
-    const { roleMap, gates } = parseSolidityRoleCapabilities(source);
-    const resolvedRoleName = roleMap.get(roleHex.toLowerCase()) || roleMap.get(roleHex) || "UNKNOWN_ROLE";
-    const { capabilities, summary } = formatRoleCapabilitySummary(
-      resolvedRoleName,
-      targetName || "target contract",
-      gates
-    );
-    if (capabilities.length === 0) {
-      return {
-        status: "unresolved",
-        sourceOrigin: "unresolved",
-        summary: "capability: unresolved"
-      };
-    }
-    return {
-      status: "resolved",
-      capabilities,
-      summary,
-      sourceOrigin: "verified_source"
-    };
-  } catch {
-    return {
-      status: "unresolved",
-      sourceOrigin: "unresolved",
-      summary: "capability: unresolved"
-    };
-  }
-}
-async function profileRecipient(client, network, recipientAddress, proposalTimestamp) {
-  let formattedAddr;
-  try {
-    formattedAddr = getAddress(recipientAddress);
-  } catch {
-    return {
-      type: "EOA",
-      summary: "Recipient: EOA"
-    };
-  }
-  let isContract = false;
-  try {
-    const code = await client.getCode({ address: formattedAddr });
-    isContract = Boolean(code && code !== "0x");
-  } catch {
-  }
-  if (!isContract) {
-    return {
-      type: "EOA",
-      summary: "Recipient: EOA"
-    };
-  }
-  let isVerified = false;
-  let deployedTimestamp;
-  const domain = getBlockscoutDomain(network);
-  {
-    try {
-      const [scRes, addrRes] = await Promise.allSettled([
-        fetch(`https://${domain}/api/v2/smart-contracts/${formattedAddr}`, {
-          headers: { "User-Agent": "Callscope/1.0", Accept: "application/json" }
-        }).then((r) => r.ok ? r.json() : null),
-        fetch(`https://${domain}/api/v2/addresses/${formattedAddr}`, {
-          headers: { "User-Agent": "Callscope/1.0", Accept: "application/json" }
-        }).then((r) => r.ok ? r.json() : null)
-      ]);
-      const scData = scRes.status === "fulfilled" ? scRes.value : null;
-      const addrData = addrRes.status === "fulfilled" ? addrRes.value : null;
-      if ((scData == null ? void 0 : scData.is_verified) || (scData == null ? void 0 : scData.source_code) || (scData == null ? void 0 : scData.abi)) {
-        isVerified = true;
-      }
-      if (addrData == null ? void 0 : addrData.is_verified) {
-        isVerified = true;
-      }
-      if (scData == null ? void 0 : scData.verified_at) {
-        deployedTimestamp = Math.floor(new Date(scData.verified_at).getTime() / 1e3);
-      }
-    } catch {
-    }
-  }
-  let daysBefore;
-  let ageText = "";
-  if (proposalTimestamp && deployedTimestamp && proposalTimestamp >= deployedTimestamp) {
-    daysBefore = Math.floor((proposalTimestamp - deployedTimestamp) / 86400);
-    ageText = daysBefore === 0 ? "deployed on same day as proposal" : `deployed ${daysBefore} days before proposal`;
-  }
-  const verifiedStatus = isVerified ? "verified" : "unverified";
-  const summaryParts = ["Recipient: contract", verifiedStatus];
-  if (ageText) {
-    summaryParts.push(ageText);
-  }
-  return {
-    type: "contract",
-    isVerified,
-    deployedDaysBefore: daysBefore,
-    deployedTimestamp,
-    summary: summaryParts.join(", ")
-  };
-}
 function parseTxHashOrUrl(input) {
   if (!input || typeof input !== "string") return null;
   const trimmed = input.trim();
@@ -3337,7 +3491,11 @@ async function executeAnalysis(request) {
   }
   let state = "Executed";
   try {
-    state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+    const statePromise = readGovernorProposalState(client, validGovernor, trimmedProposalId);
+    state = await Promise.race([
+      statePromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2e3))
+    ]);
   } catch {
     state = "Executed";
   }
@@ -3368,12 +3526,24 @@ async function executeAnalysis(request) {
       }
       if (accountArg) {
         const proposalTs = event.voteStart ? Number(event.voteStart) : void 0;
-        action.recipientProfile = await profileRecipient(
-          client,
-          effectiveNetwork,
-          accountArg,
-          proposalTs
-        );
+        try {
+          const profilePromise = profileRecipient(
+            client,
+            effectiveNetwork,
+            accountArg,
+            proposalTs
+          );
+          action.recipientProfile = await Promise.race([
+            profilePromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2500))
+          ]);
+        } catch {
+          action.recipientProfile = {
+            type: "contract",
+            isVerified: false,
+            summary: `Recipient: ${accountArg.slice(0, 10)}... (profile timeout)`
+          };
+        }
       }
     }
   }

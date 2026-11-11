@@ -9,7 +9,7 @@ export function createChainClient(network: SupportedNetwork): PublicClient<any, 
 
   const transports = candidateUrls.map((url) =>
     http(url, {
-      timeout: 8_000,
+      timeout: 3_500,
       retryCount: 0,
     })
   );
