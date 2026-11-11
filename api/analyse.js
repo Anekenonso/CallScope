@@ -1,3 +1,6 @@
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { http, createPublicClient, fallback, getAddress, keccak256, toBytes, decodeEventLog, parseAbi, zeroAddress, formatUnits, formatEther, decodeFunctionData, parseAbiItem, toFunctionSelector, concatHex } from "viem";
 import { mainnet, base } from "viem/chains";
 const SUPPORTED_NETWORKS = {
@@ -6,6 +9,11 @@ const SUPPORTED_NETWORKS = {
     chainId: 1,
     name: "Ethereum Mainnet",
     defaultRpcUrl: "https://gateway.tenderly.co/public/mainnet",
+    fallbackRpcUrls: [
+      "https://ethereum-rpc.publicnode.com",
+      "https://cloudflare-eth.com",
+      "https://rpc.ankr.com/eth"
+    ],
     envRpcKey: "ETHEREUM_RPC_URL",
     explorerUrl: "https://etherscan.io",
     blockscoutApiUrl: "https://eth.blockscout.com/api"
@@ -15,6 +23,11 @@ const SUPPORTED_NETWORKS = {
     chainId: 8453,
     name: "Base Mainnet",
     defaultRpcUrl: "https://base-rpc.publicnode.com",
+    fallbackRpcUrls: [
+      "https://mainnet.base.org",
+      "https://base.drpc.org",
+      "https://1rpc.io/base"
+    ],
     envRpcKey: "BASE_RPC_URL",
     explorerUrl: "https://basescan.org",
     blockscoutApiUrl: "https://base.blockscout.com/api"
@@ -35,32 +48,23 @@ function getRpcUrl(network) {
   }
   return config.defaultRpcUrl;
 }
+function getRpcUrls(network) {
+  const config = getNetworkConfig(network);
+  const primary = getRpcUrl(network);
+  const urls = [primary, ...config.fallbackRpcUrls];
+  return Array.from(new Set(urls.filter(Boolean)));
+}
 function createChainClient(network) {
-  const rpcUrl = getRpcUrl(network);
-  const chain = network === "ethereum" ? mainnet : base;
-  let candidateUrls;
-  if (network === "base") {
-    if (rpcUrl.includes("mainnet.base.org")) {
-      candidateUrls = ["https://base-rpc.publicnode.com", rpcUrl, "https://base.drpc.org"];
-    } else {
-      candidateUrls = [rpcUrl, "https://base-rpc.publicnode.com", "https://base.drpc.org"];
-    }
-  } else {
-    candidateUrls = [
-      rpcUrl,
-      "https://gateway.tenderly.co/public/mainnet",
-      "https://ethereum-rpc.publicnode.com"
-    ];
-  }
-  const uniqueUrls = Array.from(new Set(candidateUrls.filter(Boolean)));
-  const transports = uniqueUrls.map(
+  const chain2 = network === "ethereum" ? mainnet : base;
+  const candidateUrls = getRpcUrls(network);
+  const transports = candidateUrls.map(
     (url) => http(url, {
       timeout: 8e3,
       retryCount: 0
     })
   );
   return createPublicClient({
-    chain,
+    chain: chain2,
     transport: fallback(transports, { rank: false })
   });
 }
@@ -87,6 +91,124 @@ async function validateGovernorContract(client, governorAddress, network) {
     );
   }
   return checksummedAddress;
+}
+const chain$1 = "ethereum";
+const governor$1 = "0x323A76393544d5ecca80cd6ef2A560C6a395b7E3";
+const proposalId$1 = "77767899528494238518019756391533686963875234067646094287125791110488147463806";
+const proposer$1 = "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5";
+const targets$1 = [
+  "0xFe89cc7aBB2C4183683ab71653C4cdc9B02D44b7"
+];
+const values$1 = [
+  "0"
+];
+const signatures$1 = [
+  ""
+];
+const calldatas$1 = [
+  "0x2f2ff15db09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc10000000000000000000000002acbf518b3759f6e1fa163294eda55bf1d0ae051"
+];
+const voteStart$1 = "25524728";
+const voteEnd$1 = "25570546";
+const description$1 = "# [Executable] Establishing a new Security Council\n## Abstract\n\nThis proposal establishes the new ENS Security Council based on the results of EP 6.50 “Election of the New ENS DAO Security Council”. The term will last two years, until 16 July 2028.\n\n## Motivation\n\nThe Security Council was originally established in EP 5.13 as a 4-of-8 multisig with a single power: to cancel malicious proposals made to ENS DAO. It cannot propose, amend, or initiate any governance action. Its term was two years, ending 24 July 2026.\n\nThe purpose of this proposal is to establish a new Security Council that will inherit the same responsibilities for the coming two years.\n\n## Specification\n\nA single call to the DAO’s TimelockController, granting `PROPOSER_ROLE` to Blockful’s Security Council contract, which is owned by a multisig with the Security Council members elected in EP 6.50.\n\nThe Security Council contract has been deployed to `0x2acBf518b3759f6e1fA163294eda55bF1d0ae051`, and the multisig to `0x7101B78638e34444F0a5AdE9e1149fbEeC029931`.\n\nAfter two years, any address may call `renounceTimelockRoleByExpiration()` to revoke its cancel power unless `extend()` is called first by a separate DAO proposal.";
+const blockNumber$1 = "25524727";
+const transactionHash$1 = "0x76eefae46df65ef44d7bf95f4a0fd7cc7f0628fd684cc0074d59f1173cddef90";
+const ethEnsSnapshot = {
+  chain: chain$1,
+  governor: governor$1,
+  proposalId: proposalId$1,
+  proposer: proposer$1,
+  targets: targets$1,
+  values: values$1,
+  signatures: signatures$1,
+  calldatas: calldatas$1,
+  voteStart: voteStart$1,
+  voteEnd: voteEnd$1,
+  description: description$1,
+  blockNumber: blockNumber$1,
+  transactionHash: transactionHash$1
+};
+const chain = "base";
+const governor = "0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9";
+const proposalId = "27419154582993156392805749742953507877176483681373228046916881327937839104508";
+const proposer = "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5";
+const targets = [
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187"
+];
+const values = [
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0"
+];
+const signatures = [
+  "",
+  "",
+  "",
+  "",
+  "",
+  ""
+];
+const calldatas = [
+  "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400",
+  "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c7823854000000000000000000000000000000000000000000000a968163f0a57b400000",
+  "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d0000000000000000000000000000000000000000000000000000000029b92700",
+  "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d000000000000000000000000000000000000000000000a968163f0a57b400000",
+  "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000000000000000000bebc200",
+  "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000001fc3842bd1f071c00000"
+];
+const voteStart = "1792917953";
+const voteEnd = "1793436353";
+const description = "# DAO Constant Payment Roll October\nThe next proposal is to make the payment for the months of **September**:\n\nDavid Moderator (Role: Financial & Resources Role)\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125](https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125)\n\nCeci Sakura (Steward of Marketing & Communication):\n\n[https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9](https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9)\n\nDanny (Repository Technical Maintainer):\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591](https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591)";
+const blockNumber = "52891503";
+const transactionHash = "0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385";
+const baseUnlockSnapshot = {
+  chain,
+  governor,
+  proposalId,
+  proposer,
+  targets,
+  values,
+  signatures,
+  calldatas,
+  voteStart,
+  voteEnd,
+  description,
+  blockNumber,
+  transactionHash
+};
+const PINNED_SNAPSHOTS = [ethEnsSnapshot, baseUnlockSnapshot];
+function parseSnapshot(raw) {
+  return {
+    proposalId: raw.proposalId,
+    proposer: raw.proposer,
+    targets: raw.targets,
+    values: raw.values.map((v) => BigInt(v)),
+    signatures: raw.signatures,
+    calldatas: raw.calldatas,
+    voteStart: BigInt(raw.voteStart ?? 0),
+    voteEnd: BigInt(raw.voteEnd ?? 0),
+    description: raw.description ?? "",
+    transactionHash: raw.transactionHash,
+    blockNumber: BigInt(raw.blockNumber ?? 0)
+  };
+}
+function getPinnedSnapshot(network, governorAddress, proposalId2) {
+  const cleanId = proposalId2.trim();
+  const match = PINNED_SNAPSHOTS.find(
+    (s) => s.chain === network && s.governor.toLowerCase() === governorAddress.toLowerCase() && s.proposalId === cleanId
+  );
+  if (match) {
+    return parseSnapshot(match);
+  }
+  return null;
 }
 const PROPOSAL_CREATED_EVENT_UNINDEXED = {
   type: "event",
@@ -169,25 +291,25 @@ function parseProposalCreatedLog(log, expectedProposalId, expectedGovernorAddres
       const args = decoded.args;
       const decodedId = (_a = args.proposalId) == null ? void 0 : _a.toString();
       if (decodedId === expectedProposalId) {
-        const targets = args.targets;
-        const values = args.values;
-        const signatures = args.signatures;
-        const calldatas = args.calldatas;
-        if (!Array.isArray(targets) || !Array.isArray(values) || !Array.isArray(signatures) || !Array.isArray(calldatas)) {
+        const targets2 = args.targets;
+        const values2 = args.values;
+        const signatures2 = args.signatures;
+        const calldatas2 = args.calldatas;
+        if (!Array.isArray(targets2) || !Array.isArray(values2) || !Array.isArray(signatures2) || !Array.isArray(calldatas2)) {
           throw new Error("Malformed ProposalCreated event: action properties must be arrays");
         }
-        if (targets.length !== values.length || targets.length !== signatures.length || targets.length !== calldatas.length) {
+        if (targets2.length !== values2.length || targets2.length !== signatures2.length || targets2.length !== calldatas2.length) {
           throw new Error(
-            `Malformed ProposalCreated event: action array length mismatch (targets: ${targets.length}, values: ${values.length}, signatures: ${signatures.length}, calldatas: ${calldatas.length})`
+            `Malformed ProposalCreated event: action array length mismatch (targets: ${targets2.length}, values: ${values2.length}, signatures: ${signatures2.length}, calldatas: ${calldatas2.length})`
           );
         }
         return {
           proposalId: decodedId,
           proposer: args.proposer,
-          targets,
-          values,
-          signatures,
-          calldatas,
+          targets: targets2,
+          values: values2,
+          signatures: signatures2,
+          calldatas: calldatas2,
           voteStart: args.voteStart ?? 0n,
           voteEnd: args.voteEnd ?? 0n,
           description: args.description ?? "",
@@ -207,63 +329,70 @@ async function fetchProposalEventFromBlockscout(network, governorAddress, expect
   const config = getNetworkConfig(network);
   const pageSize = 1e3;
   const maxPages = 5;
+  const timeoutMs = process.env.BLOCKSCOUT_TIMEOUT_MS ? parseInt(process.env.BLOCKSCOUT_TIMEOUT_MS, 10) : 5e3;
   let matchingEvent = null;
   for (let page = 1; page <= maxPages; page++) {
     const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}&page=${page}&offset=${pageSize}`;
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
-          Accept: "application/json"
-        },
-        signal: AbortSignal.timeout(3e3)
-      });
-      if (!res.ok) break;
-      const json = await res.json();
-      if (!json || json.status === "0" || !Array.isArray(json.result) || json.result.length === 0) {
-        break;
-      }
-      for (const item of json.result) {
-        if (item.address && item.address.toLowerCase() !== governorAddress.toLowerCase()) {
-          continue;
+    let json = null;
+    let attempts = 0;
+    while (attempts < 2) {
+      attempts++;
+      try {
+        const res = await fetch(url, {
+          headers: {
+            "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
+            Accept: "application/json"
+          },
+          signal: AbortSignal.timeout(timeoutMs)
+        });
+        if (!res.ok) {
+          if (attempts < 2) continue;
+          break;
         }
-        const log = {
-          address: item.address,
-          blockHash: item.blockHash,
-          blockNumber: BigInt(item.blockNumber),
-          data: item.data,
-          logIndex: Number(item.logIndex),
-          removed: false,
-          topics: item.topics.filter(Boolean),
-          transactionHash: item.transactionHash,
-          transactionIndex: Number(item.transactionIndex)
-        };
-        const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
-        if (parsed) {
-          if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-            throw new Error(
-              `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
-            );
-          }
-          matchingEvent = parsed;
-        }
-      }
-      if (matchingEvent) {
-        return matchingEvent;
-      }
-      if (json.result.length < pageSize) {
+        json = await res.json();
         break;
+      } catch (err) {
+        if (attempts >= 2) break;
       }
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("Ambiguous event")) {
-        throw err;
+    }
+    if (!json || json.status === "0" || !Array.isArray(json.result) || json.result.length === 0) {
+      break;
+    }
+    for (const item of json.result) {
+      if (item.address && item.address.toLowerCase() !== governorAddress.toLowerCase()) {
+        continue;
       }
+      const log = {
+        address: item.address,
+        blockHash: item.blockHash,
+        blockNumber: BigInt(item.blockNumber),
+        data: item.data,
+        logIndex: Number(item.logIndex),
+        removed: false,
+        topics: item.topics.filter(Boolean),
+        transactionHash: item.transactionHash,
+        transactionIndex: Number(item.transactionIndex)
+      };
+      const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
+      if (parsed) {
+        if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+          throw new Error(
+            `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
+          );
+        }
+        matchingEvent = parsed;
+      }
+    }
+    if (matchingEvent) {
+      return matchingEvent;
+    }
+    if (json.result.length < pageSize) {
       break;
     }
   }
   return matchingEvent;
 }
-async function queryGovernorSnapshotValue(client, governorAddress, proposalId) {
+async function queryGovernorSnapshotValue(client, governorAddress, proposalId2) {
   try {
     const snapshot = await client.readContract({
       address: governorAddress,
@@ -277,7 +406,7 @@ async function queryGovernorSnapshotValue(client, governorAddress, proposalId) {
         }
       ],
       functionName: "proposalSnapshot",
-      args: [BigInt(proposalId)]
+      args: [BigInt(proposalId2)]
     });
     const val = BigInt(snapshot);
     return val > 0n ? val : null;
@@ -319,7 +448,17 @@ async function fetchProposalEventFromRpc(client, network, governorAddress, expec
       try {
         const latestBlockData = await client.getBlock({ blockTag: "latest" });
         const timeDiff = Number(latestBlockData.timestamp - creationTimepoint);
-        const secPerBlock = network === "base" ? 0.623 : 12;
+        let secPerBlock = network === "base" ? 2 : 12;
+        try {
+          const sampleNum = latestBlockData.number > 2000n ? latestBlockData.number - 2000n : 0n;
+          const sampleBlock = await client.getBlock({ blockNumber: sampleNum });
+          const dt = Number(latestBlockData.timestamp - sampleBlock.timestamp);
+          const dn = Number(latestBlockData.number - sampleBlock.number);
+          if (dt > 0 && dn > 0) {
+            secPerBlock = dt / dn;
+          }
+        } catch {
+        }
         const estimatedDiff = BigInt(Math.max(0, Math.floor(timeDiff / secPerBlock)));
         targetBlock = latestBlockData.number > estimatedDiff ? latestBlockData.number - estimatedDiff : 0n;
       } catch {
@@ -451,34 +590,164 @@ async function fetchProposalEventFromRpc(client, network, governorAddress, expec
   }
   return matchingEvent;
 }
-async function retrieveProposalCreatedEvent(client, network, governorAddress, proposalId) {
-  const cleanId = proposalId.trim();
+class ProposalEventLookupError extends Error {
+  constructor(options) {
+    super(options.message);
+    __publicField(this, "stage", "event_lookup");
+    __publicField(this, "via");
+    __publicField(this, "reason");
+    __publicField(this, "detail");
+    this.name = "ProposalEventLookupError";
+    this.via = options.via;
+    this.reason = options.reason;
+    this.detail = options.detail;
+  }
+}
+async function retrieveProposalEventFromTxHash(client, txHash) {
+  var _a;
+  let receipt;
+  try {
+    receipt = await client.getTransactionReceipt({ hash: txHash });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ProposalEventLookupError({
+      message: `Failed to fetch transaction receipt for ${txHash}`,
+      via: "rpc",
+      reason: "not_found",
+      detail: msg
+    });
+  }
+  if (!receipt || !Array.isArray(receipt.logs)) {
+    throw new ProposalEventLookupError({
+      message: `Transaction receipt not found for ${txHash}`,
+      via: "rpc",
+      reason: "not_found",
+      detail: "No receipt returned by RPC."
+    });
+  }
+  for (const log of receipt.logs) {
+    for (const abiItem of SUPPORTED_EVENT_VARIANTS) {
+      try {
+        const decoded = decodeEventLog({
+          abi: [abiItem],
+          data: log.data,
+          topics: log.topics
+        });
+        if (decoded.eventName === "ProposalCreated") {
+          const args = decoded.args;
+          const decodedId = (_a = args.proposalId) == null ? void 0 : _a.toString();
+          if (!decodedId) continue;
+          const targets2 = args.targets;
+          const values2 = args.values;
+          const signatures2 = args.signatures;
+          const calldatas2 = args.calldatas;
+          return {
+            event: {
+              proposalId: decodedId,
+              proposer: args.proposer,
+              targets: targets2,
+              values: values2,
+              signatures: signatures2,
+              calldatas: calldatas2,
+              voteStart: args.voteStart ?? 0n,
+              voteEnd: args.voteEnd ?? 0n,
+              description: args.description ?? "",
+              transactionHash: txHash,
+              blockNumber: receipt.blockNumber ?? 0n
+            },
+            governorAddress: log.address,
+            proposalId: decodedId
+          };
+        }
+      } catch {
+      }
+    }
+  }
+  throw new ProposalEventLookupError({
+    message: `No ProposalCreated event found in transaction receipt for ${txHash}`,
+    via: "rpc",
+    reason: "not_found",
+    detail: "Transaction was found but did not emit a recognized Governor ProposalCreated event."
+  });
+}
+async function retrieveProposalCreatedEvent(client, network, governorAddress, proposalId2, options) {
+  const cleanId = proposalId2.trim();
+  if (!(options == null ? void 0 : options.reverifyLive)) {
+    const pinned = getPinnedSnapshot(network, governorAddress, cleanId);
+    if (pinned) {
+      return {
+        ...pinned,
+        eventSource: `pinned snapshot (block ${pinned.blockNumber})`
+      };
+    }
+  }
+  let blockscoutDiag = { attempted: false, reason: "not_found", detail: "" };
+  let rpcDiag = { attempted: false, reason: "not_found", detail: "" };
   let matchingEvent = null;
   try {
+    blockscoutDiag.attempted = true;
     matchingEvent = await fetchProposalEventFromBlockscout(network, governorAddress, cleanId);
   } catch (err) {
     if (err instanceof Error && err.message.startsWith("Ambiguous event")) {
       throw err;
     }
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("timeout") || msg.includes("aborted")) {
+      blockscoutDiag.reason = "timeout";
+      blockscoutDiag.detail = "Blockscout request timed out";
+    } else if (msg.includes("429")) {
+      blockscoutDiag.reason = "rate_limited";
+      blockscoutDiag.detail = "Blockscout rate limit exceeded";
+    } else {
+      blockscoutDiag.reason = "not_found";
+      blockscoutDiag.detail = msg;
+    }
   }
   if (matchingEvent) {
-    return matchingEvent;
+    return {
+      ...matchingEvent,
+      eventSource: `live RPC (block ${matchingEvent.blockNumber})`
+    };
   }
   try {
+    rpcDiag.attempted = true;
     matchingEvent = await fetchProposalEventFromRpc(client, network, governorAddress, cleanId);
   } catch (err) {
     if (err instanceof Error && err.message.startsWith("Ambiguous event")) {
       throw err;
     }
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("timeout")) {
+      rpcDiag.reason = "timeout";
+      rpcDiag.detail = "RPC log query timed out";
+    } else if (msg.includes("429") || msg.includes("limit reached")) {
+      rpcDiag.reason = "rate_limited";
+      rpcDiag.detail = "RPC rate limit reached";
+    } else if (msg.includes("range") || msg.includes("limit")) {
+      rpcDiag.reason = "range_rejected";
+      rpcDiag.detail = "RPC rejected block range query";
+    } else {
+      rpcDiag.reason = "not_found";
+      rpcDiag.detail = msg;
+    }
   }
   if (matchingEvent) {
-    return matchingEvent;
+    return {
+      ...matchingEvent,
+      eventSource: `live RPC (block ${matchingEvent.blockNumber})`
+    };
   }
-  throw new Error(
-    `ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`
-  );
+  const primaryVia = rpcDiag.attempted ? "rpc" : "blockscout";
+  const primaryReason = rpcDiag.reason !== "not_found" ? rpcDiag.reason : blockscoutDiag.reason !== "not_found" ? blockscoutDiag.reason : "not_found";
+  const primaryDetail = rpcDiag.detail || blockscoutDiag.detail || `ProposalCreated event not found in searched block range on Governor ${governorAddress}`;
+  throw new ProposalEventLookupError({
+    message: `ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`,
+    via: primaryVia,
+    reason: primaryReason,
+    detail: primaryDetail
+  });
 }
-async function readGovernorProposalState(client, governorAddress, proposalId) {
+async function readGovernorProposalState(client, governorAddress, proposalId2) {
   try {
     const stateNum = await client.readContract({
       address: governorAddress,
@@ -492,7 +761,7 @@ async function readGovernorProposalState(client, governorAddress, proposalId) {
         }
       ],
       functionName: "state",
-      args: [BigInt(proposalId)]
+      args: [BigInt(proposalId2)]
     });
     return PROPOSAL_STATE_MAP[Number(stateNum)] ?? "Unknown";
   } catch {
@@ -650,11 +919,11 @@ async function fetchFromSourcify(network, address) {
       if (metadataFile && typeof metadataFile.content === "string") {
         const metaObj = JSON.parse(metadataFile.content);
         const abi = (_a = metaObj.output) == null ? void 0 : _a.abi;
-        const targets = Object.keys(((_b = metaObj.settings) == null ? void 0 : _b.compilationTarget) || {});
+        const targets2 = Object.keys(((_b = metaObj.settings) == null ? void 0 : _b.compilationTarget) || {});
         let contractName;
-        if (targets.length > 0 && targets[0]) {
-          const rawName = metaObj.settings.compilationTarget[targets[0]];
-          contractName = typeof rawName === "string" ? rawName : (_c = targets[0].split("/").pop()) == null ? void 0 : _c.replace(".sol", "");
+        if (targets2.length > 0 && targets2[0]) {
+          const rawName = metaObj.settings.compilationTarget[targets2[0]];
+          contractName = typeof rawName === "string" ? rawName : (_c = targets2[0].split("/").pop()) == null ? void 0 : _c.replace(".sol", "");
         }
         if (Array.isArray(abi)) {
           return { abi, contractName };
@@ -986,21 +1255,21 @@ function decodeLegacySignature(rawSignature, rawCalldata) {
   }
 }
 async function decodeProposalActions(input) {
-  const { network, targets, values, signatures, calldatas, client } = input;
-  if (targets.length !== values.length || targets.length !== signatures.length || targets.length !== calldatas.length) {
+  const { network, targets: targets2, values: values2, signatures: signatures2, calldatas: calldatas2, client } = input;
+  if (targets2.length !== values2.length || targets2.length !== signatures2.length || targets2.length !== calldatas2.length) {
     throw new Error(
-      `Malformed proposal action arrays: lengths do not match (targets: ${targets.length}, values: ${values.length}, signatures: ${signatures.length}, calldatas: ${calldatas.length})`
+      `Malformed proposal action arrays: lengths do not match (targets: ${targets2.length}, values: ${values2.length}, signatures: ${signatures2.length}, calldatas: ${calldatas2.length})`
     );
   }
   const actions = [];
   const limitations = [];
   const abiCache = /* @__PURE__ */ new Map();
   const tokenCache = /* @__PURE__ */ new Map();
-  for (let i = 0; i < targets.length; i++) {
-    const rawTarget = targets[i];
-    const rawValue = values[i].toString();
-    const rawSignature = signatures[i] || "";
-    const rawCalldata = calldatas[i] || "0x";
+  for (let i = 0; i < targets2.length; i++) {
+    const rawTarget = targets2[i];
+    const rawValue = values2[i].toString();
+    const rawSignature = signatures2[i] || "";
+    const rawCalldata = calldatas2[i] || "0x";
     let targetAddress;
     try {
       targetAddress = getAddress(rawTarget);
@@ -1317,21 +1586,21 @@ function detectFindings(actions) {
       const isTimelockOrGov = /timelock|governor|governance/i.test(action.targetName || "") || /timelock|governor/i.test(((_t = (_s = action.args) == null ? void 0 : _s[0]) == null ? void 0 : _t.name) || "");
       let severity = "high";
       let title = `Action #${actionNum} transfers contract ownership`;
-      let description = `Transfers administrative ownership of ${action.targetName || action.target} to ${((_v = (_u = action.args) == null ? void 0 : _u[0]) == null ? void 0 : _v.value) || newOwner}. Delegates should confirm that the recipient address is the intended administrative controller or multisig.`;
+      let description2 = `Transfers administrative ownership of ${action.targetName || action.target} to ${((_v = (_u = action.args) == null ? void 0 : _u[0]) == null ? void 0 : _v.value) || newOwner}. Delegates should confirm that the recipient address is the intended administrative controller or multisig.`;
       if (isZeroAddress) {
         severity = "high";
         title = `Action #${actionNum} renounces contract ownership`;
-        description = `Transfers ownership of ${action.targetName || action.target} to the zero address (0x0). This permanently removes contract ownership and eliminates owner-only administrative functions.`;
+        description2 = `Transfers ownership of ${action.targetName || action.target} to the zero address (0x0). This permanently removes contract ownership and eliminates owner-only administrative functions.`;
       } else if (isTimelockOrGov) {
         severity = "medium";
         title = `Action #${actionNum} transfers ownership to governance Timelock`;
-        description = `Transfers administrative ownership of ${action.targetName || action.target} to governance controller ${((_x = (_w = action.args) == null ? void 0 : _w[0]) == null ? void 0 : _x.value) || newOwner}. This places contract administrative controls under DAO governance.`;
+        description2 = `Transfers administrative ownership of ${action.targetName || action.target} to governance controller ${((_x = (_w = action.args) == null ? void 0 : _w[0]) == null ? void 0 : _x.value) || newOwner}. This places contract administrative controls under DAO governance.`;
       }
       findings.push({
         id: `SENSITIVE_TRANSFER_OWNERSHIP_${i}`,
         severity,
         title,
-        description,
+        description: description2,
         actionIndex: i,
         target: action.target,
         verified: true,
@@ -1407,20 +1676,20 @@ function detectFindings(actions) {
   }
   return findings;
 }
-function extractExplicitRecipientAddresses(description) {
+function extractExplicitRecipientAddresses(description2) {
   const explicit = /* @__PURE__ */ new Set();
   const recipientPattern = /(?:to|recipient|beneficiary|destination|send\s+to|transfer\s+to|pay\s+to|grant\s+to|winner|wallet|payout\s+to)[:\s]+(0x[a-fA-F0-9]{40})/gi;
   let match;
-  while ((match = recipientPattern.exec(description)) !== null) {
+  while ((match = recipientPattern.exec(description2)) !== null) {
     if (match[1]) {
       explicit.add(match[1].toLowerCase());
     }
   }
   return explicit;
 }
-function checkDescriptionActionConsistency(description, actions) {
+function checkDescriptionActionConsistency(description2, actions) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D;
-  if (!description || description.trim().length === 0) {
+  if (!description2 || description2.trim().length === 0) {
     return {
       status: "indeterminate",
       explanation: "Proposal description is completely empty; cannot verify action intent."
@@ -1432,30 +1701,30 @@ function checkDescriptionActionConsistency(description, actions) {
       explanation: "Informational or off-chain voting proposal with no on-chain executable transactions."
     };
   }
-  const descLower = description.toLowerCase();
+  const descLower = description2.toLowerCase();
   const discrepancies = [];
   const omissions = [];
   let hasUndecodedAction = false;
-  const addressMatches = description.match(/0x[a-fA-F0-9]{40}/g) || [];
+  const addressMatches = description2.match(/0x[a-fA-F0-9]{40}/g) || [];
   const mentionedAddresses = /* @__PURE__ */ new Set();
   for (const addr of addressMatches) {
     mentionedAddresses.add(addr.toLowerCase());
   }
-  const explicitRecipients = extractExplicitRecipientAddresses(description);
+  const explicitRecipients = extractExplicitRecipientAddresses(description2);
   const mentionsTransfer = /\b(transfer|fund|funds|allocation|disbursement|treasury|usdc|dai|payment|budget)\b/i.test(
-    description
+    description2
   );
   const mentionsRole = /\b(role|proposer|executor|admin|permission|permissions|security\s+council|signer|multisig)\b/i.test(
-    description
+    description2
   );
-  const mentionsUpgrade = /\b(upgrade|implementation|logic|proxy|migrate)\b/i.test(description);
-  const mentionsOwnership = /\b(ownership|owner|transfer\s+ownership|renounce)\b/i.test(description);
+  const mentionsUpgrade = /\b(upgrade|implementation|logic|proxy|migrate)\b/i.test(description2);
+  const mentionsOwnership = /\b(ownership|owner|transfer\s+ownership|renounce)\b/i.test(description2);
   const describesStream = /\b(stream|streaming|daily\s+stream|daily\s+usdc|sablier|superfluid|continuous\s+stream)\b/i.test(
-    description
+    description2
   );
-  const describesApproval = /\b(approve|approval|allowance)\b/i.test(description);
+  const describesApproval = /\b(approve|approval|allowance)\b/i.test(description2);
   const claimedAmountMatches = [
-    ...description.matchAll(
+    ...description2.matchAll(
       /(?:transfer|disburse|send|grant|pay|allocation\s+of|stream\s+of|stream)\s+(?:of\s+)?(\$?\d[\d,]*(?:\.\d+)?)\s*([a-zA-Z$]+)?/gi
     )
   ];
@@ -1824,7 +2093,7 @@ function formatActionsForPrompt$1(actions) {
   Raw Calldata: ${act.rawCalldata}`;
   }).join("\n\n");
 }
-async function reviewWithServ(description, actions) {
+async function reviewWithServ(description2, actions) {
   const apiKey = process.env.SERV_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
     return {
@@ -1861,7 +2130,7 @@ Do not include any conversational preamble or markdown outside the JSON object.`
   const userPrompt = `Please evaluate the following DAO proposal:
 
 <untrusted_proposal_text>
-${description || "(No description provided)"}
+${description2 || "(No description provided)"}
 </untrusted_proposal_text>
 
 <executable_actions>
@@ -1934,7 +2203,7 @@ function formatActionsForPrompt(actions) {
   Arguments: ${argsFormatted}`;
   }).join("\n\n");
 }
-async function reviewWithDolphin(description, actions, findings) {
+async function reviewWithDolphin(description2, actions, findings) {
   const apiKey = process.env.DOLPHIN_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
     return {
@@ -1970,7 +2239,7 @@ Be extremely concise in your internal thinking. Limit your reasoning to at most 
   const userPrompt = `Please review this proposal's execution data:
 
 <untrusted_proposal_text>
-${description || "(No description provided)"}
+${description2 || "(No description provided)"}
 </untrusted_proposal_text>
 
 <executable_actions>
@@ -2020,6 +2289,31 @@ Output JSON response:`;
     };
   }
 }
+function parseTxHashOrUrl(input) {
+  if (!input || typeof input !== "string") return null;
+  const trimmed = input.trim();
+  const txPattern = /^0x[a-fA-F0-9]{64}$/;
+  if (txPattern.test(trimmed)) {
+    return { txHash: trimmed };
+  }
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.toLowerCase();
+    const pathname = url.pathname;
+    const match = pathname.match(/(?:tx|transaction)\/(0x[a-fA-F0-9]{64})/i);
+    if (!match) return null;
+    const txHash = match[1];
+    let inferredNetwork;
+    if (host.includes("etherscan.io") || host.includes("eth.blockscout.com")) {
+      inferredNetwork = "ethereum";
+    } else if (host.includes("basescan.org") || host.includes("base.blockscout.com")) {
+      inferredNetwork = "base";
+    }
+    return { txHash, inferredNetwork };
+  } catch {
+    return null;
+  }
+}
 class ValidationError extends Error {
   constructor(message) {
     super(message);
@@ -2057,24 +2351,59 @@ function sanitizePublicErrorMessage(raw) {
   return sanitized.trim() || "An internal analysis error occurred.";
 }
 async function executeAnalysis(request) {
-  const { network, governorAddress, proposalId } = request;
-  if (!network || network !== "ethereum" && network !== "base") {
-    throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
+  let effectiveNetwork = request.network;
+  let validGovernor;
+  let trimmedProposalId;
+  let event;
+  let eventSource;
+  let client;
+  if (request.txHashOrUrl && request.txHashOrUrl.trim().length > 0) {
+    const parsed = parseTxHashOrUrl(request.txHashOrUrl);
+    if (!parsed) {
+      throw new ValidationError("Invalid transaction hash or explorer URL.");
+    }
+    if (parsed.inferredNetwork) {
+      effectiveNetwork = parsed.inferredNetwork;
+    }
+    if (!effectiveNetwork || effectiveNetwork !== "ethereum" && effectiveNetwork !== "base") {
+      throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
+    }
+    client = createChainClient(effectiveNetwork);
+    await verifyNetworkChainId(effectiveNetwork, client);
+    const txResult = await retrieveProposalEventFromTxHash(client, parsed.txHash);
+    event = txResult.event;
+    validGovernor = txResult.governorAddress;
+    trimmedProposalId = txResult.proposalId;
+    eventSource = `live tx receipt (block ${event.blockNumber})`;
+  } else {
+    const { network, governorAddress, proposalId: proposalId2 } = request;
+    if (!network || network !== "ethereum" && network !== "base") {
+      throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
+    }
+    effectiveNetwork = network;
+    if (!governorAddress || !/^0x[a-fA-F0-9]{40}$/.test(governorAddress)) {
+      throw new ValidationError("Invalid Governor address: must be a valid 20-byte EVM hex address.");
+    }
+    if (!proposalId2 || !/^\d+$/.test(proposalId2.trim())) {
+      throw new ValidationError("Invalid proposal ID: must be a valid non-empty decimal string.");
+    }
+    trimmedProposalId = proposalId2.trim();
+    client = createChainClient(effectiveNetwork);
+    await verifyNetworkChainId(effectiveNetwork, client);
+    validGovernor = await validateGovernorContract(client, governorAddress, effectiveNetwork);
+    const retrieval = await retrieveProposalCreatedEvent(
+      client,
+      effectiveNetwork,
+      validGovernor,
+      trimmedProposalId,
+      { reverifyLive: request.reverifyLive }
+    );
+    event = retrieval;
+    eventSource = retrieval.eventSource;
   }
-  if (!governorAddress || !/^0x[a-fA-F0-9]{40}$/.test(governorAddress)) {
-    throw new ValidationError("Invalid Governor address: must be a valid 20-byte EVM hex address.");
-  }
-  if (!proposalId || !/^\d+$/.test(proposalId.trim())) {
-    throw new ValidationError("Invalid proposal ID: must be a valid non-empty decimal string.");
-  }
-  const trimmedProposalId = proposalId.trim();
-  const client = createChainClient(network);
-  await verifyNetworkChainId(network, client);
-  const validGovernor = await validateGovernorContract(client, governorAddress, network);
-  const event = await retrieveProposalCreatedEvent(client, network, validGovernor, trimmedProposalId);
   const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
   const { actions, limitations } = await decodeProposalActions({
-    network,
+    network: effectiveNetwork,
     targets: event.targets,
     values: event.values,
     signatures: event.signatures,
@@ -2110,7 +2439,7 @@ async function executeAnalysis(request) {
     };
   });
   const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
-  const networkConfig = SUPPORTED_NETWORKS[network];
+  const networkConfig = SUPPORTED_NETWORKS[effectiveNetwork];
   const evidence = [
     {
       label: "Governor Contract",
@@ -2133,7 +2462,7 @@ async function executeAnalysis(request) {
   }
   return {
     assessment,
-    network,
+    network: effectiveNetwork,
     governorAddress: validGovernor,
     proposal: {
       id: trimmedProposalId,
@@ -2141,7 +2470,8 @@ async function executeAnalysis(request) {
       status: state,
       proposer: event.proposer,
       creationTransaction: event.transactionHash,
-      blockNumber: event.blockNumber.toString()
+      blockNumber: event.blockNumber.toString(),
+      eventSource
     },
     actions,
     findings,
@@ -2149,6 +2479,45 @@ async function executeAnalysis(request) {
     reviews,
     limitations,
     evidence
+  };
+}
+function extractStageTaggedError(err) {
+  if (err instanceof ProposalEventLookupError) {
+    return {
+      stage: err.stage,
+      via: err.via,
+      reason: err.reason,
+      detail: err.detail
+    };
+  }
+  if (err instanceof ValidationError) {
+    return {
+      stage: "input_validation",
+      reason: "validation_error",
+      detail: err.message
+    };
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("network") || msg.includes("chain")) {
+    return {
+      stage: "network_verification",
+      via: "rpc",
+      reason: "network_error",
+      detail: sanitizePublicErrorMessage(msg)
+    };
+  }
+  if (msg.includes("Governor") || msg.includes("contract")) {
+    return {
+      stage: "governor_validation",
+      via: "rpc",
+      reason: "not_found",
+      detail: sanitizePublicErrorMessage(msg)
+    };
+  }
+  return {
+    stage: "event_lookup",
+    reason: "not_found",
+    detail: sanitizePublicErrorMessage(msg)
   };
 }
 async function handleWebRequest(request) {
@@ -2222,12 +2591,14 @@ async function handleWebRequest(request) {
       headers: { "Content-Type": "application/json" }
     });
   } catch (err) {
+    const stageTagged = extractStageTaggedError(err);
     if (err instanceof ValidationError) {
       const errorTitle = err.message.split(":")[0] || "Bad Request";
       return new Response(
         JSON.stringify({
           error: errorTitle,
-          details: err.message
+          details: err.message,
+          stageTagged
         }),
         {
           status: 400,
@@ -2239,7 +2610,8 @@ async function handleWebRequest(request) {
     return new Response(
       JSON.stringify({
         error: "Analysis Error",
-        details: sanitizePublicErrorMessage(rawMessage)
+        details: sanitizePublicErrorMessage(rawMessage),
+        stageTagged
       }),
       {
         status: 500,
@@ -2277,17 +2649,20 @@ async function handleNodeReqRes(req, res) {
     const response = await executeAnalysis(body);
     return res.status(200).json(response);
   } catch (err) {
+    const stageTagged = extractStageTaggedError(err);
     if (err instanceof ValidationError) {
       const errorTitle = err.message.split(":")[0] || "Bad Request";
       return res.status(400).json({
         error: errorTitle,
-        details: err.message
+        details: err.message,
+        stageTagged
       });
     }
     const rawMessage = err instanceof Error ? err.message : "Internal Server Error";
     return res.status(500).json({
       error: "Analysis Error",
-      details: sanitizePublicErrorMessage(rawMessage)
+      details: sanitizePublicErrorMessage(rawMessage),
+      stageTagged
     });
   }
 }
@@ -2309,5 +2684,6 @@ export {
   ValidationError,
   handler as default,
   executeAnalysis,
+  extractStageTaggedError,
   sanitizePublicErrorMessage
 };

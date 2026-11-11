@@ -53,6 +53,23 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
           <span className="detail-value">{network === 'ethereum' ? 'Ethereum Mainnet (1)' : 'Base Mainnet (8453)'}</span>
         </div>
 
+        {proposal.eventSource && (
+          <div className="detail-item">
+            <span className="detail-label">Event Source</span>
+            <span className="detail-value" data-testid="event-source" style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+              {proposal.eventSource.startsWith('pinned snapshot') ? (
+                <span className="event-source-pill pinned" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '2px 8px', borderRadius: '4px' }}>
+                  Event source: {proposal.eventSource}
+                </span>
+              ) : (
+                <span className="event-source-pill live" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '2px 8px', borderRadius: '4px' }}>
+                  Event source: {proposal.eventSource}
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+
         <div className="detail-item">
           <span className="detail-label">Governor Contract</span>
           <span className="detail-value tabular-nums">

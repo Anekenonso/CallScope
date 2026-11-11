@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
-import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview, StageTaggedError } from '../src/types/analysis';
+import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview, StageTaggedError, SupportedNetwork } from '../src/types/analysis';
+import type { Address } from 'viem';
 import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
-import { retrieveProposalCreatedEvent, readGovernorProposalState, ProposalEventLookupError } from '../server/chain/proposal-events';
+import { retrieveProposalCreatedEvent, retrieveProposalEventFromTxHash, readGovernorProposalState, ProposalEventLookupError, type DecodedProposalEvent } from '../server/chain/proposal-events';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
 import { detectFindings } from '../server/analysis/detect-findings';
 import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
@@ -9,6 +10,7 @@ import { buildAssessment } from '../server/analysis/build-assessment';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
+import { parseTxHashOrUrl } from '../src/lib/validation';
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -67,38 +69,76 @@ export function sanitizePublicErrorMessage(raw: string): string {
  * Core analysis engine pipeline that executes end-to-end analysis on a proposal
  */
 export async function executeAnalysis(request: AnalysisRequest): Promise<AnalysisResponse> {
-  const { network, governorAddress, proposalId } = request;
+  let effectiveNetwork: SupportedNetwork = request.network;
+  let validGovernor: Address;
+  let trimmedProposalId: string;
+  let event: DecodedProposalEvent;
+  let eventSource: string;
+  let client: any;
 
-  if (!network || (network !== 'ethereum' && network !== 'base')) {
-    throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
+  if (request.txHashOrUrl && request.txHashOrUrl.trim().length > 0) {
+    const parsed = parseTxHashOrUrl(request.txHashOrUrl);
+    if (!parsed) {
+      throw new ValidationError('Invalid transaction hash or explorer URL.');
+    }
+    if (parsed.inferredNetwork) {
+      effectiveNetwork = parsed.inferredNetwork;
+    }
+    if (!effectiveNetwork || (effectiveNetwork !== 'ethereum' && effectiveNetwork !== 'base')) {
+      throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
+    }
+
+    client = createChainClient(effectiveNetwork);
+    await verifyNetworkChainId(effectiveNetwork, client);
+
+    const txResult = await retrieveProposalEventFromTxHash(client, parsed.txHash);
+    event = txResult.event;
+    validGovernor = txResult.governorAddress;
+    trimmedProposalId = txResult.proposalId;
+    eventSource = `live tx receipt (block ${event.blockNumber})`;
+  } else {
+    const { network, governorAddress, proposalId } = request;
+
+    if (!network || (network !== 'ethereum' && network !== 'base')) {
+      throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
+    }
+    effectiveNetwork = network;
+
+    if (!governorAddress || !/^0x[a-fA-F0-9]{40}$/.test(governorAddress)) {
+      throw new ValidationError('Invalid Governor address: must be a valid 20-byte EVM hex address.');
+    }
+
+    if (!proposalId || !/^\d+$/.test(proposalId.trim())) {
+      throw new ValidationError('Invalid proposal ID: must be a valid non-empty decimal string.');
+    }
+
+    trimmedProposalId = proposalId.trim();
+
+    // 1. Create client and verify network
+    client = createChainClient(effectiveNetwork);
+    await verifyNetworkChainId(effectiveNetwork, client);
+
+    // 2. Validate Governor contract
+    validGovernor = await validateGovernorContract(client, governorAddress, effectiveNetwork);
+
+    // 3. Retrieve ProposalCreated event
+    const retrieval = await retrieveProposalCreatedEvent(
+      client,
+      effectiveNetwork,
+      validGovernor,
+      trimmedProposalId,
+      { reverifyLive: request.reverifyLive }
+    );
+    event = retrieval;
+    eventSource = retrieval.eventSource;
   }
-
-  if (!governorAddress || !/^0x[a-fA-F0-9]{40}$/.test(governorAddress)) {
-    throw new ValidationError('Invalid Governor address: must be a valid 20-byte EVM hex address.');
-  }
-
-  if (!proposalId || !/^\d+$/.test(proposalId.trim())) {
-    throw new ValidationError('Invalid proposal ID: must be a valid non-empty decimal string.');
-  }
-
-  const trimmedProposalId = proposalId.trim();
-
-  // 1. Create client and verify network
-  const client = createChainClient(network);
-  await verifyNetworkChainId(network, client);
-
-  // 2. Validate Governor contract
-  const validGovernor = await validateGovernorContract(client, governorAddress, network);
-
-  // 3. Retrieve ProposalCreated event
-  const event = await retrieveProposalCreatedEvent(client, network, validGovernor, trimmedProposalId);
 
   // 4. Read current proposal state
   const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
 
   // 5. Decode proposal actions
   const { actions, limitations } = await decodeProposalActions({
-    network,
+    network: effectiveNetwork,
     targets: event.targets,
     values: event.values,
     signatures: event.signatures,
@@ -150,7 +190,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
 
   // Evidence links
-  const networkConfig = SUPPORTED_NETWORKS[network];
+  const networkConfig = SUPPORTED_NETWORKS[effectiveNetwork];
   const evidence: EvidenceItem[] = [
     {
       label: 'Governor Contract',
@@ -177,7 +217,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
 
   return {
     assessment,
-    network,
+    network: effectiveNetwork,
     governorAddress: validGovernor,
     proposal: {
       id: trimmedProposalId,
@@ -186,6 +226,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
       proposer: event.proposer,
       creationTransaction: event.transactionHash,
       blockNumber: event.blockNumber.toString(),
+      eventSource,
     },
     actions,
     findings,

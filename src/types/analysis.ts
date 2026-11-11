@@ -13,6 +13,7 @@ export interface ProposalInfo {
   proposer?: string;
   creationTransaction?: string;
   blockNumber?: string;
+  eventSource?: string;
 }
 
 export interface DecodedArg {
@@ -102,8 +103,10 @@ export interface StageTaggedError {
 
 export interface AnalysisRequest {
   network: SupportedNetwork;
-  governorAddress: string;
-  proposalId: string;
+  governorAddress?: string;
+  proposalId?: string;
+  txHashOrUrl?: string;
+  reverifyLive?: boolean;
 }
 
 export interface AnalysisResponse {

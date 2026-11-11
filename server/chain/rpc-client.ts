@@ -1,29 +1,13 @@
 import { createPublicClient, fallback, getAddress, http, type PublicClient, type Address } from 'viem';
 import { mainnet, base } from 'viem/chains';
 import type { SupportedNetwork } from './types';
-import { getNetworkConfig, getRpcUrl } from './networks';
+import { getNetworkConfig, getRpcUrls } from './networks';
 
 export function createChainClient(network: SupportedNetwork): PublicClient<any, any> {
-  const rpcUrl = getRpcUrl(network);
   const chain = network === 'ethereum' ? mainnet : base;
+  const candidateUrls = getRpcUrls(network);
 
-  let candidateUrls: string[];
-  if (network === 'base') {
-    if (rpcUrl.includes('mainnet.base.org')) {
-      candidateUrls = ['https://base-rpc.publicnode.com', rpcUrl, 'https://base.drpc.org'];
-    } else {
-      candidateUrls = [rpcUrl, 'https://base-rpc.publicnode.com', 'https://base.drpc.org'];
-    }
-  } else {
-    candidateUrls = [
-      rpcUrl,
-      'https://gateway.tenderly.co/public/mainnet',
-      'https://ethereum-rpc.publicnode.com',
-    ];
-  }
-
-  const uniqueUrls = Array.from(new Set(candidateUrls.filter(Boolean)));
-  const transports = uniqueUrls.map((url) =>
+  const transports = candidateUrls.map((url) =>
     http(url, {
       timeout: 8_000,
       retryCount: 0,

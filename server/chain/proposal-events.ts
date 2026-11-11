@@ -9,6 +9,9 @@ import {
 } from 'viem';
 import type { SupportedNetwork } from './types';
 import { getNetworkConfig } from './networks';
+import { getPinnedSnapshot } from './pinned-snapshots';
+
+export { getPinnedSnapshot };
 
 // Standard OpenZeppelin Governor ProposalCreated ABI (Variant 1: unindexed)
 export const PROPOSAL_CREATED_EVENT_UNINDEXED = {
@@ -185,67 +188,77 @@ async function fetchProposalEventFromBlockscout(
   const config = getNetworkConfig(network);
   const pageSize = 1000;
   const maxPages = 5;
+  const timeoutMs = process.env.BLOCKSCOUT_TIMEOUT_MS
+    ? parseInt(process.env.BLOCKSCOUT_TIMEOUT_MS, 10)
+    : 5_000;
 
   let matchingEvent: DecodedProposalEvent | null = null;
 
   for (let page = 1; page <= maxPages; page++) {
     const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}&page=${page}&offset=${pageSize}`;
 
-    try {
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Callscope/1.0 (DAO Proposal Analyzer)',
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(3_000),
-      });
+    let json: any = null;
+    let attempts = 0;
+    while (attempts < 2) {
+      attempts++;
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Callscope/1.0 (DAO Proposal Analyzer)',
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(timeoutMs),
+        });
 
-      if (!res.ok) break;
-
-      const json = (await res.json()) as any;
-      if (!json || json.status === '0' || !Array.isArray(json.result) || json.result.length === 0) {
-        break;
-      }
-
-      for (const item of json.result) {
-        if (item.address && item.address.toLowerCase() !== governorAddress.toLowerCase()) {
-          continue;
+        if (!res.ok) {
+          if (attempts < 2) continue;
+          break;
         }
 
-        const log: Log = {
-          address: item.address,
-          blockHash: item.blockHash,
-          blockNumber: BigInt(item.blockNumber),
-          data: item.data,
-          logIndex: Number(item.logIndex),
-          removed: false,
-          topics: item.topics.filter(Boolean) as unknown as [`0x${string}`, ...`0x${string}`[]],
-          transactionHash: item.transactionHash,
-          transactionIndex: Number(item.transactionIndex),
-        };
-
-        const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
-        if (parsed) {
-          if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-            throw new Error(
-              `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
-            );
-          }
-          matchingEvent = parsed;
-        }
-      }
-
-      if (matchingEvent) {
-        return matchingEvent;
-      }
-
-      if (json.result.length < pageSize) {
+        json = (await res.json()) as any;
         break;
+      } catch (err) {
+        if (attempts >= 2) break;
       }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.message.startsWith('Ambiguous event')) {
-        throw err;
+    }
+
+    if (!json || json.status === '0' || !Array.isArray(json.result) || json.result.length === 0) {
+      break;
+    }
+
+    for (const item of json.result) {
+      if (item.address && item.address.toLowerCase() !== governorAddress.toLowerCase()) {
+        continue;
       }
+
+      const log: Log = {
+        address: item.address,
+        blockHash: item.blockHash,
+        blockNumber: BigInt(item.blockNumber),
+        data: item.data,
+        logIndex: Number(item.logIndex),
+        removed: false,
+        topics: item.topics.filter(Boolean) as unknown as [`0x${string}`, ...`0x${string}`[]],
+        transactionHash: item.transactionHash,
+        transactionIndex: Number(item.transactionIndex),
+      };
+
+      const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
+      if (parsed) {
+        if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+          throw new Error(
+            `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
+          );
+        }
+        matchingEvent = parsed;
+      }
+    }
+
+    if (matchingEvent) {
+      return matchingEvent;
+    }
+
+    if (json.result.length < pageSize) {
       break;
     }
   }
@@ -343,7 +356,16 @@ async function fetchProposalEventFromRpc(
       try {
         const latestBlockData = await client.getBlock({ blockTag: 'latest' });
         const timeDiff = Number(latestBlockData.timestamp - creationTimepoint);
-        const secPerBlock = network === 'base' ? 0.623 : 12;
+        let secPerBlock = network === 'base' ? 2.0 : 12.0;
+        try {
+          const sampleNum = latestBlockData.number > 2000n ? latestBlockData.number - 2000n : 0n;
+          const sampleBlock = await client.getBlock({ blockNumber: sampleNum });
+          const dt = Number(latestBlockData.timestamp - sampleBlock.timestamp);
+          const dn = Number(latestBlockData.number - sampleBlock.number);
+          if (dt > 0 && dn > 0) {
+            secPerBlock = dt / dn;
+          }
+        } catch {}
         const estimatedDiff = BigInt(Math.max(0, Math.floor(timeDiff / secPerBlock)));
         targetBlock =
           latestBlockData.number > estimatedDiff ? latestBlockData.number - estimatedDiff : 0n;
@@ -518,13 +540,110 @@ export class ProposalEventLookupError extends Error {
   }
 }
 
+export interface ProposalFromTxResult {
+  event: DecodedProposalEvent;
+  governorAddress: Address;
+  proposalId: string;
+}
+
+export async function retrieveProposalEventFromTxHash(
+  client: PublicClient<any, any>,
+  txHash: Hex
+): Promise<ProposalFromTxResult> {
+  let receipt: any;
+  try {
+    receipt = await client.getTransactionReceipt({ hash: txHash });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ProposalEventLookupError({
+      message: `Failed to fetch transaction receipt for ${txHash}`,
+      via: 'rpc',
+      reason: 'not_found',
+      detail: msg,
+    });
+  }
+
+  if (!receipt || !Array.isArray(receipt.logs)) {
+    throw new ProposalEventLookupError({
+      message: `Transaction receipt not found for ${txHash}`,
+      via: 'rpc',
+      reason: 'not_found',
+      detail: 'No receipt returned by RPC.',
+    });
+  }
+
+  for (const log of receipt.logs) {
+    for (const abiItem of SUPPORTED_EVENT_VARIANTS) {
+      try {
+        const decoded = decodeEventLog({
+          abi: [abiItem],
+          data: log.data,
+          topics: log.topics,
+        });
+
+        if (decoded.eventName === 'ProposalCreated') {
+          const args = decoded.args as any;
+          const decodedId = args.proposalId?.toString();
+          if (!decodedId) continue;
+
+          const targets = args.targets as readonly Address[];
+          const values = args.values as readonly bigint[];
+          const signatures = args.signatures as readonly string[];
+          const calldatas = args.calldatas as readonly Hex[];
+
+          return {
+            event: {
+              proposalId: decodedId,
+              proposer: args.proposer,
+              targets,
+              values,
+              signatures,
+              calldatas,
+              voteStart: args.voteStart ?? 0n,
+              voteEnd: args.voteEnd ?? 0n,
+              description: args.description ?? '',
+              transactionHash: txHash,
+              blockNumber: receipt.blockNumber ?? 0n,
+            },
+            governorAddress: log.address as Address,
+            proposalId: decodedId,
+          };
+        }
+      } catch {}
+    }
+  }
+
+  throw new ProposalEventLookupError({
+    message: `No ProposalCreated event found in transaction receipt for ${txHash}`,
+    via: 'rpc',
+    reason: 'not_found',
+    detail: 'Transaction was found but did not emit a recognized Governor ProposalCreated event.',
+  });
+}
+
+export type DecodedProposalEventWithSource = DecodedProposalEvent & {
+  eventSource: string;
+};
+
 export async function retrieveProposalCreatedEvent(
   client: PublicClient<any, any>,
   network: SupportedNetwork,
   governorAddress: Address,
-  proposalId: string
-): Promise<DecodedProposalEvent> {
+  proposalId: string,
+  options?: { reverifyLive?: boolean }
+): Promise<DecodedProposalEventWithSource> {
   const cleanId = proposalId.trim();
+
+  // 0. Use pinned snapshot if available and not reverifying live
+  if (!options?.reverifyLive) {
+    const pinned = getPinnedSnapshot(network, governorAddress, cleanId);
+    if (pinned) {
+      return {
+        ...pinned,
+        eventSource: `pinned snapshot (block ${pinned.blockNumber})`,
+      };
+    }
+  }
 
   let blockscoutDiag = { attempted: false, reason: 'not_found' as 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found', detail: '' };
   let rpcDiag = { attempted: false, reason: 'not_found' as 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found', detail: '' };
@@ -552,7 +671,10 @@ export async function retrieveProposalCreatedEvent(
   }
 
   if (matchingEvent) {
-    return matchingEvent;
+    return {
+      ...matchingEvent,
+      eventSource: `live RPC (block ${matchingEvent.blockNumber})`,
+    };
   }
 
   // 2. Fallback to RPC logs with adaptive range scanning and on-chain snapshot targeting
@@ -580,7 +702,10 @@ export async function retrieveProposalCreatedEvent(
   }
 
   if (matchingEvent) {
-    return matchingEvent;
+    return {
+      ...matchingEvent,
+      eventSource: `live RPC (block ${matchingEvent.blockNumber})`,
+    };
   }
 
   // Determine primary failure reason

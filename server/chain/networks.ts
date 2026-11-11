@@ -5,6 +5,7 @@ export interface NetworkConfig {
   chainId: number;
   name: string;
   defaultRpcUrl: string;
+  fallbackRpcUrls: string[];
   envRpcKey: string;
   explorerUrl: string;
   blockscoutApiUrl: string;
@@ -16,6 +17,11 @@ export const SUPPORTED_NETWORKS: Record<SupportedNetwork, NetworkConfig> = {
     chainId: 1,
     name: 'Ethereum Mainnet',
     defaultRpcUrl: 'https://gateway.tenderly.co/public/mainnet',
+    fallbackRpcUrls: [
+      'https://ethereum-rpc.publicnode.com',
+      'https://cloudflare-eth.com',
+      'https://rpc.ankr.com/eth',
+    ],
     envRpcKey: 'ETHEREUM_RPC_URL',
     explorerUrl: 'https://etherscan.io',
     blockscoutApiUrl: 'https://eth.blockscout.com/api',
@@ -25,6 +31,11 @@ export const SUPPORTED_NETWORKS: Record<SupportedNetwork, NetworkConfig> = {
     chainId: 8453,
     name: 'Base Mainnet',
     defaultRpcUrl: 'https://base-rpc.publicnode.com',
+    fallbackRpcUrls: [
+      'https://mainnet.base.org',
+      'https://base.drpc.org',
+      'https://1rpc.io/base',
+    ],
     envRpcKey: 'BASE_RPC_URL',
     explorerUrl: 'https://basescan.org',
     blockscoutApiUrl: 'https://base.blockscout.com/api',
@@ -50,4 +61,11 @@ export function getRpcUrl(network: SupportedNetwork): string {
     return envUrl.trim();
   }
   return config.defaultRpcUrl;
+}
+
+export function getRpcUrls(network: SupportedNetwork): string[] {
+  const config = getNetworkConfig(network);
+  const primary = getRpcUrl(network);
+  const urls = [primary, ...config.fallbackRpcUrls];
+  return Array.from(new Set(urls.filter(Boolean)));
 }

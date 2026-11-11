@@ -66,3 +66,48 @@ Our investigation uncovered a compound failure across three distinct layers:
 - Updated `src/app/App.tsx` UI error banner to display the stage tag badge and reason details.
 - Added regression test suite `tests/unit/stage-tagged-errors.test.ts`.
 
+---
+
+## Task 1: Pinned Snapshots, Truthful UI, Tx-Hash Input & RPC Resilience
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Make both fixtures work reliably, add tx-hash and explorer-link input, add pinned snapshots with truthful UI attribution and live re-verification, and harden RPC fallback.
+
+### 1. Pinned Snapshots Implementation
+- Created `scripts/capture-fixture.ts` to fetch authentic on-chain `ProposalCreated` events for both fixtures directly via `eth_getTransactionReceipt`.
+- Generated and committed:
+  - `server/fixtures/ethereum-0x323a76393544d5ecca80cd6ef2a560c6a395b7e3-77767899528494238518019756391533686963875234067646094287125791110488147463806.json` (ENS EP 6.50, block 25524727)
+  - `server/fixtures/base-0x65ba0624403fc5ca2b20479e9f626ed4d78e0ad9-27419154582993156392805749742953507877176483681373228046916881327937839104508.json` (Unlock Transfers, block 52891503)
+- Implemented `server/chain/pinned-snapshots.ts` to cleanly load pinned snapshots during SSR/client execution without filesystem dependencies.
+- Kept all subsequent stages (action decoding, ABI resolution, findings, consistency, assessments) running live.
+
+### 2. Truthful UI & Re-Verify Live
+- Renamed "Archived fixtures" to "Pinned examples" across UI components.
+- Added `eventSource` field to `ProposalInfo` in `src/types/analysis.ts`.
+- In `src/components/ProposalDetails.tsx`, every result explicitly displays `Event source: pinned snapshot (block N)` or `live RPC (block N)` or `live tx receipt (block N)`.
+- Added a "Re-verify live (bypass pinned snapshot)" toggle checkbox to `AnalysisForm.tsx`. When checked, the API executes live RPC/Blockscout lookups and truthfully labels the outcome.
+
+### 3. Tx-Hash & Explorer-Link Input
+- Implemented `parseTxHashOrUrl` and updated `validateAnalysisInput` in `src/lib/validation.ts`.
+- Supports raw 66-character tx hashes (`0x...`) as well as Etherscan and Basescan tx URLs (`https://etherscan.io/tx/...` / `https://basescan.org/tx/...`).
+- Auto-detects network from URL hostnames when applicable.
+- Implemented `retrieveProposalEventFromTxHash` in `server/chain/proposal-events.ts`: retrieves transaction receipt, extracts `ProposalCreated` log, derives governor address and proposal ID, and skips log scanning entirely.
+- Added input mode switcher in `src/components/AnalysisForm.tsx` enabling seamless toggle between "Governor + Proposal ID" and "Tx Hash / Explorer URL".
+
+### 4. RPC Resilience & Blockscout Configuration
+- Enhanced `server/chain/networks.ts` and `server/chain/rpc-client.ts` with multiple fallback RPC endpoints per network:
+  - Ethereum: Tenderly Gateway, Ethereum RPC PublicNode, Cloudflare Eth, Ankr.
+  - Base: Base RPC PublicNode, Mainnet Base, DRPC Base, 1RPC.
+- Connected via viem's `fallback(transports, { rank: false })`.
+- Made Blockscout timeout configurable via `BLOCKSCOUT_TIMEOUT_MS` (default 5,000ms) with 1 retry per page.
+- Added dynamic block time sampling to `fetchProposalEventFromRpc` to adapt between historical 2.0s blocks and fast flashblocks on Base.
+
+### 5. Verification Evidence
+- `tests/unit/validation.test.ts`: 9/9 passed (includes tx hash and URL parsing tests).
+- `tests/integration/regression-fixtures.test.ts`: 2/2 passed (both ENS and Unlock proposals analyzed successfully).
+- `tests/integration/action-decoding.test.ts`: 2/2 passed (both actions decoded and verified).
+- `tests/integration/proposal-retrieval.test.ts`: 2/2 passed.
+- `tests/integration/pinned-and-txhash.test.ts`: 4/4 passed.
+
+
