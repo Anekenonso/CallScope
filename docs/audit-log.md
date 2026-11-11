@@ -458,3 +458,54 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm typecheck`: PASSED (exit code 0).
 - `pnpm test`: PASSED 20/20 test files (167 tests passed 100% offline).
 - `pnpm build`: PASSED (clean Vite build + SSR bundles).
+---
+
+## Task 11: Final Gate and README Rewrite
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Complete the final product review, rewrite README to conform with strict required structure, perform a 10-minute judge copy read-through, execute fresh input tests, and verify overall repository integrity.
+
+### 1. Final Gate Verification Items
+1. **README Complete Restructure (`README.md`):**
+   - Tagline: *"Deterministic DAO proposal calldata intelligence with advisory multi-agent review."*
+   - Demo Video link pointing to [`docs/demo-script.md`](demo-script.md).
+   - "Try It" table featuring all three outcomes (`review_recommended`, `no_significant_issue_detected`, `analysis_incomplete`) plus Unlock Transfers.
+   - Verified-vs-Advisory comparison table clearly delineating deterministic mathematical proofs from non-authoritative AI advice.
+   - Mermaid architecture diagram illustrating Phase 1 deterministic rendering and Phase 2 asynchronous sponsor reviews.
+   - Deep explanation of OpenServ SERV and Dolphin sponsor roles, 3-item caps, reference validation, and deterministic authority.
+   - Comprehensive limitations section (static analysis, non-standard governors, off-chain Snapshot, nested multi-sig payloads).
+   - Local setup and test instructions verifying offline zero-env-var pinned execution.
+2. **10-Minute Judge Copy Audit:**
+   - Audited UI labels and headings across all components:
+     - Header: Truthful `Read-only · v0.1 beta` (no fake "Verified On-Chain" claim).
+     - Findings: `Role hash matched` for verified role constants, `Decoded from calldata` for calldata operations.
+     - Progress: Honest indeterminate loader with real elapsed time counter (fake 5-step progress eradicated).
+     - Reviews: Zero raw `JSON.stringify` dumps; typed badges for `contradiction`, `risk`, `supported`, `unsupported_claim`, and `note`.
+     - Agreement Strip: Clear consensus indicator (`Reviewers agree` vs `Reviewers disagree: human review needed`).
+3. **Fresh Input Resilience:**
+   - Tested non-fixture proposal ID (`1234567890`) on Governor `0x323A7639...`.
+   - Engine handled gracefully, returning structured stage-tagged error (`stage: 'event_lookup'`, `via: 'rpc'`, `reason: 'not_found'`).
+   - Clean, actionable error card presented with zero internal stack dumps.
+4. **Offline CI Pipeline & Tests:**
+   - `pnpm check:readme`: Verified all constants, default RPC endpoints, fixture parameters, and test claims.
+   - `pnpm typecheck`: Clean TypeScript compilation with 0 errors.
+   - `pnpm test`: All 20 unit test suites (167 tests) passed 100% offline in ~75 seconds.
+   - `pnpm build`: Clean Vite production bundle + SSR serverless functions (`api/analyse.js`, `api/review.js`).
+
+### 2. Comprehensive Task Completion Matrix
+| Task | Description | Status | Evidence |
+| :---: | :--- | :---: | :--- |
+| **0** | Reproduce and Instrument Base/Unlock Failure | **PASS** | Stage-tagged errors (`stageTagged`), root cause documented in audit log |
+| **1** | Pinned Snapshots, Truthful Source UI, Tx-Hash Input | **PASS** | Snapshots committed, `eventSource` badge, tx receipt parsing, viem fallback RPC |
+| **2** | Sponsor Review Rendering & Dolphin Integrity | **PASS** | Normalized `ReviewItem`, no `JSON.stringify` in UI, 3-item cap, ref integrity |
+| **3** | Layout Collisions & Accessible Address Component | **PASS** | CSS `min-width: 0`, `overflow-wrap: anywhere`, copy-to-clipboard, tested at 320/768/1280px |
+| **4** | Deterministic Claims Ledger | **PASS** | Substring quote guard, deterministic comparators, `consistent` / `contradicted` ledger |
+| **5** | Role Capability Resolution & Recipient Profiler | **PASS** | Verified AST source parsing, OZ variant capability detection, EOA/contract bytecode profiling |
+| **6** | Two-Phase Response, Cache & Honest Progress | **PASS** | Immediate Phase 1 render, async `/api/review`, schema `v1` cache + IP limiter, Agreement Strip |
+| **7** | UI Overclaim and Copy Sweep | **PASS** | `Read-only · v0.1 beta`, `Role hash matched`, accessible theme toggle button |
+| **8** | Test & Repo Hygiene (Hermetic vs Live) | **PASS** | `tests/unit/` 100% offline, `tests/live/`, GitHub Actions CI, `check:readme` validator |
+| **9** | Sponsor Depth & Measured Impact | **PASS** | `docs/sponsor-notes.md`, `scripts/compare-sponsors.ts`, 100% outcome invariance proven |
+| **10** | Demo Coverage, Video Script & All 3 Outcomes | **PASS** | All 3 outcomes represented, prompt injection tested, `docs/demo-script.md` authored |
+| **11** | README Rewrite & Final Quality Gate | **PASS** | README rewritten, 10-minute copy audit passed, fresh input tested, CI clean |
+
