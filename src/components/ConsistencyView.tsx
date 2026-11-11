@@ -3,20 +3,25 @@ import type { DescriptionConsistency } from '../types/analysis';
 
 interface ConsistencyViewProps {
   consistency: DescriptionConsistency;
+  extendedConsistency?: DescriptionConsistency;
 }
 
-export const ConsistencyView: React.FC<ConsistencyViewProps> = ({ consistency }) => {
-  const statusClass = `consistency-${consistency.status.toLowerCase()}`;
+export const ConsistencyView: React.FC<ConsistencyViewProps> = ({
+  consistency,
+  extendedConsistency,
+}) => {
+  const activeConsistency = extendedConsistency || consistency;
+  const statusClass = `consistency-${activeConsistency.status.toLowerCase()}`;
   const statusLabel =
-    consistency.status === 'consistent'
+    activeConsistency.status === 'consistent'
       ? 'Consistent'
-      : consistency.status === 'inconsistent'
+      : activeConsistency.status === 'inconsistent'
         ? 'Inconsistent'
-        : consistency.status === 'partially_verified'
+        : activeConsistency.status === 'partially_verified'
           ? 'Partially Verified'
           : 'Indeterminate';
 
-  const claims = consistency.claims || [];
+  const claims = extendedConsistency?.claims || consistency.claims || [];
 
   return (
     <section className="section-card consistency-section" aria-labelledby="consistency-heading">
@@ -26,9 +31,17 @@ export const ConsistencyView: React.FC<ConsistencyViewProps> = ({ consistency })
           <h2 id="consistency-heading" className="section-heading">Description consistency</h2>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {consistency.mode === 'keyword_fallback' && (
-            <span className="badge-tag" title="Claims were not individually verified via AI extraction">
-              Keyword fallback
+          {extendedConsistency ? (
+            <span
+              className="badge-tag"
+              style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}
+              title="Extended claims check proposed by OpenServ SERV and evaluated deterministically"
+            >
+              Extended check (OpenServ SERV)
+            </span>
+          ) : (
+            <span className="badge-tag" title="Baseline deterministic rule-based keyword check">
+              Baseline (rule-based)
             </span>
           )}
           <span className={`consistency-badge ${statusClass}`}>

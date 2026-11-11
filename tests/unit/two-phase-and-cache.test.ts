@@ -9,30 +9,31 @@ import {
 import { computeReviewerAgreement } from '../../src/lib/reviewer-agreement';
 import type { AnalysisResponse } from '../../src/types/analysis';
 
+const mockResponse: AnalysisResponse = {
+  assessment: 'no_significant_issue_detected',
+  network: 'ethereum',
+  governorAddress: '0x323a76393544d5ecca80cd6ef2a560c6a395b7e3',
+  proposal: {
+    id: '123',
+    description: 'Mock proposal',
+    status: 'Active',
+  },
+  actions: [],
+  findings: [],
+  descriptionConsistency: {
+    status: 'consistent',
+    explanation: 'Consistent',
+  },
+  reviews: {
+    serv: { status: 'pending' },
+    dolphin: { status: 'pending' },
+  },
+  limitations: [],
+  evidence: [],
+};
+
 describe('Task 6: Two-Phase Response, Cache, and Reviewer Agreement', () => {
   describe('Cache & Rate Limiting', () => {
-    const mockResponse: AnalysisResponse = {
-      assessment: 'no_significant_issue_detected',
-      network: 'ethereum',
-      governorAddress: '0x323a76393544d5ecca80cd6ef2a560c6a395b7e3',
-      proposal: {
-        id: '123',
-        description: 'Mock proposal',
-        status: 'Active',
-      },
-      actions: [],
-      findings: [],
-      descriptionConsistency: {
-        status: 'consistent',
-        explanation: 'Consistent',
-      },
-      reviews: {
-        serv: { status: 'pending' },
-        dolphin: { status: 'pending' },
-      },
-      limitations: [],
-      evidence: [],
-    };
 
     it('buildCacheKey correctly normalizes chain, governor, and schemaVersion', () => {
       const key = buildCacheKey(
@@ -174,6 +175,13 @@ describe('Task 6: Two-Phase Response, Cache, and Reviewer Agreement', () => {
     it('executes sponsor reviews for valid proposal and stores reviews in cache', async () => {
       const handler = (await import('../../api/_review')).default;
 
+      const cacheKey = buildCacheKey(
+        'ethereum',
+        '0x323a76393544d5ecca80cd6ef2a560c6a395b7e3',
+        '77767899528494238518019756391533686963875234067646094287125791110488147463806'
+      );
+      await setProposalCache(cacheKey, mockResponse, 300);
+
       // Pinned ENS fixture
       const req = new Request('http://localhost/api/review', {
         method: 'POST',
@@ -190,6 +198,10 @@ describe('Task 6: Two-Phase Response, Cache, and Reviewer Agreement', () => {
       const json = (await res.json()) as { serv: any; dolphin: any };
       expect(json.serv).toBeDefined();
       expect(json.dolphin).toBeDefined();
+
+      const updated = await getProposalCache(cacheKey);
+      expect(updated?.reviews.serv).toBeDefined();
+      expect(updated?.reviews.dolphin).toBeDefined();
     });
   });
 });

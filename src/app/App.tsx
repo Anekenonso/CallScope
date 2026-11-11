@@ -95,7 +95,16 @@ export const App: React.FC = () => {
             governorAddress: data.governorAddress,
             proposalId: data.proposal.id,
           });
-          setResult((prev) => (prev ? { ...prev, reviews } : prev));
+          setResult((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  reviews,
+                  extendedConsistency:
+                    reviews.extendedClaimsCheck || prev.extendedConsistency,
+                }
+              : prev
+          );
         } catch (reviewErr) {
           console.error('Phase 2 sponsor review fetch error:', reviewErr);
           setResult((prev) =>
@@ -205,7 +214,10 @@ export const App: React.FC = () => {
 
               <FindingsList findings={result.findings} />
 
-              <ConsistencyView consistency={result.descriptionConsistency} />
+              <ConsistencyView
+                consistency={result.descriptionConsistency}
+                extendedConsistency={result.extendedConsistency}
+              />
 
               <ProviderReviews
                 serv={result.reviews?.serv}

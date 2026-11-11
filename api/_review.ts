@@ -1,11 +1,12 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
-import type { ProviderReview, SupportedNetwork } from '../src/types/analysis';
+import type { ProviderReview, SupportedNetwork, DescriptionConsistency } from '../src/types/analysis';
 import { getProposalCache, setProposalCache, buildCacheKey, checkIpRateLimit } from '../server/cache';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
 import { classifyProviderError } from '../server/providers/openai-compatible';
 import { executeAnalysis, sanitizePublicErrorMessage } from './_analyse';
 import { isSupportedNetwork } from '../server/chain/networks';
+import { extractClaimsWithServ, evaluateClaimsLedger } from '../server/analysis/check-consistency';
 import { isAddress } from 'viem';
 
 async function executeWithRetry(
@@ -163,13 +164,32 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
     executeWithRetry(() => reviewWithDolphin(description, actions, findings), 'Dolphin'),
   ]);
 
+  // Extended claims check (Phase 2): When SERV is available, extract structured claims
+  // and evaluate them through the deterministic claims ledger.
+  // This extended check is advisory and never mutates Phase 1 baseline assessment.
+  let extendedClaimsCheck: DescriptionConsistency | undefined = undefined;
+  if (process.env.SERV_API_KEY && (servResult.status === 'ok' || servResult.status === 'available')) {
+    try {
+      const servClaims = await extractClaimsWithServ(description);
+      if (servClaims && servClaims.length > 0) {
+        extendedClaimsCheck = evaluateClaimsLedger(servClaims, actions, description);
+      }
+    } catch {
+      // Extended claims check is non-blocking advisory analysis
+    }
+  }
+
   const reviewsResponse = {
     serv: servResult,
     dolphin: dolphinResult,
+    ...(extendedClaimsCheck ? { extendedClaimsCheck } : {}),
   };
 
-  // Update cached proposal with reviews
+  // Update cached proposal with reviews and extended claims check
   cached.reviews = reviewsResponse;
+  if (extendedClaimsCheck) {
+    cached.extendedConsistency = extendedClaimsCheck;
+  }
   const ttl =
     cached.proposal.status === 'Executed' ||
       cached.proposal.status === 'Defeated' ||

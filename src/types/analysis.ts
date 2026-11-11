@@ -205,9 +205,11 @@ export interface AnalysisResponse {
   actions: ProposalAction[];
   findings: Finding[];
   descriptionConsistency: DescriptionConsistency;
+  extendedConsistency?: DescriptionConsistency;
   reviews: {
     serv: ProviderReview;
     dolphin: ProviderReview;
+    extendedClaimsCheck?: DescriptionConsistency;
   };
   limitations: string[];
   evidence: EvidenceItem[];

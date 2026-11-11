@@ -1,4 +1,4 @@
-import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, ProviderReview, StageTaggedError, SupportedNetwork } from '../types/analysis';
+import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, DescriptionConsistency, ProviderReview, StageTaggedError, SupportedNetwork } from '../types/analysis';
 
 export class ApiError extends Error {
   stageTagged?: StageTaggedError;
@@ -21,6 +21,7 @@ export interface ReviewRequest {
 export interface ReviewResponse {
   serv: ProviderReview;
   dolphin: ProviderReview;
+  extendedClaimsCheck?: DescriptionConsistency;
 }
 
 export async function fetchProposalReviews(request: ReviewRequest): Promise<ReviewResponse> {

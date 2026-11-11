@@ -563,4 +563,42 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Unit Test Suite (`pnpm test`):** 21 test files passed, 177 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
 
+---
+
+## Second-Pass Task 2: Decouple Baseline Assessment from Sponsor Availability
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Decouple Phase 1 deterministic baseline consistency from external LLM availability, label baseline checks truthfully as rule-based keyword comparisons, relocate OpenServ SERV claim extraction to Phase 2 as an advisory extended check, and ensure 100% invariance of Phase 1 assessment outcomes.
+
+### 1. Root Cause & Architectural Coupling Problem
+- **Finding:** In Phase 1 (`api/_analyse.ts`), `executeAnalysis` previously awaited OpenServ SERV (`extractClaimsWithServ`, up to ~15 s timeout) and used its natural-language claims extraction to evaluate the claims ledger, which directly fed `buildAssessment`.
+- **Impact:** Baseline assessment verdicts and findings were coupled to third-party API availability, network latency, and LLM uptime. If SERV was unreachable, slow, or unconfigured, Phase 1 either hung for 15 seconds or degraded inconsistently.
+
+### 2. Implementation of Decoupled Architecture
+- **Phase 1 Deterministic Isolation:**
+  - Removed `extractClaimsWithServ` and `evaluateClaimsLedger` completely from Phase 1 (`api/_analyse.ts`).
+  - Phase 1 now exclusively runs `checkDescriptionActionConsistency(event.description, actions)` using deterministic regex and keyword heuristics.
+  - Phase 1 execution time is sub-second for pinned fixtures and never blocks on sponsor API keys, LLM quotas, or external networks.
+- **Truthful Baseline Labeling:**
+  - Updated `server/analysis/check-consistency.ts` to prefix the explanation with:
+    `"Baseline consistency (rule-based). Keyword check only. Claims were not individually verified."`
+  - In `src/components/ConsistencyView.tsx`, the baseline card is explicitly badged as `"Baseline (rule-based)"`.
+- **Extended Claims Check Relocated to Phase 2 (`/api/review`):**
+  - In `api/_review.ts`, when OpenServ SERV is configured and returns a valid review, the handler executes `extractClaimsWithServ(description)` and evaluates the claims through `evaluateClaimsLedger(servClaims, actions, description)`.
+  - Returned as `extendedClaimsCheck` within the review payload and saved into `extendedConsistency` on the frontend state.
+  - Rendered in `ConsistencyView.tsx` under a prominent `"Extended check (OpenServ SERV)"` badge, displaying the structured claims ledger without altering Phase 1 baseline assessment or finding severities.
+
+### 3. Verification Evidence
+- **New Unit Test Suite:** `tests/unit/decoupled-baseline-consistency.test.ts` (3 tests, 100% PASS):
+  1. *Outcome Invariance:* Proves same proposal yields 100% identical baseline assessment (`review_recommended`), findings count, actions, consistency status, and explanation across all sponsor states: enabled, disabled, throwing errors, or timing out.
+  2. *Truthful Labeling:* Proves baseline consistency explanation contains `"Baseline consistency (rule-based). Keyword check only. Claims were not individually verified."` and mode is `'keyword_fallback'`.
+  3. *Advisory Extended Check:* Proves Phase 2 evaluates `extendedClaimsCheck` when SERV is active without overriding or mutating Phase 1 baseline assessment.
+- **Hermetic Test Suite Pass:** Fixed `tests/unit/two-phase-and-cache.test.ts` to seed proposal cache, ensuring all 22 test suites run hermetically offline.
+- **TypeScript Typecheck (`pnpm typecheck`):** Clean compilation, 0 errors.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm test`):** 22 test files passed, 180 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean Vite bundle and serverless lambdas (`api/analyse.js`, `api/review.js`, `api/health.js`).
+
+
 
