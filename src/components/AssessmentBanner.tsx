@@ -41,7 +41,7 @@ export const AssessmentBanner: React.FC<AssessmentBannerProps> = ({
     case 'no_significant_issue_detected':
       title = 'No significant issue detected';
       bannerClass = 'assessment-banner-positive';
-      verdictTag = 'Verified Clean';
+      verdictTag = 'No significant issue detected';
       description =
         'Analysis found no sensitive operations or discrepancies among verified actions. This does not constitute an audit or guarantee of safety.';
       break;

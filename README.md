@@ -121,7 +121,7 @@ CallScope leverages AI where it excels — natural language semantic cross-refer
 
 CallScope is designed for high-integrity governance inspection, but delegates should understand its defined operating boundaries:
 
-- **Static vs. Dynamic Execution Simulation**: CallScope inspects static calldata and verified contract AST capabilities. It does not run stateful EVM trace simulations (e.g. simulating reentrancy or dynamic runtime slippage).
+- **Static vs. Dynamic Execution Simulation**: CallScope inspects static calldata and verified-source pattern inspection for role capabilities. It does not run stateful EVM trace simulations (e.g. simulating reentrancy or dynamic runtime slippage).
 - **Non-Standard Governor Implementations**: Optimized for standard OpenZeppelin `Governor` and `TimelockController` architectures. Custom, non-standard governance contracts without `ProposalCreated` events must be imported via transaction hash or receipt.
 - **Off-Chain Snapshot Signaling**: Focuses exclusively on on-chain executable proposals. Off-chain Snapshot polls without on-chain execution payloads are out of scope.
 - **Nested Multi-Sig Payloads**: Opaque execution wrappers (e.g. Gnosis Safe `execTransaction`) cannot be unrolled without simulated execution state, and will intentionally yield `analysis_incomplete`.
@@ -130,7 +130,7 @@ CallScope is designed for high-integrity governance inspection, but delegates sh
 
 ## Local Setup & Testing
 
-CallScope runs 100% offline out-of-the-box using pinned examples without requiring any API keys or network calls.
+Pinned examples decode calldata offline from committed snapshots without requiring any API keys or network calls, while live re-verification queries public RPC nodes directly.
 
 ### 1. Installation
 ```bash
@@ -155,7 +155,7 @@ Configurable options in `.env`:
 ### 3. Running the Offline Test Suite
 CallScope separates hermetic offline unit tests from live network suites:
 ```bash
-# Run hermetic offline unit test suite (160+ automated tests, 0 network calls)
+# Run hermetic offline unit test suite (190+ automated tests, 0 network calls)
 pnpm test
 
 # Run consistency checker ensuring README matches codebase constants

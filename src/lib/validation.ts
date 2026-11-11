@@ -44,12 +44,21 @@ export function validateAnalysisInput(
   network: string,
   governorAddress: string,
   proposalId: string,
-  txHashOrUrl?: string
+  txHashOrUrl?: string,
+  inputMode: 'governor' | 'tx' = 'governor'
 ): { isValid: boolean; errors: FormValidationErrors } {
   const errors: FormValidationErrors = {};
 
-  if (txHashOrUrl && txHashOrUrl.trim().length > 0) {
-    const parsed = parseTxHashOrUrl(txHashOrUrl.trim());
+  if (inputMode === 'tx' || (txHashOrUrl !== undefined && txHashOrUrl.length > 0)) {
+    const trimmed = (txHashOrUrl || '').trim();
+    if (trimmed.length === 0) {
+      errors.txHashOrUrl = 'Please enter a transaction hash or explorer URL.';
+      return {
+        isValid: false,
+        errors,
+      };
+    }
+    const parsed = parseTxHashOrUrl(trimmed);
     if (!parsed) {
       errors.txHashOrUrl = 'Must be a 66-character transaction hash (0x...) or an Etherscan/Basescan tx URL.';
     } else {

@@ -277,4 +277,51 @@ describe('UI Component Unit Tests (Phase 6)', () => {
       expect(html).toContain('progress-bar-shimmer');
     });
   });
+
+  describe('Task 5: Truthful Evidence & Copy Verification', () => {
+    it('verifies "Verified Clean" does not appear in any AssessmentBanner outcome', () => {
+      const outcomes = ['review_recommended', 'analysis_incomplete', 'no_significant_issue_detected'] as const;
+      for (const outcome of outcomes) {
+        const html = renderToString(
+          <AssessmentBanner
+            assessment={outcome}
+            findingsCount={0}
+            undecodedCount={0}
+          />
+        );
+        expect(html).not.toContain('Verified Clean');
+        if (outcome === 'no_significant_issue_detected') {
+          expect(html).toContain('No significant issue detected');
+        }
+      }
+    });
+
+    it('renders synthetic fixture banner and neutral non-link indicator instead of broken explorer link', () => {
+      const syntheticProposal: ProposalInfo = {
+        id: '999001',
+        status: 'Active',
+        description: '# [SYNTHETIC] Clean Grant Proposal\nTransfer 400 USDC to community moderator.',
+        proposer: '0x1234567890123456789012345678901234567890',
+        blockNumber: '99999999',
+        creationTransaction: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      };
+
+      const html = renderToString(
+        <ProposalDetails
+          proposal={syntheticProposal}
+          network="ethereum"
+          governorAddress="0x323A76393544d5ecca80cd6ef2A560C6a395b7E3"
+        />
+      );
+
+      // Must display [SYNTHETIC] banner
+      expect(html).toContain('[SYNTHETIC]');
+      expect(html).toContain('Synthetic fixture for deterministic edge-case testing');
+
+      // Must display neutral indicator and NEVER link to 0x0000... on Etherscan
+      expect(html).toContain('Synthetic fixture · no on-chain transaction');
+      expect(html).not.toContain('https://etherscan.io/tx/0x0000000000000000000000000000000000000000000000000000000000000000');
+      expect(html).toContain('(synthetic block)');
+    });
+  });
 });

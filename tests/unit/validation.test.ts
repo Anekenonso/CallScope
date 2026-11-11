@@ -80,5 +80,13 @@ describe('validateAnalysisInput', () => {
     const invalid = validateAnalysisInput('ethereum', '', '', '0xinvalidhash');
     expect(invalid.isValid).toBe(false);
     expect(invalid.errors.txHashOrUrl).toBeDefined();
+
+    const emptyTx = validateAnalysisInput('ethereum', '', '', '', 'tx');
+    expect(emptyTx.isValid).toBe(false);
+    expect(emptyTx.errors.txHashOrUrl).toBe('Please enter a transaction hash or explorer URL.');
+
+    const whitespaceTx = validateAnalysisInput('ethereum', '', '', '   ', 'tx');
+    expect(whitespaceTx.isValid).toBe(false);
+    expect(whitespaceTx.errors.txHashOrUrl).toBe('Please enter a transaction hash or explorer URL.');
   });
 });

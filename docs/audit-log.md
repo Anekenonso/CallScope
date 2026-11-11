@@ -696,6 +696,48 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Test Suite (`pnpm test`):** 23 test files passed, 193 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
 
+---
+
+## Second-Pass Task 5: Truthful Evidence & Copy Verification
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Eradicate "Verified Clean" overclaim from `AssessmentBanner`, prevent silent empty tx-hash submissions in `AnalysisForm`, render honest `[SYNTHETIC]` indicators and neutral non-link text for synthetic fixtures instead of broken explorer links, and accurately describe offline snapshots and pattern inspection in documentation.
+
+### 1. Root Cause & Copy Findings
+- **Finding F:** `src/components/AssessmentBanner.tsx` previously rendered the verdict badge `"Verified Clean"` for `no_significant_issue_detected`, exceeding approved wording.
+- **Finding I:** In `AnalysisForm.tsx`, submitting an empty transaction hash or URL in `tx` mode failed validation against the governor address fields, resulting in a silent failure with no visible error message on the transaction input. Furthermore, synthetic demo fixtures with zero hashes (`0x000...`) rendered broken Etherscan links.
+- **Findings G & J:** The README claimed pinned examples run "100% offline" without qualification and described role analysis as "verified contract AST capabilities" despite using regex pattern inspection over verified source code.
+
+### 2. Implementation of Truthful Evidence & Copy
+- **Assessment Banner Badge:**
+  - In `src/components/AssessmentBanner.tsx`, replaced `verdictTag = 'Verified Clean'` with `verdictTag = 'No significant issue detected'`. Audited the codebase to confirm zero occurrences of "Verified Clean".
+- **Form Validation & Inline Errors (`AnalysisForm.tsx` & `validation.ts`):**
+  - Updated `validateAnalysisInput` to accept `inputMode: 'governor' | 'tx'`.
+  - When in `tx` mode, empty or whitespace-only inputs immediately flag `errors.txHashOrUrl = 'Please enter a transaction hash or explorer URL.'`.
+  - `AnalysisForm.tsx` renders this error message inline under the input field.
+- **Synthetic Fixture Handling (`ProposalDetails.tsx`):**
+  - Added `isSynthetic` detection checking for `[SYNTHETIC]`, ID starting with `999`, or zeroed creation transaction hashes.
+  - When synthetic, renders a visible `[SYNTHETIC]` status banner at the top of Proposal Details.
+  - Replaces broken explorer links for creation transactions with: `Synthetic fixture · no on-chain transaction`.
+  - Replaces block explorer links with: `<blockNumber> (synthetic block)`.
+- **Documentation Accuracy (`README.md`):**
+  - Qualified offline statements: "Pinned examples decode calldata offline from committed snapshots without requiring any API keys or network calls, while live re-verification queries public RPC nodes directly."
+  - Renamed capability analysis to: "verified-source pattern inspection for role capabilities."
+  - Updated offline test count claim to 190+ tests.
+
+### 3. Verification Evidence
+- **Component Tests (`tests/unit/ui-components.test.tsx`):**
+  - Verified `"Verified Clean"` does not appear in any component output.
+  - Verified synthetic fixture renders `[SYNTHETIC]` badge and neutral `Synthetic fixture · no on-chain transaction` string without explorer links.
+- **Validation Tests (`tests/unit/validation.test.ts`):**
+  - Verified empty and whitespace tx inputs return `'Please enter a transaction hash or explorer URL.'`.
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm test`):** 23 test files passed, 195 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
+
+
 
 
 

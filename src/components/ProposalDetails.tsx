@@ -26,6 +26,11 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
     });
   };
 
+  const isSynthetic =
+    proposal.description?.includes('[SYNTHETIC]') ||
+    proposal.id?.startsWith('999') ||
+    proposal.creationTransaction === '0x0000000000000000000000000000000000000000000000000000000000000000';
+
   const hasLongDescription =
     proposal.description && proposal.description.length > 300;
   const displayedDescription =
@@ -35,6 +40,30 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
 
   return (
     <section className="section-card proposal-details-section" aria-labelledby="proposal-heading">
+      {isSynthetic && (
+        <div
+          className="synthetic-fixture-banner"
+          style={{
+            padding: '8px 14px',
+            background: 'rgba(234, 179, 8, 0.1)',
+            border: '1px solid rgba(234, 179, 8, 0.3)',
+            borderRadius: '6px',
+            color: '#eab308',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <span style={{ background: '#eab308', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
+            [SYNTHETIC]
+          </span>
+          <span>Synthetic fixture for deterministic edge-case testing · Offline simulated calldata</span>
+        </div>
+      )}
+
       <div className="section-header-row">
         <div className="section-heading-group">
           <span className="section-kicker">On-Chain Record</span>
@@ -121,14 +150,18 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
           <div className="detail-item">
             <span className="detail-label">Created at block</span>
             <span className="detail-value tabular-nums">
-              <a
-                href={`${explorerBase}/block/${proposal.blockNumber}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="address-link"
-              >
-                {proposal.blockNumber}
-              </a>
+              {isSynthetic ? (
+                <span style={{ color: 'var(--text-muted, #94a3b8)' }}>{proposal.blockNumber} (synthetic block)</span>
+              ) : (
+                <a
+                  href={`${explorerBase}/block/${proposal.blockNumber}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="address-link"
+                >
+                  {proposal.blockNumber}
+                </a>
+              )}
             </span>
           </div>
         )}
@@ -137,13 +170,22 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
           <div className="detail-item">
             <span className="detail-label">Creation transaction</span>
             <span className="detail-value tabular-nums">
-              <Address
-                value={proposal.creationTransaction}
-                explorerUrl={`${explorerBase}/tx/${proposal.creationTransaction}`}
-                label="Creation transaction"
-                prefixLength={10}
-                suffixLength={8}
-              />
+              {isSynthetic ? (
+                <span
+                  className="synthetic-tx-indicator"
+                  style={{ color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic', fontSize: '0.85rem' }}
+                >
+                  Synthetic fixture · no on-chain transaction
+                </span>
+              ) : (
+                <Address
+                  value={proposal.creationTransaction}
+                  explorerUrl={`${explorerBase}/tx/${proposal.creationTransaction}`}
+                  label="Creation transaction"
+                  prefixLength={10}
+                  suffixLength={8}
+                />
+              )}
             </span>
           </div>
         )}

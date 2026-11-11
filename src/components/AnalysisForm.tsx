@@ -40,7 +40,11 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputMode === 'tx') {
-      const validation = validateAnalysisInput(network, '', '', txHashOrUrl);
+      if (!txHashOrUrl || txHashOrUrl.trim().length === 0) {
+        setErrors({ txHashOrUrl: 'Please enter a transaction hash or explorer URL.' });
+        return;
+      }
+      const validation = validateAnalysisInput(network, '', '', txHashOrUrl, 'tx');
       if (!validation.isValid) {
         setErrors(validation.errors);
         return;
@@ -54,7 +58,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
         reverifyLive,
       });
     } else {
-      const validation = validateAnalysisInput(network, governorAddress, proposalId);
+      const validation = validateAnalysisInput(network, governorAddress, proposalId, undefined, 'governor');
       if (!validation.isValid) {
         setErrors(validation.errors);
         return;
