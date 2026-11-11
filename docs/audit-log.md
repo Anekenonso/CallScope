@@ -280,3 +280,44 @@ Our investigation uncovered a compound failure across three distinct layers:
 - All 17 test files in `tests/unit/` (147 tests) passed offline with 0 failures.
 - `pnpm typecheck` passed with 0 errors.
 - `pnpm build` passed with clean SSR bundle and client distribution.
+---
+
+## Task 6: Architecture, Latency, Caching, Honest Progress & Reviewer Agreement
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Decouple deterministic execution from advisory LLM reviews into a two-phase architecture, implement honest indeterminate progress indicators, enforce LRU and Vercel KV/Upstash caching, rate limit per IP, and render a Reviewer Agreement Strip comparing stances.
+
+### 1. Implementation & Architecture
+- **Two-Phase Review Architecture:**
+  - `api/_analyse.ts`: Deterministic analysis runs first and immediately returns with `status: 'pending'` for sponsor reviews (or runs synchronously when `process.env.SYNC_REVIEWS === 'true'`).
+  - `api/_review.ts`: Dedicated `/api/review` endpoint loads reviews asynchronously in Phase 2. Recomputes context strictly from server-side cache keys `(network, governorAddress, proposalId, schemaVersion)`. Never accepts calldata or descriptions from client requests, eliminating prompt injection vectors.
+  - Independent Provider Execution: Runs OpenServ SERV and Dolphin concurrently with isolated timeouts and 1 automatic retry each. Slow or failing providers never block or compromise one another.
+  - Updates cache with completed review items and saves with TTL matching proposal status.
+- **Client App & Progress Honesty:**
+  - `src/app/App.tsx`: Executes Phase 1 (`analyseProposal(request)`), renders results immediately, and fires background Phase 2 request (`fetchProposalReviews(...)`) to populate reviews asynchronously.
+  - `src/components/AnalysisProgress.tsx`: Removed fake 5-step list that simulated sequential progress with hardcoded labels. Replaced with an honest indeterminate progress bar, real elapsed timer, and truthful description of on-chain decoding and security rule execution.
+- **Cache & Rate Limiting (`server/cache.ts`):**
+  - Cache key schema: `${network.toLowerCase()}:${governorAddress.toLowerCase()}:${proposalId}:${SCHEMA_VERSION}` (`v1`).
+  - Supports Vercel KV / Upstash Redis REST when configured (`KV_REST_API_URL` / `UPSTASH_REDIS_REST_URL`), falling back to an in-memory LRU with max 200 items.
+  - Dynamic TTL: 24h (86400s) for finalized proposals (`Executed`, `Defeated`, `Canceled`, `Expired`), 60s for active/pending proposals, 300s default.
+  - Sliding-window IP rate limiter (`checkIpRateLimit`): 30 requests/minute per client IP. Returns HTTP 429 with `Retry-After` header.
+- **Reviewer Agreement Strip (`src/lib/reviewer-agreement.ts` & `src/components/ProviderReviews.tsx`):**
+  - Compares stances across Deterministic Engine, OpenServ SERV, and Dolphin.
+  - When stances diverge: renders a prominent alert strip: `Reviewers disagree: human review needed` with individual reviewer stances.
+  - When stances align: renders `Reviewers agree`.
+  - When reviews are still loading in Phase 2: displays `Reviewer comparison pending...` and an animated loader in provider cards.
+
+### 2. Verification Evidence
+- `tests/unit/two-phase-and-cache.test.ts`: 11/11 passed.
+  - Normalization of cache key with schema version `v1`.
+  - In-memory cache storage, retrieval, and TTL expiration.
+  - Sliding window IP rate limiter enforcing 30 req/min and providing `retryAfterSeconds`.
+  - Stance agreement calculations (agree, disagree, pending, single_available).
+  - Security guard in `/api/review` returning 404 for unanalyzed proposals to reject raw client prompts.
+- `tests/unit/ui-components.test.tsx`: 13/13 passed (verified honest indeterminate indicator, elapsed timer, and tags).
+- `tests/integration/pinned-and-txhash.test.ts`: 4/4 passed (verified pinned snapshots and live tx-hash receipt resolution).
+- `tests/integration/pressure-testing.test.ts`: 11/11 passed (verified secret isolation, EOA checks, prompt injection resilience, and Governor failure handling).
+- All 18 test files in `tests/unit/` (158 tests) passed offline with 0 failures.
+- `pnpm typecheck` passed with 0 errors.
+- `pnpm build` passed with clean prebundled `api/analyse.js` and `api/review.js`.

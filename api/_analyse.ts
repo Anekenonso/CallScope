@@ -17,6 +17,12 @@ import {
   resolveRoleCapabilitiesFromSource,
   profileRecipient,
 } from '../server/analysis/role-capabilities';
+import {
+  getProposalCache,
+  setProposalCache,
+  buildCacheKey,
+  checkIpRateLimit,
+} from '../server/cache';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 import { parseTxHashOrUrl } from '../src/lib/validation';
 
@@ -27,21 +33,7 @@ export class ValidationError extends Error {
   }
 }
 
-// In-memory sliding window rate limiter
-const ipRateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 30;
-
-function isRateLimited(clientIp: string): boolean {
-  const now = Date.now();
-  const record = ipRateLimitMap.get(clientIp);
-  if (!record || now > record.resetAt) {
-    ipRateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-  record.count++;
-  return record.count > RATE_LIMIT_MAX_REQUESTS;
-}
+// Sliding window rate limiter imported from cache.ts
 
 /**
  * Sanitize public error messages to prevent leakage of paths, stack traces, or credentials
@@ -121,6 +113,15 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     }
 
     trimmedProposalId = proposalId.trim();
+
+    // Check cache before RPC call unless reverifyLive is requested
+    const cacheKey = buildCacheKey(effectiveNetwork, governorAddress, trimmedProposalId);
+    if (!request.reverifyLive) {
+      const cached = await getProposalCache(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
 
     // 1. Create client and verify network
     client = createChainClient(effectiveNetwork);
@@ -216,34 +217,44 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     limitations,
   });
 
-  // 9. Run sponsor advisory reviews with a bounded total execution time (max 18s)
-  // Sponsor failures are completely isolated and never invalidate deterministic analysis
-  const sponsorTimeoutPromise = new Promise<{ serv: ProviderReview; dolphin: ProviderReview }>(
-    (resolve) => {
-      setTimeout(() => {
-        resolve({
-          serv: { status: 'error', error: 'SERV review timed out' },
-          dolphin: { status: 'error', error: 'Dolphin review timed out' },
-        });
-      }, 18_000);
-    }
-  );
+  // 9. Two-phase review architecture:
+  // Deterministic result returns first and renders immediately.
+  // Sponsor reviews load afterwards via a separate call (/api/review).
+  // When SYNC_REVIEWS === 'true' (e.g. in offline unit tests), run reviews synchronously.
+  let reviews: { serv: ProviderReview; dolphin: ProviderReview };
+  if (process.env.SYNC_REVIEWS === 'true') {
+    const sponsorTimeoutPromise = new Promise<{ serv: ProviderReview; dolphin: ProviderReview }>(
+      (resolve) => {
+        setTimeout(() => {
+          resolve({
+            serv: { status: 'error', error: 'SERV review timed out' },
+            dolphin: { status: 'error', error: 'Dolphin review timed out' },
+          });
+        }, 18_000);
+      }
+    );
 
-  const sponsorReviewsPromise = Promise.allSettled([
-    reviewWithServ(event.description, actions),
-    reviewWithDolphin(event.description, actions, findings),
-  ]).then(([servRes, dolphinRes]) => ({
-    serv:
-      servRes.status === 'fulfilled'
-        ? servRes.value
-        : { status: 'error' as const, error: servRes.reason?.message || 'SERV review failed' },
-    dolphin:
-      dolphinRes.status === 'fulfilled'
-        ? dolphinRes.value
-        : { status: 'error' as const, error: dolphinRes.reason?.message || 'Dolphin review failed' },
-  }));
+    const sponsorReviewsPromise = Promise.allSettled([
+      reviewWithServ(event.description, actions),
+      reviewWithDolphin(event.description, actions, findings),
+    ]).then(([servRes, dolphinRes]) => ({
+      serv:
+        servRes.status === 'fulfilled'
+          ? servRes.value
+          : { status: 'error' as const, error: servRes.reason?.message || 'SERV review failed' },
+      dolphin:
+        dolphinRes.status === 'fulfilled'
+          ? dolphinRes.value
+          : { status: 'error' as const, error: dolphinRes.reason?.message || 'Dolphin review failed' },
+    }));
 
-  const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
+    reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
+  } else {
+    reviews = {
+      serv: { status: 'pending', summary: 'Loading OpenServ SERV advisory review...' },
+      dolphin: { status: 'pending', summary: 'Loading Dolphin secondary review...' },
+    };
+  }
 
   // Evidence links
   const networkConfig = SUPPORTED_NETWORKS[effectiveNetwork];
@@ -271,7 +282,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     });
   }
 
-  return {
+  const responseData: AnalysisResponse = {
     assessment,
     network: effectiveNetwork,
     governorAddress: validGovernor,
@@ -291,6 +302,17 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     limitations,
     evidence,
   };
+
+  // Cache response with TTL based on proposal status
+  const finalCacheKey = buildCacheKey(effectiveNetwork, validGovernor, trimmedProposalId);
+  const ttl = (state === 'Executed' || state === 'Defeated' || state === 'Canceled' || state === 'Expired')
+    ? 86400
+    : (state === 'Active' || state === 'Pending')
+      ? 60
+      : 300;
+  await setProposalCache(finalCacheKey, responseData, ttl);
+
+  return responseData;
 }
 
 export function extractStageTaggedError(err: unknown): StageTaggedError {
@@ -355,7 +377,8 @@ async function handleWebRequest(request: Request): Promise<Response> {
   const forwarded = request.headers.get('x-forwarded-for');
   const clientIp = forwarded?.split(',')[0]?.trim() || '127.0.0.1';
 
-  if (isRateLimited(clientIp)) {
+  const rateCheck = checkIpRateLimit(clientIp);
+  if (rateCheck.isLimited) {
     return new Response(
       JSON.stringify({
         error: 'Too Many Requests',
@@ -363,7 +386,10 @@ async function handleWebRequest(request: Request): Promise<Response> {
       } satisfies ApiErrorResponse),
       {
         status: 429,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(rateCheck.retryAfterSeconds),
+        },
       }
     );
   }
@@ -469,7 +495,9 @@ async function handleNodeReqRes(req: VercelRequest, res: VercelResponse) {
     (req as any).socket?.remoteAddress ||
     '127.0.0.1';
 
-  if (isRateLimited(clientIp)) {
+  const rateCheck = checkIpRateLimit(clientIp);
+  if (rateCheck.isLimited) {
+    res.setHeader('Retry-After', String(rateCheck.retryAfterSeconds));
     return res.status(429).json({
       error: 'Too Many Requests',
       details: 'Rate limit exceeded. Please wait before submitting additional proposals.',

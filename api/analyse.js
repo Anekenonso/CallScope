@@ -2977,6 +2977,78 @@ async function profileRecipient(client, network, recipientAddress, proposalTimes
     summary: summaryParts.join(", ")
   };
 }
+const SCHEMA_VERSION = "v1";
+const inMemoryCache = /* @__PURE__ */ new Map();
+const MAX_CACHE_SIZE = 200;
+function buildCacheKey(network, governorAddress, proposalId2) {
+  return `${network.toLowerCase()}:${governorAddress.toLowerCase()}:${proposalId2}:${SCHEMA_VERSION}`;
+}
+async function getProposalCache(key) {
+  const now = Date.now();
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (kvUrl && kvToken) {
+    try {
+      const res = await fetch(`${kvUrl}/get/${encodeURIComponent(key)}`, {
+        headers: { Authorization: `Bearer ${kvToken}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json == null ? void 0 : json.result) {
+          const parsed = typeof json.result === "string" ? JSON.parse(json.result) : json.result;
+          return parsed;
+        }
+      }
+    } catch {
+    }
+  }
+  const entry = inMemoryCache.get(key);
+  if (!entry) return null;
+  if (now > entry.expiresAt) {
+    inMemoryCache.delete(key);
+    return null;
+  }
+  inMemoryCache.delete(key);
+  inMemoryCache.set(key, entry);
+  return entry.data;
+}
+async function setProposalCache(key, data, ttlSeconds) {
+  const expiresAt = Date.now() + ttlSeconds * 1e3;
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (kvUrl && kvToken) {
+    try {
+      await fetch(`${kvUrl}/set/${encodeURIComponent(key)}?ex=${ttlSeconds}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${kvToken}` },
+        body: JSON.stringify(data)
+      });
+    } catch {
+    }
+  }
+  if (inMemoryCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = inMemoryCache.keys().next().value;
+    if (oldestKey) inMemoryCache.delete(oldestKey);
+  }
+  inMemoryCache.set(key, { data, expiresAt });
+}
+const ipRateLimitMap = /* @__PURE__ */ new Map();
+const RATE_LIMIT_WINDOW_MS = 6e4;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+function checkIpRateLimit(clientIp) {
+  const now = Date.now();
+  const record = ipRateLimitMap.get(clientIp);
+  if (!record || now > record.resetAt) {
+    ipRateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { isLimited: false, retryAfterSeconds: 0 };
+  }
+  record.count++;
+  if (record.count > RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((record.resetAt - now) / 1e3);
+    return { isLimited: true, retryAfterSeconds: retryAfter };
+  }
+  return { isLimited: false, retryAfterSeconds: 0 };
+}
 function parseTxHashOrUrl(input) {
   if (!input || typeof input !== "string") return null;
   const trimmed = input.trim();
@@ -3007,19 +3079,6 @@ class ValidationError extends Error {
     super(message);
     this.name = "ValidationError";
   }
-}
-const ipRateLimitMap = /* @__PURE__ */ new Map();
-const RATE_LIMIT_WINDOW_MS = 6e4;
-const RATE_LIMIT_MAX_REQUESTS = 30;
-function isRateLimited(clientIp) {
-  const now = Date.now();
-  const record = ipRateLimitMap.get(clientIp);
-  if (!record || now > record.resetAt) {
-    ipRateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-  record.count++;
-  return record.count > RATE_LIMIT_MAX_REQUESTS;
 }
 function sanitizePublicErrorMessage(raw) {
   if (!raw || typeof raw !== "string") {
@@ -3077,6 +3136,13 @@ async function executeAnalysis(request) {
       throw new ValidationError("Invalid proposal ID: must be a valid non-empty decimal string.");
     }
     trimmedProposalId = proposalId2.trim();
+    const cacheKey = buildCacheKey(effectiveNetwork, governorAddress, trimmedProposalId);
+    if (!request.reverifyLive) {
+      const cached = await getProposalCache(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
     client = createChainClient(effectiveNetwork);
     await verifyNetworkChainId(effectiveNetwork, client);
     validGovernor = await validateGovernorContract(client, governorAddress, effectiveNetwork);
@@ -3142,27 +3208,35 @@ async function executeAnalysis(request) {
     consistency: descriptionConsistency,
     limitations
   });
-  const sponsorTimeoutPromise = new Promise(
-    (resolve) => {
-      setTimeout(() => {
-        resolve({
-          serv: { status: "error", error: "SERV review timed out" },
-          dolphin: { status: "error", error: "Dolphin review timed out" }
-        });
-      }, 18e3);
-    }
-  );
-  const sponsorReviewsPromise = Promise.allSettled([
-    reviewWithServ(event.description, actions),
-    reviewWithDolphin(event.description, actions, findings)
-  ]).then(([servRes, dolphinRes]) => {
-    var _a2, _b2;
-    return {
-      serv: servRes.status === "fulfilled" ? servRes.value : { status: "error", error: ((_a2 = servRes.reason) == null ? void 0 : _a2.message) || "SERV review failed" },
-      dolphin: dolphinRes.status === "fulfilled" ? dolphinRes.value : { status: "error", error: ((_b2 = dolphinRes.reason) == null ? void 0 : _b2.message) || "Dolphin review failed" }
+  let reviews;
+  if (process.env.SYNC_REVIEWS === "true") {
+    const sponsorTimeoutPromise = new Promise(
+      (resolve) => {
+        setTimeout(() => {
+          resolve({
+            serv: { status: "error", error: "SERV review timed out" },
+            dolphin: { status: "error", error: "Dolphin review timed out" }
+          });
+        }, 18e3);
+      }
+    );
+    const sponsorReviewsPromise = Promise.allSettled([
+      reviewWithServ(event.description, actions),
+      reviewWithDolphin(event.description, actions, findings)
+    ]).then(([servRes, dolphinRes]) => {
+      var _a2, _b2;
+      return {
+        serv: servRes.status === "fulfilled" ? servRes.value : { status: "error", error: ((_a2 = servRes.reason) == null ? void 0 : _a2.message) || "SERV review failed" },
+        dolphin: dolphinRes.status === "fulfilled" ? dolphinRes.value : { status: "error", error: ((_b2 = dolphinRes.reason) == null ? void 0 : _b2.message) || "Dolphin review failed" }
+      };
+    });
+    reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
+  } else {
+    reviews = {
+      serv: { status: "pending", summary: "Loading OpenServ SERV advisory review..." },
+      dolphin: { status: "pending", summary: "Loading Dolphin secondary review..." }
     };
-  });
-  const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
+  }
   const networkConfig = SUPPORTED_NETWORKS[effectiveNetwork];
   const evidence = [
     {
@@ -3184,7 +3258,7 @@ async function executeAnalysis(request) {
       description: act.isProxy && act.implementation ? `Proxy contract pointing to implementation ${act.implementation}` : `Direct target contract`
     });
   }
-  return {
+  const responseData = {
     assessment,
     network: effectiveNetwork,
     governorAddress: validGovernor,
@@ -3204,6 +3278,10 @@ async function executeAnalysis(request) {
     limitations,
     evidence
   };
+  const finalCacheKey = buildCacheKey(effectiveNetwork, validGovernor, trimmedProposalId);
+  const ttl = state === "Executed" || state === "Defeated" || state === "Canceled" || state === "Expired" ? 86400 : state === "Active" || state === "Pending" ? 60 : 300;
+  await setProposalCache(finalCacheKey, responseData, ttl);
+  return responseData;
 }
 function extractStageTaggedError(err) {
   if (err instanceof ProposalEventLookupError) {
@@ -3263,7 +3341,8 @@ async function handleWebRequest(request) {
   }
   const forwarded = request.headers.get("x-forwarded-for");
   const clientIp = ((_a = forwarded == null ? void 0 : forwarded.split(",")[0]) == null ? void 0 : _a.trim()) || "127.0.0.1";
-  if (isRateLimited(clientIp)) {
+  const rateCheck = checkIpRateLimit(clientIp);
+  if (rateCheck.isLimited) {
     return new Response(
       JSON.stringify({
         error: "Too Many Requests",
@@ -3271,7 +3350,10 @@ async function handleWebRequest(request) {
       }),
       {
         status: 429,
-        headers: { "Content-Type": "application/json" }
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(rateCheck.retryAfterSeconds)
+        }
       }
     );
   }
@@ -3362,7 +3444,9 @@ async function handleNodeReqRes(req, res) {
   }
   const forwarded = (_a = req.headers) == null ? void 0 : _a["x-forwarded-for"];
   const clientIp = ((_c = (_b = Array.isArray(forwarded) ? forwarded[0] : forwarded) == null ? void 0 : _b.split(",")[0]) == null ? void 0 : _c.trim()) || ((_d = req.socket) == null ? void 0 : _d.remoteAddress) || "127.0.0.1";
-  if (isRateLimited(clientIp)) {
+  const rateCheck = checkIpRateLimit(clientIp);
+  if (rateCheck.isLimited) {
+    res.setHeader("Retry-After", String(rateCheck.retryAfterSeconds));
     return res.status(429).json({
       error: "Too Many Requests",
       details: "Rate limit exceeded. Please wait before submitting additional proposals."

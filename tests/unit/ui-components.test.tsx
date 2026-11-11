@@ -230,7 +230,7 @@ describe('UI Component Unit Tests (Phase 6)', () => {
   });
 
   describe('AnalysisProgress', () => {
-    it('renders animated visual pipeline with steps, tags, and elapsed indicator', () => {
+    it('renders honest indeterminate progress indicator with tags and elapsed timer', () => {
       const html = renderToString(
         <AnalysisProgress
           network="ethereum"
@@ -242,11 +242,7 @@ describe('UI Component Unit Tests (Phase 6)', () => {
       expect(html).toContain('ETHEREUM');
       expect(html).toContain('0x323A76...95b7E3');
       expect(html).toContain('7776789952');
-      expect(html).toContain('Connecting to RPC Node');
-      expect(html).toContain('Retrieving Proposal Logs');
-      expect(html).toContain('Resolving ABIs &amp; Proxies');
-      expect(html).toContain('Decoding Execution Actions');
-      expect(html).toContain('Evaluating Deterministic Rules &amp; Sponsor Advisory');
+      expect(html).toContain('Executing deterministic on-chain governance inspection pipeline...');
       expect(html).toContain('Elapsed');
       expect(html).toContain('analysis-progress-card');
       expect(html).toContain('progress-bar-shimmer');

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import type { ProviderReview, ReviewItem, ReviewItemKind } from '../types/analysis';
+import type { AssessmentOutcome, ProviderReview, ReviewItem, ReviewItemKind } from '../types/analysis';
 import { normalizeReviewItem } from '../../server/providers/review-normalizer';
+import { computeReviewerAgreement } from '../lib/reviewer-agreement';
 
 interface ProviderReviewsProps {
   serv: ProviderReview;
   dolphin: ProviderReview;
+  assessment?: AssessmentOutcome;
 }
 
 const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
@@ -148,7 +150,9 @@ const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
   );
 };
 
-export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin }) => {
+export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin, assessment }) => {
+  const agreement = computeReviewerAgreement(assessment, serv, dolphin);
+
   const getStatusBadge = (review: ProviderReview) => {
     switch (review.status) {
       case 'available':
@@ -156,6 +160,16 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
           <span className="review-status-badge status-available">
             <span className="badge-dot" aria-hidden="true" />
             <span>Available</span>
+          </span>
+        );
+      case 'pending':
+        return (
+          <span
+            className="review-status-badge status-pending"
+            style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}
+          >
+            <span className="badge-dot pulse-dot" style={{ backgroundColor: '#38bdf8' }} aria-hidden="true" />
+            <span>Analyzing...</span>
           </span>
         );
       case 'not_configured':
@@ -179,6 +193,31 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
   };
 
   const renderReviewContent = (review: ProviderReview, providerName: string) => {
+    if (review.status === 'pending') {
+      return (
+        <div
+          className="review-body"
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', padding: '16px 0' }}
+        >
+          <div className="progress-spinner-wrap" style={{ width: '18px', height: '18px' }} aria-hidden="true">
+            <svg
+              className="progress-spinner"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ width: '18px', height: '18px' }}
+            >
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.3" />
+              <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <span style={{ fontSize: '0.875rem' }}>
+            {review.summary || `Running independent ${providerName} advisory inspection...`}
+          </span>
+        </div>
+      );
+    }
+
     if (review.status === 'not_configured') {
       return (
         <p className="review-empty-text">
@@ -223,6 +262,101 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin 
           <h2 id="reviews-heading" className="section-heading">Sponsor advisory reviews</h2>
         </div>
         <span className="section-note">Advisory delegate assistance</span>
+      </div>
+
+      {/* Reviewer Agreement Strip */}
+      <div
+        className={`reviewer-agreement-strip agreement-${agreement.status}`}
+        data-testid="reviewer-agreement-strip"
+        style={{
+          marginBottom: '20px',
+          padding: '14px 18px',
+          borderRadius: '8px',
+          border:
+            agreement.status === 'disagree'
+              ? '1px solid rgba(239, 68, 68, 0.4)'
+              : agreement.status === 'agree'
+                ? '1px solid rgba(34, 197, 94, 0.4)'
+                : '1px solid rgba(255, 255, 255, 0.1)',
+          backgroundColor:
+            agreement.status === 'disagree'
+              ? 'rgba(239, 68, 68, 0.08)'
+              : agreement.status === 'agree'
+                ? 'rgba(34, 197, 94, 0.08)'
+                : 'rgba(255, 255, 255, 0.03)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: '4px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                backgroundColor:
+                  agreement.status === 'disagree'
+                    ? 'rgba(239, 68, 68, 0.2)'
+                    : agreement.status === 'agree'
+                      ? 'rgba(34, 197, 94, 0.2)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                color:
+                  agreement.status === 'disagree'
+                    ? '#f87171'
+                    : agreement.status === 'agree'
+                      ? '#4ade80'
+                      : '#94a3b8',
+              }}
+            >
+              {agreement.status === 'disagree'
+                ? 'Reviewers disagree: human review needed'
+                : agreement.status === 'agree'
+                  ? 'Reviewers agree'
+                  : agreement.status === 'pending'
+                    ? 'Reviewer comparison pending'
+                    : 'Engine authoritative'}
+            </span>
+            <span style={{ fontSize: '0.875rem', color: '#e2e8f0', fontWeight: 500 }}>
+              {agreement.headline}
+            </span>
+          </div>
+        </div>
+
+        {/* Stances list */}
+        <div style={{ display: 'flex', gap: '12px', marginTop: '10px', flexWrap: 'wrap' }}>
+          {agreement.stances.map((s) => (
+            <div
+              key={s.name}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.8rem',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+              }}
+            >
+              <span style={{ color: '#94a3b8', fontWeight: 500 }}>{s.name}:</span>
+              <span
+                style={{
+                  fontWeight: 600,
+                  color:
+                    s.verdict === 'flagged'
+                      ? '#f87171'
+                      : s.verdict === 'clear'
+                        ? '#4ade80'
+                        : '#94a3b8',
+                }}
+              >
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="reviews-grid">

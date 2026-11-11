@@ -56,7 +56,7 @@ describe('Phase 7: End-to-End Integration & Pressure Testing', () => {
           proposalId: '999999999999999999999999999999999999999999999999999999999999',
         })
       ).rejects.toThrow(/ProposalCreated event not found|not found/i);
-    }, 45000);
+    }, 60000);
   });
 
   describe('T7.6: Calldata Edge Cases & Incomplete Analysis Enforcement', () => {

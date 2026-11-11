@@ -129,7 +129,7 @@ export interface ReviewItem {
 }
 
 export interface ProviderReview {
-  status: 'available' | 'unavailable' | 'error' | 'not_configured';
+  status: 'available' | 'unavailable' | 'error' | 'not_configured' | 'pending';
   summary?: string;
   items?: ReviewItem[];
   findings?: string[];

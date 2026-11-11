@@ -18,6 +18,24 @@ async function bundle() {
     },
   });
   console.log('Successfully bundled api/analyse.js');
+
+  await build({
+    configFile: false,
+    build: {
+      ssr: 'api/_review.ts',
+      outDir: 'api',
+      emptyOutDir: false,
+      copyPublicDir: false,
+      rollupOptions: {
+        external: ['viem', 'viem/chains'],
+        output: {
+          format: 'esm',
+          entryFileNames: 'review.js',
+        },
+      },
+    },
+  });
+  console.log('Successfully bundled api/review.js');
 }
 
 bundle();

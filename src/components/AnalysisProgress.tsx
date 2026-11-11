@@ -7,40 +7,6 @@ interface AnalysisProgressProps {
   proposalId?: string;
 }
 
-interface Step {
-  id: string;
-  title: string;
-  detail: string;
-}
-
-const PIPELINE_STAGES: Step[] = [
-  {
-    id: 'rpc',
-    title: 'Connecting to RPC Node',
-    detail: 'Verifying network chain ID and Governor contract bytecode...',
-  },
-  {
-    id: 'logs',
-    title: 'Retrieving Proposal Logs',
-    detail: 'Locating ProposalCreated event and reading on-chain proposal state...',
-  },
-  {
-    id: 'abi',
-    title: 'Resolving ABIs & Proxies',
-    detail: 'Inspecting EIP-1967/1822 storage slots and fetching verified interfaces...',
-  },
-  {
-    id: 'decode',
-    title: 'Decoding Execution Actions',
-    detail: 'Parsing function selectors, targets, ETH values, and calldata arguments...',
-  },
-  {
-    id: 'advisory',
-    title: 'Evaluating Deterministic Rules & Sponsor Advisory',
-    detail: 'Running sensitive operation checks and collecting advisory reviews...',
-  },
-];
-
 export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
   network,
   governorAddress,
@@ -118,27 +84,22 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         </div>
       </div>
 
-      <div className="progress-bar-track">
+      <div className="progress-bar-track" aria-hidden="true">
         <div
-          className="progress-bar-fill"
+          className="progress-bar-fill indeterminate-bar"
           style={{ width: '100%' }}
         />
         <div className="progress-bar-shimmer" />
       </div>
 
-      <div className="progress-steps-list">
-        {PIPELINE_STAGES.map((step, idx) => (
-          <div key={step.id} className="progress-step-item step-current">
-            <div className="step-indicator">
-              <span className="step-number tabular-nums">{idx + 1}</span>
-            </div>
-
-            <div className="step-content">
-              <span className="step-title">{step.title}</span>
-              <span className="step-detail">{step.detail}</span>
-            </div>
-          </div>
-        ))}
+      <div className="progress-indeterminate-status" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.875rem' }}>
+          <span className="pulse-dot" style={{ backgroundColor: '#38bdf8', width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }} />
+          <span>Executing deterministic on-chain governance inspection pipeline...</span>
+        </div>
+        <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+          Resolving verified smart contract ABIs, decoding calldata payloads, verifying function role capabilities against source code, and matching claims deterministically.
+        </p>
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ import { ConsistencyView } from '../components/ConsistencyView';
 import { ProviderReviews } from '../components/ProviderReviews';
 import { EvidenceLinks } from '../components/EvidenceLinks';
 import { AnalysisProgress } from '../components/AnalysisProgress';
-import { analyseProposal, ApiError } from '../lib/api-client';
+import { analyseProposal, fetchProposalReviews, ApiError } from '../lib/api-client';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -82,6 +82,41 @@ export const App: React.FC = () => {
     try {
       const data = await analyseProposal(request);
       setResult(data);
+      setIsLoading(false);
+
+      // Phase 2: Asynchronously fetch sponsor reviews if they are pending
+      if (
+        data.reviews?.serv?.status === 'pending' ||
+        data.reviews?.dolphin?.status === 'pending'
+      ) {
+        try {
+          const reviews = await fetchProposalReviews({
+            network: data.network,
+            governorAddress: data.governorAddress,
+            proposalId: data.proposal.id,
+          });
+          setResult((prev) => (prev ? { ...prev, reviews } : prev));
+        } catch (reviewErr) {
+          console.error('Phase 2 sponsor review fetch error:', reviewErr);
+          setResult((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  reviews: {
+                    serv: {
+                      status: 'error',
+                      error: 'Failed to load OpenServ SERV review.',
+                    },
+                    dolphin: {
+                      status: 'error',
+                      error: 'Failed to load Dolphin review.',
+                    },
+                  },
+                }
+              : prev
+          );
+        }
+      }
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setError({
@@ -175,6 +210,7 @@ export const App: React.FC = () => {
               <ProviderReviews
                 serv={result.reviews?.serv}
                 dolphin={result.reviews?.dolphin}
+                assessment={result.assessment}
               />
 
               <EvidenceLinks
