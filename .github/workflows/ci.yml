@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  verify:
+    name: Typecheck, Hermetic Tests & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify README consistency
+        run: pnpm check:readme
+
+      - name: Typecheck codebase
+        run: pnpm typecheck
+
+      - name: Run hermetic offline test suite
+        run: pnpm test
+
+      - name: Build production distribution and serverless bundles
+        run: pnpm build

@@ -143,7 +143,15 @@ Callscope is pre-configured for one-command deployment to Vercel via `vercel.jso
    - `SERV_MODEL`
    - `DOLPHIN_API_KEY`
    - `DOLPHIN_MODEL`
-3. Deploy! Vercel automatically builds the Vite frontend and hosts `/api/analyse` as a serverless function.
+3. Deploy! Vercel automatically builds the Vite frontend and hosts `/api/analyse` and `/api/review` as serverless functions.
+
+### Serverless Bundle Architecture (`api/analyse.js` & `api/review.js`)
+
+For fast, zero-transpile serverless deployment, CallScope compiles its API entry points during `pnpm build` via `bundle-api.mjs` into standalone ESM bundles:
+- **`api/analyse.js`**: Core deterministic proposal analyzer (`POST /api/analyse`), executed in Phase 1. Prebundled to eliminate runtime TypeScript transpilation and ensure immediate serverless cold starts.
+- **`api/review.js`**: Advisory review endpoint (`POST /api/review`), executed in Phase 2. Runs OpenServ SERV and Dolphin reviews asynchronously from server-side cache keys without accepting unverified prompt inputs from clients.
+
+Both prebundled outputs are tracked in the repository for reproducible, zero-configuration deployments.
 
 ---
 

@@ -357,3 +357,44 @@ Our investigation uncovered a compound failure across three distinct layers:
 - All 18 test files in `tests/unit/` (160 tests) passed offline.
 - `pnpm typecheck` passed with 0 errors.
 - `pnpm build` passed with exit code 0.
+---
+
+## Task 8: Test and Repo Hygiene
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Separate hermetic offline tests from live network suites, configure GitHub Actions CI, document prebundled serverless artifacts, and build a deterministic README consistency checker.
+
+### 1. Implementation & Architecture
+- **Hermetic vs Live Test Suite Separation:**
+  - Moved live network integration tests from `tests/integration/` into `tests/live/` (`action-decoding.test.ts`, `pinned-and-txhash.test.ts`, `pressure-testing.test.ts`, `proposal-retrieval.test.ts`, `regression-fixtures.test.ts`, `sponsor-live.test.ts`).
+  - Configured `vite.config.ts` with `include: ['tests/unit/**/*.{test,spec}.{ts,tsx}']` so default vitest runs only hermetic offline unit tests.
+  - Added dedicated npm scripts in `package.json`:
+    - `pnpm test`: Runs `vitest run tests/unit/` (100% offline, hermetic, 18 test files, 160 tests).
+    - `pnpm test:live`: Runs `vitest run tests/live/` (executes live RPC and sponsor queries).
+    - `pnpm test:all`: Runs the entire workspace suite.
+- **GitHub Actions CI Workflow (`.github/workflows/ci.yml`):**
+  - Runs on push to `master`/`main` and pull requests.
+  - Setup Node 22 and pnpm 9 with `--frozen-lockfile`.
+  - Runs four automated quality gates:
+    1. `pnpm check:readme`
+    2. `pnpm typecheck`
+    3. `pnpm test` (hermetic offline suite)
+    4. `pnpm build` (production build and SSR serverless bundles)
+- **README Documentation of Serverless Artifacts (`README.md`):**
+  - Documented `api/analyse.js` (core deterministic analysis entry point prebundled for sub-second serverless execution).
+  - Documented `api/review.js` (background sponsor review entry point loading Phase 2 advisory intelligence).
+- **README Consistency Enforcement Script (`scripts/check-readme-consistency.ts`):**
+  - Runs via `pnpm check:readme`.
+  - Validates that README constants match codebase constants:
+    - Verifies no `<repository-url>` or unresolved template placeholders.
+    - Verifies Base default RPC matches `server/chain/networks.ts` (`https://base-rpc.publicnode.com`) and rejects outdated Tenderly Base URL.
+    - Verifies Ethereum default RPC matches `server/chain/networks.ts`.
+    - Verifies ENS and Unlock fixture addresses and proposal IDs match live contracts.
+    - Verifies test count is accurate and non-obsolete.
+
+### 2. Verification Evidence
+- `pnpm check:readme`: PASSED (exit code 0).
+- `pnpm typecheck`: PASSED (exit code 0).
+- `pnpm test`: PASSED 18/18 test files (160 tests passed 100% offline).
+- `pnpm build`: PASSED (clean Vite client distribution + `api/analyse.js` + `api/review.js`).

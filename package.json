@@ -8,8 +8,11 @@
     "build": "tsc && node bundle-api.mjs && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run tests/unit/",
+    "test:live": "vitest run tests/live/",
+    "test:all": "vitest run",
+    "test:watch": "vitest",
+    "check:readme": "node --experimental-strip-types scripts/check-readme-consistency.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
