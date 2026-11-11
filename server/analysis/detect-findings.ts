@@ -178,11 +178,23 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
           ? `Action #${actionNum} grants privileged role (unconfirmed semantics): ${roleSemantics.roleName}`
           : `Action #${actionNum} grants unrecognized role`;
 
+      let descriptionText: string;
+      if (action.roleCapability && action.roleCapability.status === 'resolved') {
+        const capText = action.roleCapability.summary;
+        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
+        descriptionText = `Grants ${roleSemantics.roleName} to ${accountArg} → ${capText}. ${recText}`;
+      } else if (action.roleCapability && action.roleCapability.status === 'unresolved') {
+        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
+        descriptionText = `Grants ${roleSemantics.roleName} to ${accountArg} (capability: unresolved). ${recText}`;
+      } else {
+        descriptionText = `Grants role ${roleSemantics.roleName} (${roleArg}) to account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`;
+      }
+
       findings.push({
         id: `SENSITIVE_GRANT_ROLE_${i}`,
         severity: 'high',
         title,
-        description: `Grants role ${roleSemantics.roleName} (${roleArg}) to account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`,
+        description: descriptionText,
         actionIndex: i,
         target: action.target,
         verified: roleSemantics.status === 'verified',
@@ -213,11 +225,23 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
           ? `Action #${actionNum} revokes role (unconfirmed semantics): ${roleSemantics.roleName}`
           : `Action #${actionNum} revokes unrecognized role`;
 
+      let descriptionText: string;
+      if (action.roleCapability && action.roleCapability.status === 'resolved') {
+        const capText = action.roleCapability.summary;
+        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
+        descriptionText = `Revokes ${roleSemantics.roleName} from ${accountArg} → revokes ability to ${capText}. ${recText}`;
+      } else if (action.roleCapability && action.roleCapability.status === 'unresolved') {
+        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
+        descriptionText = `Revokes ${roleSemantics.roleName} from ${accountArg} (capability: unresolved). ${recText}`;
+      } else {
+        descriptionText = `Revokes role ${roleSemantics.roleName} (${roleArg}) from account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`;
+      }
+
       findings.push({
         id: `SENSITIVE_REVOKE_ROLE_${i}`,
         severity: 'medium',
         title,
-        description: `Revokes role ${roleSemantics.roleName} (${roleArg}) from account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`,
+        description: descriptionText,
         actionIndex: i,
         target: action.target,
         verified: roleSemantics.status === 'verified',

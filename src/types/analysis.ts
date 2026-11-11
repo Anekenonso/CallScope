@@ -27,6 +27,21 @@ export interface DecodedArg {
   decimalsUnavailable?: boolean;
 }
 
+export interface RoleCapability {
+  status: 'resolved' | 'unresolved';
+  capabilities?: { fn: string; gatedBy: string }[];
+  summary?: string;
+  sourceOrigin?: 'verified_source' | 'fallback' | 'unresolved';
+}
+
+export interface RecipientProfile {
+  type: 'EOA' | 'contract';
+  isVerified?: boolean;
+  deployedDaysBefore?: number;
+  deployedTimestamp?: number;
+  summary: string;
+}
+
 export interface ProposalAction {
   index: number;
   target: string;
@@ -48,6 +63,8 @@ export interface ProposalAction {
   isSafeWrapper?: boolean;
   isNativeTransfer?: boolean;
   limitations?: string[];
+  roleCapability?: RoleCapability;
+  recipientProfile?: RecipientProfile;
 }
 
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';

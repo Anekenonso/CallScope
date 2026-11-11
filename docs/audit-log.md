@@ -238,3 +238,45 @@ Our investigation uncovered a compound failure across three distinct layers:
 - All 16 test files in `tests/unit/` (140 tests) passed offline with 0 failures.
 - `pnpm typecheck` passed with 0 errors.
 - `pnpm build` passed with clean SSR bundle and client distribution.
+---
+
+## Task 5: Role Capability Resolution & Recipient Profiling
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Resolve role capabilities from verified Solidity source code and profile recipient addresses (EOA vs contract, verification status, deployment age relative to proposal) to provide deterministic facts without an LLM.
+
+### 1. Implementation & Architecture
+- **Solidity Capability Parser (`server/analysis/role-capabilities.ts`):**
+  - Implemented `parseSolidityRoleCapabilities`: Extracts role constants (`bytes32 public constant ROLE = keccak256(...)`) and parses access control gates on functions (`onlyRole`, `onlyRoleOrOpenRole`, `_checkRole`, `hasRole`).
+  - Implemented `formatRoleCapabilitySummary`: Formats parsed functions into clean, human-readable capability summaries (e.g. `can schedule and cancel on TimelockController (per verified source)`).
+  - Implemented `resolveRoleCapabilitiesFromSource`: Fetches verified smart contract source code from Blockscout v2 (`/api/v2/smart-contracts/${address}`), following proxy implementations when detected.
+  - If contract source is missing or unparseable, returns `capability: unresolved` and appends a limitation to the action (`Action #N: Role capability unresolved; verified contract source code unavailable or unparseable.`), feeding `analysis_incomplete` into `buildAssessment`.
+- **OpenZeppelin Variant Handling:**
+  - Evaluated two OpenZeppelin TimelockController variants:
+    1. **Older OZ (e.g. 4.0 - 4.8):** `cancel(bytes32)` is gated by `PROPOSER_ROLE`. Parsed capabilities for `PROPOSER_ROLE`: `schedule`, `scheduleBatch`, and `cancel`.
+    2. **Newer OZ (e.g. 4.9+):** `CANCELLER_ROLE` is separated. Parsed capabilities for `PROPOSER_ROLE`: `schedule` and `scheduleBatch`. `cancel` is restricted to `CANCELLER_ROLE`.
+  - Asserted outputs strictly differ without hardcoding ENS's response.
+- **Recipient Profiling (`profileRecipient`):**
+  - Deterministically inspects `client.getCode({ address })` to differentiate between EOAs and deployed smart contracts.
+  - For contracts: queries Blockscout v2 to verify compilation status (`isVerified`) and deployment timestamp (`verified_at` / `creation_transaction_hash`).
+  - Calculates deployment age relative to the proposal timestamp: `deployed N days before proposal`.
+  - Formats into deterministic profile: `Recipient: contract, verified, deployed 6 days before proposal` or `Recipient: EOA`.
+- **Findings Augmentation (`server/analysis/detect-findings.ts`):**
+  - Updated `detectFindings`:
+    `grantRole`: `Grants PROPOSER_ROLE to 0x2acb... → can schedule and cancel on TimelockController (per verified source). Recipient: contract, verified, deployed 6 days before proposal`.
+    `revokeRole`: `Revokes PROPOSER_ROLE from 0x2acb... → revokes ability to can schedule and cancel on TimelockController (per verified source). Recipient: contract, verified, deployed 6 days before proposal`.
+  - Preserved findings severity rules (`high` for grantRole, `medium` for revokeRole).
+
+### 2. Verification Evidence
+- `tests/unit/role-capabilities.test.ts`: 7/7 passed.
+  - Tested Older OZ variant: asserted `PROPOSER_ROLE` includes `schedule` and `cancel`.
+  - Tested Newer OZ variant: asserted `PROPOSER_ROLE` includes `schedule` but NOT `cancel`; `CANCELLER_ROLE` includes `cancel`.
+  - Tested unresolved capabilities and limitations feeding `analysis_incomplete`.
+  - Tested EOA recipient profiling (`Recipient: EOA`).
+  - Tested contract recipient profiling with relative deployment age.
+  - Tested finding description formatting with capabilities and recipient facts.
+- `tests/unit/real-render.test.tsx`: passed against live ENS proposal, confirming `roleCapability` and `recipientProfile` resolution on `TimelockController`.
+- All 17 test files in `tests/unit/` (147 tests) passed offline with 0 failures.
+- `pnpm typecheck` passed with 0 errors.
+- `pnpm build` passed with clean SSR bundle and client distribution.

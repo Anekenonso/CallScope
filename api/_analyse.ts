@@ -13,6 +13,10 @@ import {
 import { buildAssessment } from '../server/analysis/build-assessment';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
+import {
+  resolveRoleCapabilitiesFromSource,
+  profileRecipient,
+} from '../server/analysis/role-capabilities';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 import { parseTxHashOrUrl } from '../src/lib/validation';
 
@@ -149,6 +153,45 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     calldatas: event.calldatas,
     client,
   });
+
+  // 5.5 Resolve role capabilities and recipient profiles for role actions
+  for (const action of actions) {
+    if (action.decoded && (action.functionName === 'grantRole' || action.functionName === 'revokeRole')) {
+      const roleArg =
+        action.args?.find((a) => a.name.toLowerCase().includes('role') || a.type === 'bytes32')?.value ||
+        action.args?.[0]?.value ||
+        '';
+      const accountArg =
+        action.args?.find((a) => a.name.toLowerCase().includes('account') || a.type === 'address')?.value ||
+        action.args?.[1]?.value ||
+        '';
+
+      const targetAddr = (action.implementation || action.target) as Address;
+      const roleCap = await resolveRoleCapabilitiesFromSource(
+        effectiveNetwork,
+        targetAddr,
+        action.targetName || 'target contract',
+        roleArg
+      );
+      action.roleCapability = roleCap;
+
+      if (roleCap.status === 'unresolved') {
+        const lim = `Action #${action.index + 1} to ${action.target}: Role capability unresolved; verified contract source code unavailable or unparseable.`;
+        action.limitations = [...(action.limitations || []), lim];
+        limitations.push(lim);
+      }
+
+      if (accountArg) {
+        const proposalTs = event.voteStart ? Number(event.voteStart) : undefined;
+        action.recipientProfile = await profileRecipient(
+          client,
+          effectiveNetwork,
+          accountArg,
+          proposalTs
+        );
+      }
+    }
+  }
 
   // 6. Run deterministic security checks
   const findings = detectFindings(actions);
