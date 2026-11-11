@@ -1,3 +1,4 @@
+import * as parser from '@solidity-parser/parser';
 import {
   type Address,
   type Hex,
@@ -34,13 +35,17 @@ export interface FunctionGate {
   gatedBy: string; // Role name or identifier
 }
 
-/**
- * Parse role constant declarations and function access gates from Solidity source code.
- */
-export function parseSolidityRoleCapabilities(sourceCode: string): {
+export interface ParseRoleCapabilitiesResult {
   roleMap: Map<string, string>; // identifier -> standard role name
   gates: FunctionGate[];
-} {
+  method: 'ast_parser' | 'pattern_inspection';
+}
+
+/**
+ * Parse role constant declarations and function access gates from Solidity source code.
+ * Uses @solidity-parser/parser for true AST traversal with graceful pattern-inspection fallback.
+ */
+export function parseSolidityRoleCapabilities(sourceCode: string): ParseRoleCapabilitiesResult {
   const roleMap = new Map<string, string>();
 
   // Pre-seed with standard role names
@@ -49,9 +54,91 @@ export function parseSolidityRoleCapabilities(sourceCode: string): {
     roleMap.set(computeRoleHash(name).toLowerCase(), name);
   }
 
-  // 1. Extract role constant definitions:
-  // e.g. bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
-  // e.g. bytes32 public constant PROPOSER_ROLE = 0xb09aa5...;
+  // 1. Attempt true AST parsing via @solidity-parser/parser
+  try {
+    const ast = parser.parse(sourceCode, { tolerant: true, loc: false, range: false });
+    const gates: FunctionGate[] = [];
+
+    // Pass 1: Extract state variable role definitions
+    parser.visit(ast, {
+      StateVariableDeclaration(node: any) {
+        for (const v of node.variables || []) {
+          const varName = v.name;
+          if (!varName) continue;
+
+          if (node.initialValue) {
+            const init = node.initialValue;
+            if (init.type === 'FunctionCall' && init.expression?.name === 'keccak256') {
+              const arg = init.arguments?.[0];
+              const strVal = arg?.value || arg?.string || varName;
+              roleMap.set(varName, strVal);
+              roleMap.set(computeRoleHash(strVal).toLowerCase(), strVal);
+            } else if (init.number && typeof init.number === 'string' && init.number.startsWith('0x')) {
+              roleMap.set(varName, varName);
+              roleMap.set(init.number.toLowerCase(), varName);
+            } else if (init.value && typeof init.value === 'string' && init.value.startsWith('0x')) {
+              roleMap.set(varName, varName);
+              roleMap.set(init.value.toLowerCase(), varName);
+            }
+          }
+        }
+      },
+    });
+
+    // Pass 2: Extract functions and role gates from modifiers and body calls
+    parser.visit(ast, {
+      FunctionDefinition(node: any) {
+        const fnName = node.name;
+        if (!fnName) return;
+
+        // Check modifiers: onlyRole(ROLE) or onlyRoleOrOpenRole(ROLE)
+        for (const m of node.modifiers || []) {
+          if (m.name === 'onlyRole' || m.name === 'onlyRoleOrOpenRole') {
+            const arg = m.arguments?.[0];
+            const rawRole = arg?.name || arg?.value;
+            if (rawRole) {
+              const resolvedRole =
+                roleMap.get(String(rawRole).toLowerCase()) ||
+                roleMap.get(String(rawRole)) ||
+                String(rawRole);
+              gates.push({ fn: fnName, gatedBy: resolvedRole });
+            }
+          }
+        }
+
+        // Check function body for inline _checkRole / hasRole calls
+        if (node.body) {
+          parser.visit(node.body, {
+            FunctionCall(callNode: any) {
+              const callName = callNode.expression?.name;
+              if (callName === '_checkRole' || callName === 'hasRole') {
+                const arg = callNode.arguments?.[0];
+                const rawRole = arg?.name || arg?.value;
+                if (rawRole) {
+                  const resolvedRole =
+                    roleMap.get(String(rawRole).toLowerCase()) ||
+                    roleMap.get(String(rawRole)) ||
+                    String(rawRole);
+                  if (!gates.some((g) => g.fn === fnName && g.gatedBy === resolvedRole)) {
+                    gates.push({ fn: fnName, gatedBy: resolvedRole });
+                  }
+                }
+              }
+            },
+          });
+        }
+      },
+    });
+
+    if (gates.length > 0 || roleMap.size > KNOWN_ROLE_NAMES.length * 2) {
+      return { roleMap, gates, method: 'ast_parser' };
+    }
+  } catch {
+    // Fall back to regex pattern inspection if AST parser fails on partial snippet
+  }
+
+  // 2. Fallback: Pattern inspection over source code
+  const fallbackGates: FunctionGate[] = [];
   const roleDefRegex =
     /bytes32\s+(?:public|private|internal)?\s*(?:constant)?\s*([a-zA-Z0-9_]+)\s*=\s*(?:keccak256\s*\(\s*["']([a-zA-Z0-9_]+)["']\s*\)|(0x[a-fA-F0-9]{64}))/g;
 
@@ -68,42 +155,35 @@ export function parseSolidityRoleCapabilities(sourceCode: string): {
     }
   }
 
-  // 2. Extract function declarations and their role gates:
-  // Matches: function <name>(<args>) <modifiers> { ... }
-  // We search for function headers and scan for onlyRole, _checkRole, hasRole
-  const gates: FunctionGate[] = [];
   const fnRegex = /function\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)\s*([^{;]*)(?:\{|;)/g;
 
   while ((match = fnRegex.exec(sourceCode)) !== null) {
     const fnName = match[1]!;
     const modifiersAndRest = match[3]!;
     const startIndex = match.index;
-    // Inspect next 500 characters of function body for inline _checkRole / hasRole checks
     const bodySnippet = sourceCode.slice(startIndex, startIndex + 500);
 
-    // Look for modifier gates: onlyRole(ROLE) or onlyRoleOrOpenRole(ROLE)
     const modifierMatch = modifiersAndRest.match(
       /(?:onlyRole|onlyRoleOrOpenRole)\s*\(\s*([a-zA-Z0-9_]+|(?:0x[a-fA-F0-9]{64}))\s*\)/i
     );
     if (modifierMatch?.[1]) {
       const rawRole = modifierMatch[1];
       const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
-      gates.push({ fn: fnName, gatedBy: resolvedRole });
+      fallbackGates.push({ fn: fnName, gatedBy: resolvedRole });
       continue;
     }
 
-    // Look for inline checks: _checkRole(ROLE) or require(hasRole(ROLE, ...))
     const bodyCheckMatch = bodySnippet.match(
       /(?:_checkRole|hasRole)\s*\(\s*([a-zA-Z0-9_]+|(?:0x[a-fA-F0-9]{64}))/i
     );
     if (bodyCheckMatch?.[1]) {
       const rawRole = bodyCheckMatch[1];
       const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
-      gates.push({ fn: fnName, gatedBy: resolvedRole });
+      fallbackGates.push({ fn: fnName, gatedBy: resolvedRole });
     }
   }
 
-  return { roleMap, gates };
+  return { roleMap, gates: fallbackGates, method: 'pattern_inspection' };
 }
 
 /**

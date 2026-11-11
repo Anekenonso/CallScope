@@ -105,6 +105,19 @@ contract TimelockController {
 `;
 
   describe('OpenZeppelin Variant Comparison', () => {
+    it('uses AST parser (@solidity-parser/parser) on full Solidity contracts', () => {
+      const res = parseSolidityRoleCapabilities(olderOzTimelockSource);
+      expect(res.method).toBe('ast_parser');
+      expect(res.gates.length).toBeGreaterThan(0);
+    });
+
+    it('falls back gracefully to pattern inspection on unparseable snippet syntax', () => {
+      // Incomplete snippet with unbalanced brackets
+      const brokenSnippet = 'contract Incomplete { function broken( onlyRole(PROPOSER_ROLE)';
+      const res = parseSolidityRoleCapabilities(brokenSnippet);
+      expect(res.method).toBe('pattern_inspection');
+    });
+
     it('resolves cancel capability under PROPOSER_ROLE for older OZ Timelock variant', () => {
       const { gates } = parseSolidityRoleCapabilities(olderOzTimelockSource);
       const { capabilities, summary } = formatRoleCapabilitySummary(

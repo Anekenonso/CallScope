@@ -822,6 +822,33 @@ Our investigation uncovered a compound failure across three distinct layers:
 
 ---
 
+## Second-Pass Task 9: Solidity AST Parser for Function Role Gates
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Upgrade Solidity contract source inspection from fixed-window regex heuristic to a robust, true AST parser using `@solidity-parser/parser`, resolving state variable role definitions, function modifier gates (`onlyRole`, `onlyRoleOrOpenRole`), and inline body role checks (`_checkRole`, `hasRole`), with graceful pattern-inspection fallback.
+
+### 1. Root Cause & Architecture
+- **Finding G Remediation:** The legacy capability resolution used regex over source code with a fixed 500-character window while being described in documentation as AST parsing.
+- **AST Implementation (`server/analysis/role-capabilities.ts`):**
+  - Integrated `@solidity-parser/parser` to parse Solidity source code into an Abstract Syntax Tree with tolerant parsing.
+  - Implemented dual-pass AST traversal:
+    - **Pass 1 (`StateVariableDeclaration`):** Extracts role constant identifiers, keccak256 string hashes (e.g. `keccak256("PROPOSER_ROLE")`), and raw hex literals (e.g. `0xb09aa...`).
+    - **Pass 2 (`FunctionDefinition`):** Traverses function modifiers (`onlyRole(ROLE)`, `onlyRoleOrOpenRole(ROLE)`) and function body statements (`_checkRole(ROLE)`, `hasRole(ROLE)`), mapping function access gates to standard role names.
+  - **Tolerant Fallback:** In the event of incomplete contract fragments or unparseable syntax, falls back gracefully to regex pattern inspection, recording the parsing method accurately (`ast_parser` vs `pattern_inspection`).
+
+### 2. Verification Evidence
+- **Unit Tests (`tests/unit/role-capabilities.test.ts`):** 9/9 passed.
+  - Verified `parseSolidityRoleCapabilities` uses `ast_parser` on complete Solidity contracts.
+  - Verified graceful fallback to `pattern_inspection` on unparseable snippet syntax.
+  - Verified resolution of `schedule` and `cancel` for OZ Timelock variants.
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm vitest run tests/unit/`):** 26 test files passed, 223 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
+
+---
+
 ## Second-Pass Task 8: Honest Benchmark Suites (Simulated vs Live)
 
 - **Status:** PASS
@@ -851,6 +878,33 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
 - **README Consistency Check (`pnpm check:readme`):** Passed.
 - **Full Test Suite (`pnpm vitest run tests/unit/`):** 26 test files passed, 221 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
+
+---
+
+## Second-Pass Task 9: Solidity AST Parser for Function Role Gates
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Upgrade Solidity contract source inspection from fixed-window regex heuristic to a robust, true AST parser using `@solidity-parser/parser`, resolving state variable role definitions, function modifier gates (`onlyRole`, `onlyRoleOrOpenRole`), and inline body role checks (`_checkRole`, `hasRole`), with graceful pattern-inspection fallback.
+
+### 1. Root Cause & Architecture
+- **Finding G Remediation:** The legacy capability resolution used regex over source code with a fixed 500-character window while being described in documentation as AST parsing.
+- **AST Implementation (`server/analysis/role-capabilities.ts`):**
+  - Integrated `@solidity-parser/parser` to parse Solidity source code into an Abstract Syntax Tree with tolerant parsing.
+  - Implemented dual-pass AST traversal:
+    - **Pass 1 (`StateVariableDeclaration`):** Extracts role constant identifiers, keccak256 string hashes (e.g. `keccak256("PROPOSER_ROLE")`), and raw hex literals (e.g. `0xb09aa...`).
+    - **Pass 2 (`FunctionDefinition`):** Traverses function modifiers (`onlyRole(ROLE)`, `onlyRoleOrOpenRole(ROLE)`) and function body statements (`_checkRole(ROLE)`, `hasRole(ROLE)`), mapping function access gates to standard role names.
+  - **Tolerant Fallback:** In the event of incomplete contract fragments or unparseable syntax, falls back gracefully to regex pattern inspection, recording the parsing method accurately (`ast_parser` vs `pattern_inspection`).
+
+### 2. Verification Evidence
+- **Unit Tests (`tests/unit/role-capabilities.test.ts`):** 9/9 passed.
+  - Verified `parseSolidityRoleCapabilities` uses `ast_parser` on complete Solidity contracts.
+  - Verified graceful fallback to `pattern_inspection` on unparseable snippet syntax.
+  - Verified resolution of `schedule` and `cancel` for OZ Timelock variants.
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm vitest run tests/unit/`):** 26 test files passed, 223 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
 
 

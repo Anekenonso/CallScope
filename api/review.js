@@ -1,6 +1,7 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+import * as parser from "@solidity-parser/parser";
 import { getAddress, keccak256, stringToBytes, formatUnits, http, createPublicClient, fallback, toBytes, decodeEventLog, parseAbi, zeroAddress, formatEther, decodeFunctionData, parseAbiItem, toFunctionSelector, concatHex, isAddress } from "viem";
 import { mainnet, base } from "viem/chains";
 const SCHEMA_VERSION = "v1";
@@ -368,6 +369,74 @@ function parseSolidityRoleCapabilities(sourceCode) {
     roleMap.set(name, name);
     roleMap.set(computeRoleHash(name).toLowerCase(), name);
   }
+  try {
+    const ast = parser.parse(sourceCode, { tolerant: true, loc: false, range: false });
+    const gates = [];
+    parser.visit(ast, {
+      StateVariableDeclaration(node) {
+        var _a, _b;
+        for (const v of node.variables || []) {
+          const varName = v.name;
+          if (!varName) continue;
+          if (node.initialValue) {
+            const init = node.initialValue;
+            if (init.type === "FunctionCall" && ((_a = init.expression) == null ? void 0 : _a.name) === "keccak256") {
+              const arg = (_b = init.arguments) == null ? void 0 : _b[0];
+              const strVal = (arg == null ? void 0 : arg.value) || (arg == null ? void 0 : arg.string) || varName;
+              roleMap.set(varName, strVal);
+              roleMap.set(computeRoleHash(strVal).toLowerCase(), strVal);
+            } else if (init.number && typeof init.number === "string" && init.number.startsWith("0x")) {
+              roleMap.set(varName, varName);
+              roleMap.set(init.number.toLowerCase(), varName);
+            } else if (init.value && typeof init.value === "string" && init.value.startsWith("0x")) {
+              roleMap.set(varName, varName);
+              roleMap.set(init.value.toLowerCase(), varName);
+            }
+          }
+        }
+      }
+    });
+    parser.visit(ast, {
+      FunctionDefinition(node) {
+        var _a;
+        const fnName = node.name;
+        if (!fnName) return;
+        for (const m of node.modifiers || []) {
+          if (m.name === "onlyRole" || m.name === "onlyRoleOrOpenRole") {
+            const arg = (_a = m.arguments) == null ? void 0 : _a[0];
+            const rawRole = (arg == null ? void 0 : arg.name) || (arg == null ? void 0 : arg.value);
+            if (rawRole) {
+              const resolvedRole = roleMap.get(String(rawRole).toLowerCase()) || roleMap.get(String(rawRole)) || String(rawRole);
+              gates.push({ fn: fnName, gatedBy: resolvedRole });
+            }
+          }
+        }
+        if (node.body) {
+          parser.visit(node.body, {
+            FunctionCall(callNode) {
+              var _a2, _b;
+              const callName = (_a2 = callNode.expression) == null ? void 0 : _a2.name;
+              if (callName === "_checkRole" || callName === "hasRole") {
+                const arg = (_b = callNode.arguments) == null ? void 0 : _b[0];
+                const rawRole = (arg == null ? void 0 : arg.name) || (arg == null ? void 0 : arg.value);
+                if (rawRole) {
+                  const resolvedRole = roleMap.get(String(rawRole).toLowerCase()) || roleMap.get(String(rawRole)) || String(rawRole);
+                  if (!gates.some((g) => g.fn === fnName && g.gatedBy === resolvedRole)) {
+                    gates.push({ fn: fnName, gatedBy: resolvedRole });
+                  }
+                }
+              }
+            }
+          });
+        }
+      }
+    });
+    if (gates.length > 0 || roleMap.size > KNOWN_ROLE_NAMES.length * 2) {
+      return { roleMap, gates, method: "ast_parser" };
+    }
+  } catch {
+  }
+  const fallbackGates = [];
   const roleDefRegex = /bytes32\s+(?:public|private|internal)?\s*(?:constant)?\s*([a-zA-Z0-9_]+)\s*=\s*(?:keccak256\s*\(\s*["']([a-zA-Z0-9_]+)["']\s*\)|(0x[a-fA-F0-9]{64}))/g;
   let match;
   while ((match = roleDefRegex.exec(sourceCode)) !== null) {
@@ -380,7 +449,6 @@ function parseSolidityRoleCapabilities(sourceCode) {
       roleMap.set(hexLiteral.toLowerCase(), standardName);
     }
   }
-  const gates = [];
   const fnRegex = /function\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)\s*([^{;]*)(?:\{|;)/g;
   while ((match = fnRegex.exec(sourceCode)) !== null) {
     const fnName = match[1];
@@ -393,7 +461,7 @@ function parseSolidityRoleCapabilities(sourceCode) {
     if (modifierMatch == null ? void 0 : modifierMatch[1]) {
       const rawRole = modifierMatch[1];
       const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
-      gates.push({ fn: fnName, gatedBy: resolvedRole });
+      fallbackGates.push({ fn: fnName, gatedBy: resolvedRole });
       continue;
     }
     const bodyCheckMatch = bodySnippet.match(
@@ -402,10 +470,10 @@ function parseSolidityRoleCapabilities(sourceCode) {
     if (bodyCheckMatch == null ? void 0 : bodyCheckMatch[1]) {
       const rawRole = bodyCheckMatch[1];
       const resolvedRole = roleMap.get(rawRole.toLowerCase()) || roleMap.get(rawRole) || rawRole;
-      gates.push({ fn: fnName, gatedBy: resolvedRole });
+      fallbackGates.push({ fn: fnName, gatedBy: resolvedRole });
     }
   }
-  return { roleMap, gates };
+  return { roleMap, gates: fallbackGates, method: "pattern_inspection" };
 }
 function formatRoleCapabilitySummary(roleName, targetName, gates) {
   const matchingGates = gates.filter(
