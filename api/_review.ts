@@ -9,7 +9,7 @@ import { isSupportedNetwork } from '../server/chain/networks';
 import { extractClaimsWithServ, evaluateClaimsLedger } from '../server/analysis/check-consistency';
 import { isAddress } from 'viem';
 
-async function executeWithRetry(
+export async function executeWithRetry(
   providerFn: () => Promise<ProviderReview>,
   providerName: string
 ): Promise<ProviderReview> {

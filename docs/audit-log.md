@@ -652,6 +652,51 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Test Suite (`pnpm test`):** 22 test files passed, 187 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
 
+---
+
+## Second-Pass Task 4: Classified Provider Retries with Backoff
+
+- **Status:** PASS
+- **Date:** 2026-11-11
+- **Focus:** Refactor provider failure handling to classify all error types, enforce a strict retry policy (rate limits, timeouts, and upstream server errors get exactly 1 retry with jittered backoff; auth errors, prompt guards, and invalid schemas never retry), record attempt counts and error classes, and size timeouts to fit within Vercel's serverless budget.
+
+### 1. Root Cause & Provider Resilience Findings
+- **Finding D:** `runWithOneRetry` in `api/_review.ts` previously only caught uncaught exceptions, but `serv.ts` and `dolphin.ts` internally caught errors and returned `{ status: 'error' }` or fallback objects, preventing retries from executing.
+- **Timeout Budget:** `serv.ts` was set to a 30s timeout and `dolphin.ts` to 40s. Two retry attempts could take 60-80s, exceeding Vercel's 60s max lambda duration.
+- **Granular Classification:** Errors were not differentiating between unrecoverable auth/guard/schema errors and transient network/rate-limit errors.
+
+### 2. Implementation & Retry Architecture
+- **Error Classification (`server/providers/openai-compatible.ts`):**
+  - Updated `classifyProviderError` to inspect HTTP status codes and error messages into exact typed categories:
+    - `auth_error` (HTTP 401, 402, 403, "unauthorized", "forbidden", "access denied", "insufficient credits"): `retryable: false`.
+    - `guard_blocked` (prompt injection guards, safety filters): `retryable: false`.
+    - `schema_invalid` (unparseable JSON, missing required structure): `retryable: false`.
+    - `rate_limited` (HTTP 429): `retryable: true`.
+    - `timed_out` (AbortError, request timeouts): `retryable: true`.
+    - `upstream_error` (HTTP 5xx, network failures): `retryable: true`.
+- **Classified Retry Loop (`executeWithRetry` in `api/_review.ts`):**
+  - Inspects both returned provider status and thrown exceptions.
+  - Non-retryable errors (`auth_error`, `guard_blocked`, `schema_invalid`, `not_configured`) terminate immediately on attempt 1 without redundant attempts.
+  - Retryable errors (`rate_limited`, `timed_out`, `upstream_error`) trigger exactly ONE retry after a 150-350ms jittered backoff.
+  - Every provider review records `attempts: 1 | 2` and `errorClass`.
+- **Serverless Timeout Sizing:**
+  - Reduced per-attempt timeout in `serv.ts` to 15,000ms and in `dolphin.ts` to 15,000ms.
+  - Maximum duration for two attempts (15s + 0.35s + 15s = ~30.5s) fits comfortably inside Vercel's 60s lambda ceiling.
+
+### 3. Verification Evidence
+- **New Unit Test Suite (`tests/unit/provider-retry-and-backoff.test.ts`):** 6/6 tests PASS:
+  1. HTTP 429 rate limit retried once then succeeds on attempt 2 (`attempts: 2`, `status: 'ok'`).
+  2. HTTP 401 auth error fails immediately on attempt 1 (`attempts: 1`, `status: 'auth_error'`, `retryable: false`).
+  3. HTTP 403 access denied fails immediately on attempt 1 (`attempts: 1`, `status: 'auth_error'`).
+  4. HTTP 500 upstream server error retries once and reports typed failure after 2 attempts (`attempts: 2`, `status: 'upstream_error'`).
+  5. AbortError / network timeout retries once and reports `timed_out` after 2 attempts (`attempts: 2`).
+  6. Unparseable JSON schema invalid fails immediately on attempt 1 (`attempts: 1`, `status: 'schema_invalid'`).
+- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
+- **README Consistency Check (`pnpm check:readme`):** Passed.
+- **Full Test Suite (`pnpm test`):** 23 test files passed, 193 tests passed, 0 failures.
+- **Production Build (`pnpm build`):** Clean compilation of client assets and all three serverless API lambdas.
+
+
 
 
 

@@ -86,8 +86,8 @@ export async function callOpenAiCompatible(
         // ignore json parse error on error response
       }
 
-      if (res.status === 401) {
-        throw new Error(`Authentication failed (401): ${errMsg}`);
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Authentication failed or access denied (${res.status}): ${errMsg}`);
       }
       if (res.status === 402) {
         throw new Error(`Payment required / insufficient credits (402): ${errMsg}`);
@@ -183,6 +183,10 @@ export function classifyProviderError(err: unknown): {
   if (
     lower.includes('401') ||
     lower.includes('402') ||
+    lower.includes('403') ||
+    lower.includes('unauthorized') ||
+    lower.includes('forbidden') ||
+    lower.includes('access denied') ||
     lower.includes('authentication failed') ||
     lower.includes('payment required') ||
     lower.includes('insufficient credits')
@@ -190,7 +194,7 @@ export function classifyProviderError(err: unknown): {
     return {
       status: 'auth_error',
       errorClass: 'auth_error',
-      reason: 'Authentication failed or insufficient credits (HTTP 401/402).',
+      reason: 'Authentication failed or insufficient credits (HTTP 401/402/403).',
       retryable: false,
     };
   }

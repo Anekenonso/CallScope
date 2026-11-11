@@ -109,7 +109,7 @@ Output JSON response:`;
       systemPrompt,
       userPrompt,
       maxTokens: 1000,
-      timeoutMs: 30_000,
+      timeoutMs: 15_000,
     });
 
     const parsed = extractStructuredJson<Record<string, unknown>>(rawOutput);

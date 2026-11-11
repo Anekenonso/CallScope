@@ -124,8 +124,8 @@ async function callOpenAiCompatible(options) {
         }
       } catch {
       }
-      if (res.status === 401) {
-        throw new Error(`Authentication failed (401): ${errMsg}`);
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Authentication failed or access denied (${res.status}): ${errMsg}`);
       }
       if (res.status === 402) {
         throw new Error(`Payment required / insufficient credits (402): ${errMsg}`);
@@ -191,11 +191,11 @@ function classifyProviderError(err) {
       retryable: false
     };
   }
-  if (lower.includes("401") || lower.includes("402") || lower.includes("authentication failed") || lower.includes("payment required") || lower.includes("insufficient credits")) {
+  if (lower.includes("401") || lower.includes("402") || lower.includes("403") || lower.includes("unauthorized") || lower.includes("forbidden") || lower.includes("access denied") || lower.includes("authentication failed") || lower.includes("payment required") || lower.includes("insufficient credits")) {
     return {
       status: "auth_error",
       errorClass: "auth_error",
-      reason: "Authentication failed or insufficient credits (HTTP 401/402).",
+      reason: "Authentication failed or insufficient credits (HTTP 401/402/403).",
       retryable: false
     };
   }
@@ -401,7 +401,7 @@ Output JSON response:`;
       systemPrompt,
       userPrompt,
       maxTokens: 1e3,
-      timeoutMs: 3e4
+      timeoutMs: 15e3
     });
     const parsed = extractStructuredJson(rawOutput);
     const rawList = Array.isArray(parsed == null ? void 0 : parsed.items) ? parsed.items : Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
@@ -516,7 +516,7 @@ Output JSON response:`;
       systemPrompt,
       userPrompt,
       maxTokens: 2500,
-      timeoutMs: 4e4
+      timeoutMs: 15e3
     });
     const parsed = extractStructuredJson(rawOutput);
     const rawList = Array.isArray(parsed == null ? void 0 : parsed.items) ? parsed.items : Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
@@ -3786,5 +3786,6 @@ async function handler(req, res) {
 const POST = handler;
 export {
   POST,
-  handler as default
+  handler as default,
+  executeWithRetry
 };
