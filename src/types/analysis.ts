@@ -82,6 +82,24 @@ export interface EvidenceItem {
   description?: string;
 }
 
+export type AnalysisStage =
+  | 'input_validation'
+  | 'network_verification'
+  | 'governor_validation'
+  | 'event_lookup'
+  | 'action_decoding'
+  | 'role_resolution'
+  | 'consistency_check'
+  | 'assessment'
+  | 'sponsor_review';
+
+export interface StageTaggedError {
+  stage: AnalysisStage;
+  via?: 'blockscout' | 'rpc';
+  reason?: 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found' | 'network_error' | 'validation_error' | 'execution_error';
+  detail?: string;
+}
+
 export interface AnalysisRequest {
   network: SupportedNetwork;
   governorAddress: string;
@@ -108,5 +126,6 @@ export interface ApiErrorResponse {
   error: string;
   code?: string;
   details?: string;
+  stageTagged?: StageTaggedError;
 }
 

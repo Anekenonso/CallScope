@@ -498,6 +498,26 @@ async function fetchProposalEventFromRpc(
   return matchingEvent;
 }
 
+export class ProposalEventLookupError extends Error {
+  readonly stage = 'event_lookup' as const;
+  readonly via: 'blockscout' | 'rpc';
+  readonly reason: 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found';
+  readonly detail: string;
+
+  constructor(options: {
+    message: string;
+    via: 'blockscout' | 'rpc';
+    reason: 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found';
+    detail: string;
+  }) {
+    super(options.message);
+    this.name = 'ProposalEventLookupError';
+    this.via = options.via;
+    this.reason = options.reason;
+    this.detail = options.detail;
+  }
+}
+
 export async function retrieveProposalCreatedEvent(
   client: PublicClient<any, any>,
   network: SupportedNetwork,
@@ -506,15 +526,29 @@ export async function retrieveProposalCreatedEvent(
 ): Promise<DecodedProposalEvent> {
   const cleanId = proposalId.trim();
 
+  let blockscoutDiag = { attempted: false, reason: 'not_found' as 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found', detail: '' };
+  let rpcDiag = { attempted: false, reason: 'not_found' as 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found', detail: '' };
+
   // 1. Try Blockscout explorer logs with pagination
   let matchingEvent: DecodedProposalEvent | null = null;
   try {
+    blockscoutDiag.attempted = true;
     matchingEvent = await fetchProposalEventFromBlockscout(network, governorAddress, cleanId);
   } catch (err: unknown) {
     if (err instanceof Error && err.message.startsWith('Ambiguous event')) {
       throw err;
     }
-    // Fall back to RPC without reporting missing
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('timeout') || msg.includes('aborted')) {
+      blockscoutDiag.reason = 'timeout';
+      blockscoutDiag.detail = 'Blockscout request timed out';
+    } else if (msg.includes('429')) {
+      blockscoutDiag.reason = 'rate_limited';
+      blockscoutDiag.detail = 'Blockscout rate limit exceeded';
+    } else {
+      blockscoutDiag.reason = 'not_found';
+      blockscoutDiag.detail = msg;
+    }
   }
 
   if (matchingEvent) {
@@ -523,10 +557,25 @@ export async function retrieveProposalCreatedEvent(
 
   // 2. Fallback to RPC logs with adaptive range scanning and on-chain snapshot targeting
   try {
+    rpcDiag.attempted = true;
     matchingEvent = await fetchProposalEventFromRpc(client, network, governorAddress, cleanId);
   } catch (err: unknown) {
     if (err instanceof Error && err.message.startsWith('Ambiguous event')) {
       throw err;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('timeout')) {
+      rpcDiag.reason = 'timeout';
+      rpcDiag.detail = 'RPC log query timed out';
+    } else if (msg.includes('429') || msg.includes('limit reached')) {
+      rpcDiag.reason = 'rate_limited';
+      rpcDiag.detail = 'RPC rate limit reached';
+    } else if (msg.includes('range') || msg.includes('limit')) {
+      rpcDiag.reason = 'range_rejected';
+      rpcDiag.detail = 'RPC rejected block range query';
+    } else {
+      rpcDiag.reason = 'not_found';
+      rpcDiag.detail = msg;
     }
   }
 
@@ -534,9 +583,17 @@ export async function retrieveProposalCreatedEvent(
     return matchingEvent;
   }
 
-  throw new Error(
-    `ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`
-  );
+  // Determine primary failure reason
+  const primaryVia = rpcDiag.attempted ? 'rpc' : 'blockscout';
+  const primaryReason = rpcDiag.reason !== 'not_found' ? rpcDiag.reason : (blockscoutDiag.reason !== 'not_found' ? blockscoutDiag.reason : 'not_found');
+  const primaryDetail = rpcDiag.detail || blockscoutDiag.detail || `ProposalCreated event not found in searched block range on Governor ${governorAddress}`;
+
+  throw new ProposalEventLookupError({
+    message: `ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`,
+    via: primaryVia,
+    reason: primaryReason,
+    detail: primaryDetail,
+  });
 }
 
 export async function readGovernorProposalState(

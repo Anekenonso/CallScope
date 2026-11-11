@@ -1,5 +1,5 @@
 import React, { useState, Component, type ErrorInfo, type ReactNode } from 'react';
-import type { AnalysisRequest, AnalysisResponse } from '../types/analysis';
+import type { AnalysisRequest, AnalysisResponse, StageTaggedError } from '../types/analysis';
 import { Header } from '../components/Header';
 import { AnalysisForm } from '../components/AnalysisForm';
 import { AssessmentBanner } from '../components/AssessmentBanner';
@@ -10,7 +10,7 @@ import { ConsistencyView } from '../components/ConsistencyView';
 import { ProviderReviews } from '../components/ProviderReviews';
 import { EvidenceLinks } from '../components/EvidenceLinks';
 import { AnalysisProgress } from '../components/AnalysisProgress';
-import { analyseProposal } from '../lib/api-client';
+import { analyseProposal, ApiError } from '../lib/api-client';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -62,9 +62,14 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
+export interface AppErrorState {
+  message: string;
+  stageTagged?: StageTaggedError;
+}
+
 export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppErrorState | null>(null);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [activeRequest, setActiveRequest] = useState<AnalysisRequest | null>(null);
 
@@ -78,8 +83,15 @@ export const App: React.FC = () => {
       const data = await analyseProposal(request);
       setResult(data);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
-      setError(msg);
+      if (err instanceof ApiError) {
+        setError({
+          message: err.message,
+          stageTagged: err.stageTagged,
+        });
+      } else {
+        const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
+        setError({ message: msg });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -97,10 +109,37 @@ export const App: React.FC = () => {
           <AnalysisForm onAnalyse={handleAnalyse} isLoading={isLoading} />
 
           {error && (
-            <div className="error-banner" role="alert">
+            <div className="error-banner" role="alert" data-testid="error-banner">
               <div className="error-banner-content">
-                <span className="error-title">Analysis failed</span>
-                <span>{error}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span className="error-title">Analysis failed</span>
+                  {error.stageTagged && (
+                    <span
+                      className="error-stage-badge"
+                      data-testid="error-stage-tag"
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        color: '#f87171',
+                        fontFamily: 'monospace',
+                        textTransform: 'uppercase',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Stage: {error.stageTagged.stage}
+                      {error.stageTagged.via ? ` (${error.stageTagged.via})` : ''}
+                    </span>
+                  )}
+                </div>
+                <span>{error.message}</span>
+                {error.stageTagged?.reason && (
+                  <span style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginTop: '4px' }}>
+                    Reason: {error.stageTagged.reason}
+                    {error.stageTagged.detail && error.stageTagged.detail !== error.message ? ` — ${error.stageTagged.detail}` : ''}
+                  </span>
+                )}
               </div>
             </div>
           )}

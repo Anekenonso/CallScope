@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
-import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview } from '../src/types/analysis';
+import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview, StageTaggedError } from '../src/types/analysis';
 import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
-import { retrieveProposalCreatedEvent, readGovernorProposalState } from '../server/chain/proposal-events';
+import { retrieveProposalCreatedEvent, readGovernorProposalState, ProposalEventLookupError } from '../server/chain/proposal-events';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
 import { detectFindings } from '../server/analysis/detect-findings';
 import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
@@ -196,6 +196,46 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   };
 }
 
+export function extractStageTaggedError(err: unknown): StageTaggedError {
+  if (err instanceof ProposalEventLookupError) {
+    return {
+      stage: err.stage,
+      via: err.via,
+      reason: err.reason,
+      detail: err.detail,
+    };
+  }
+  if (err instanceof ValidationError) {
+    return {
+      stage: 'input_validation',
+      reason: 'validation_error',
+      detail: err.message,
+    };
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('network') || msg.includes('chain')) {
+    return {
+      stage: 'network_verification',
+      via: 'rpc',
+      reason: 'network_error',
+      detail: sanitizePublicErrorMessage(msg),
+    };
+  }
+  if (msg.includes('Governor') || msg.includes('contract')) {
+    return {
+      stage: 'governor_validation',
+      via: 'rpc',
+      reason: 'not_found',
+      detail: sanitizePublicErrorMessage(msg),
+    };
+  }
+  return {
+    stage: 'event_lookup',
+    reason: 'not_found',
+    detail: sanitizePublicErrorMessage(msg),
+  };
+}
+
 async function handleWebRequest(request: Request): Promise<Response> {
   // Enforce POST
   if (request.method !== 'POST') {
@@ -276,12 +316,14 @@ async function handleWebRequest(request: Request): Promise<Response> {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err: unknown) {
+    const stageTagged = extractStageTaggedError(err);
     if (err instanceof ValidationError) {
       const errorTitle = err.message.split(':')[0] || 'Bad Request';
       return new Response(
         JSON.stringify({
           error: errorTitle,
           details: err.message,
+          stageTagged,
         } satisfies ApiErrorResponse),
         {
           status: 400,
@@ -294,6 +336,7 @@ async function handleWebRequest(request: Request): Promise<Response> {
       JSON.stringify({
         error: 'Analysis Error',
         details: sanitizePublicErrorMessage(rawMessage),
+        stageTagged,
       } satisfies ApiErrorResponse),
       {
         status: 500,
@@ -341,17 +384,20 @@ async function handleNodeReqRes(req: VercelRequest, res: VercelResponse) {
     const response = await executeAnalysis(body as AnalysisRequest);
     return res.status(200).json(response);
   } catch (err: unknown) {
+    const stageTagged = extractStageTaggedError(err);
     if (err instanceof ValidationError) {
       const errorTitle = err.message.split(':')[0] || 'Bad Request';
       return res.status(400).json({
         error: errorTitle,
         details: err.message,
+        stageTagged,
       } satisfies ApiErrorResponse);
     }
     const rawMessage = err instanceof Error ? err.message : 'Internal Server Error';
     return res.status(500).json({
       error: 'Analysis Error',
       details: sanitizePublicErrorMessage(rawMessage),
+      stageTagged,
     } satisfies ApiErrorResponse);
   }
 }
