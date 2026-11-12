@@ -822,33 +822,6 @@ Our investigation uncovered a compound failure across three distinct layers:
 
 ---
 
-## Second-Pass Task 9: Solidity AST Parser for Function Role Gates
-
-- **Status:** PASS
-- **Date:** 2026-11-11
-- **Focus:** Upgrade Solidity contract source inspection from fixed-window regex heuristic to a robust, true AST parser using `@solidity-parser/parser`, resolving state variable role definitions, function modifier gates (`onlyRole`, `onlyRoleOrOpenRole`), and inline body role checks (`_checkRole`, `hasRole`), with graceful pattern-inspection fallback.
-
-### 1. Root Cause & Architecture
-- **Finding G Remediation:** The legacy capability resolution used regex over source code with a fixed 500-character window while being described in documentation as AST parsing.
-- **AST Implementation (`server/analysis/role-capabilities.ts`):**
-  - Integrated `@solidity-parser/parser` to parse Solidity source code into an Abstract Syntax Tree with tolerant parsing.
-  - Implemented dual-pass AST traversal:
-    - **Pass 1 (`StateVariableDeclaration`):** Extracts role constant identifiers, keccak256 string hashes (e.g. `keccak256("PROPOSER_ROLE")`), and raw hex literals (e.g. `0xb09aa...`).
-    - **Pass 2 (`FunctionDefinition`):** Traverses function modifiers (`onlyRole(ROLE)`, `onlyRoleOrOpenRole(ROLE)`) and function body statements (`_checkRole(ROLE)`, `hasRole(ROLE)`), mapping function access gates to standard role names.
-  - **Tolerant Fallback:** In the event of incomplete contract fragments or unparseable syntax, falls back gracefully to regex pattern inspection, recording the parsing method accurately (`ast_parser` vs `pattern_inspection`).
-
-### 2. Verification Evidence
-- **Unit Tests (`tests/unit/role-capabilities.test.ts`):** 9/9 passed.
-  - Verified `parseSolidityRoleCapabilities` uses `ast_parser` on complete Solidity contracts.
-  - Verified graceful fallback to `pattern_inspection` on unparseable snippet syntax.
-  - Verified resolution of `schedule` and `cancel` for OZ Timelock variants.
-- **TypeScript Typecheck (`pnpm typecheck`):** Exited with code 0.
-- **README Consistency Check (`pnpm check:readme`):** Passed.
-- **Full Test Suite (`pnpm vitest run tests/unit/`):** 26 test files passed, 223 tests passed, 0 failures.
-- **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
-
----
-
 ## Second-Pass Task 8: Honest Benchmark Suites (Simulated vs Live)
 
 - **Status:** PASS
@@ -906,6 +879,50 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **README Consistency Check (`pnpm check:readme`):** Passed.
 - **Full Test Suite (`pnpm vitest run tests/unit/`):** 26 test files passed, 223 tests passed, 0 failures.
 - **Production Build (`pnpm build`):** Clean compilation of client bundle and all three serverless API lambdas.
+
+---
+
+## Second-Pass Task 10: README, Demo Script & 10-Minute Judge Copy Audit Gate
+
+- **Status:** PASS
+- **Date:** 2026-11-12
+- **Focus:** Finalize `README.md`, `docs/demo-script.md`, and conduct a comprehensive 10-minute judge copy audit across all UI components, API endpoints, docs, and tests.
+
+### 1. Final Documentation Updates
+- **README (`README.md`):**
+  - Updated with official tagline: *"Deterministic DAO proposal calldata intelligence with advisory multi-agent review."*
+  - Added live production link: `https://callscope.vercel.app`.
+  - Pinned Examples table lists all four fixtures with verified governor addresses, proposal IDs, and expected outcomes across all three states (`review_recommended`, `no_significant_issue_detected`, `analysis_incomplete`).
+  - Verified-vs-Advisory boundary table explicitly contrasts authoritative on-chain EVM facts from non-authoritative AI advisory claims.
+  - Updated Mermaid architectural diagram displaying `/api/analyse` (Phase 1), `/api/review` (Phase 2), `/api/health`, OpenServ tool-grounded investigator, and Dolphin adversarial scenarios + rebuttal loop.
+  - Detailed sponsor integrations with native OpenServ parameters (`serv_prompt_guard`, `serv_shadow_agent`, `reasoning_effort: low`) and Dolphin Lighthouse (`deepseek-ai/DeepSeek-V4.1-Flash`).
+  - Documented known limitations honestly (static vs trace simulation, non-standard governors, opaque multi-sig wrappers).
+  - Updated automated offline test count claim to 220+ tests across 26 test suites.
+- **Demo Script (`docs/demo-script.md`):**
+  - Storyboard updated to match exact deployed application behavior.
+  - Accurate coverage of the three outcomes, Solidity AST capability decompilation, Claims Ledger contradiction detection, OpenServ tool evidence citations, Dolphin attack scenario generation with deterministic engine rebuttal, and tx-hash input mode.
+
+### 2. Comprehensive 10-Minute Judge Copy & Code Audit Results
+
+| Audit Criteria | Finding & Verification Status | Verified Evidence |
+| :--- | :--- | :--- |
+| **1. Deterministic Engine Authority** | **VERIFIED.** Engine alone sets assessment outcomes, findings, and severities. Sponsor output cannot alter outcomes. | `tests/unit/decoupled-baseline-consistency.test.ts` proves 100% baseline outcome invariance across all sponsor states (enabled, disabled, error, timeout). |
+| **2. No Overclaiming ("Verified Clean")** | **VERIFIED.** Eradicated "Verified Clean" from `AssessmentBanner`. Replaced with honest "No significant issue detected". | Codebase search confirms 0 occurrences in output components. `tests/unit/ui-components.test.tsx` enforces absence. |
+| **3. Honest Synthetic Fixture Labels** | **VERIFIED.** Synthetic fixtures display `[SYNTHETIC]` status banner and neutral text `Synthetic fixture · no on-chain transaction` without broken explorer links. | `ProposalDetails.tsx` renders neutral indicator; `tests/unit/ui-components.test.tsx` verifies link suppression. |
+| **4. Honest Model Attribution** | **VERIFIED.** Dolphin is explicitly attributed to `deepseek-ai/DeepSeek-V4.1-Flash` on Dolphin Lighthouse in UI and documentation. | `ProviderReviews.tsx` displays `Dolphin Lighthouse · deepseek-ai/DeepSeek-V4.1-Flash`. `docs/sponsor-notes.md` details infrastructure. |
+| **5. Honest Benchmark Mode** | **VERIFIED.** Dual-mode benchmark suite (`pnpm compare:sponsors:sim` vs `pnpm compare:sponsors:live`). Removed artificial latency floors (`Math.max(..., 28)`). | `scripts/compare-sponsors.ts` carries zero floors; `docs/sponsor-impact.md` features prominent `[SIMULATED BENCHMARK]` banner. |
+| **6. Exact Claims Ledger Comparators** | **VERIFIED.** Lossless integer `parseUnitsExact`, symbol-bound token matching, strict ABI recipient parameter semantics (`transfer` to `to`, `transferFrom` to `to` ignoring `from`, native value to `target`, `grantRole` to `account`), dynamic keccak256 role hashing, and role capabilities gated on source. | `tests/unit/claims-ledger.test.ts` (15/15 tests passing across all edge cases). |
+| **7. Classified Retries & Backoff** | **VERIFIED.** Exactly 1 retry with jittered backoff (150-350ms) for rate limits, timeouts, and 5xx errors; immediate failure without retry for 401/402/403, prompt guards, and invalid schemas. | `tests/unit/provider-retry-and-backoff.test.ts` (6/6 tests passing). |
+| **8. OpenServ Native Investigator** | **VERIFIED.** Native parameters declared in system prompts (`serv_prompt_guard`, `serv_shadow_agent`, `reasoning_effort: low`); 5 application tools; mandatory tool-call evidence citation gate (uncited items dropped). | `tests/unit/serv-investigator.test.ts` (12/12 tests passing). |
+| **9. Dolphin Attack Scenarios & Rebuttal** | **VERIFIED.** Generates <= 3 attack scenarios; evaluated through deterministic engine rebuttal loop (`refuted_by_data`, `not_refuted`, `needs_human`). Tri-reviewer agreement strip compares Engine, SERV, and Dolphin. | `tests/unit/dolphin-scenarios.test.ts` (11/11 tests passing). |
+| **10. Solidity AST Parsing** | **VERIFIED.** Uses `@solidity-parser/parser` over contract source to extract role definitions, modifier gates, and function body checks. Graceful pattern inspection fallback. | `tests/unit/role-capabilities.test.ts` (9/9 tests passing). |
+| **11. Secret Bundle Isolation** | **VERIFIED.** All sponsor keys and RPC credentials exist strictly server-side. Zero secret leakage into client bundle. | Secret audit test in `tests/unit/real-render.test.tsx` and Vite client bundle audit pass. |
+
+### 3. Final Automated Quality Gate Verification
+- **README Consistency Check (`pnpm check:readme`):** PASSED.
+- **TypeScript Typecheck (`pnpm typecheck`):** PASSED with 0 errors.
+- **Full Unit Test Suite (`pnpm test`):** PASSED 26/26 test suites (223 tests passing offline, 0 failures).
+- **Client & Serverless Bundle Build (`pnpm build`):** PASSED. Client bundle and prebundled SSR serverless lambdas (`api/analyse.js`, `api/review.js`, `api/health.js`) compiled cleanly.
 
 
 
