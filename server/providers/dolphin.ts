@@ -156,7 +156,7 @@ export function evaluateScenarioRebuttal(
         };
       }
 
-      // Check: Role capabilities
+      // Check: Role capabilities & specific scenario kinds
       if (act.roleCapability && act.roleCapability.status === 'resolved') {
         const canSchedule = act.roleCapability.capabilities?.some((c) =>
           c.fn.toLowerCase().includes('schedule')
@@ -165,6 +165,53 @@ export function evaluateScenarioRebuttal(
           act.roleCapability.capabilities?.length === 1 &&
           act.roleCapability.capabilities[0].fn.toLowerCase().includes('cancel');
 
+        // Check A: Self-escalation / Role Admin Power
+        if (
+          descLower.includes('escalat') ||
+          descLower.includes('grant other role') ||
+          descLower.includes('grant roles') ||
+          descLower.includes('takeover') ||
+          descLower.includes('admin role')
+        ) {
+          const roleArg = act.args?.find((a) => a.name === 'role')?.value || '';
+          const isAdmin =
+            roleArg.includes('0000000000000000000000000000000000000000000000000000000000000000') ||
+            (act.roleCapability.summary || '').toLowerCase().includes('admin');
+
+          if (!isAdmin) {
+            return {
+              id,
+              title,
+              preconditions,
+              steps,
+              impact,
+              severityHint,
+              rebuttalStatus: 'refuted_by_data',
+              refutedBy: `Refuted by engine: Action #${step.actionRef} does not grant an admin role (DEFAULT_ADMIN_ROLE or TIMELOCK_ADMIN_ROLE). The grantee lacks permission to grant, revoke, or reconfigure roles.`,
+            };
+          }
+        }
+
+        // Check B: Expiry / Term Permanence
+        if (
+          descLower.includes('expir') ||
+          descLower.includes('permanen') ||
+          descLower.includes('term') ||
+          descLower.includes('perpetual')
+        ) {
+          return {
+            id,
+            title,
+            preconditions,
+            steps,
+            impact,
+            severityHint,
+            rebuttalStatus: 'needs_human',
+            refutedBy: `Needs human delegate review: Action #${step.actionRef} executes a standard grantRole call without an EVM-enforced deadline parameter; enforcement of stated term depends on contract expiration logic or subsequent DAO revocation.`,
+          };
+        }
+
+        // Check C: Schedule / Privilege Execution
         if (onlyCancel && (descLower.includes('schedule') || descLower.includes('execute arbitrary'))) {
           return {
             id,
@@ -178,7 +225,7 @@ export function evaluateScenarioRebuttal(
           };
         }
 
-        if (canSchedule && descLower.includes('schedule')) {
+        if (canSchedule && (descLower.includes('schedule') || descLower.includes('queue') || descLower.includes('propose'))) {
           return {
             id,
             title,
@@ -192,7 +239,7 @@ export function evaluateScenarioRebuttal(
         }
       }
 
-      // Check: Recipient profile
+      // Check: Recipient profile ("source verified" must never mean refuted_by_data)
       if (act.recipientProfile?.isVerified && descLower.includes('unverified bytecode')) {
         return {
           id,
@@ -201,8 +248,8 @@ export function evaluateScenarioRebuttal(
           steps,
           impact,
           severityHint,
-          rebuttalStatus: 'refuted_by_data',
-          refutedBy: `Refuted by engine: Recipient contract source code is verified on the public block explorer.`,
+          rebuttalStatus: 'needs_human',
+          refutedBy: `Needs human delegate review: Recipient contract source code is verified on the block explorer, but verified source alone does not guarantee absence of governance or economic risk.`,
         };
       }
     }

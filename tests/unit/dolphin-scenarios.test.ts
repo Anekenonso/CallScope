@@ -164,6 +164,68 @@ describe('Task 7: Dolphin Adversarial Attack Scenarios & Engine Rebuttal Loop', 
       expect(result.rebuttalStatus).toBe('needs_human');
       expect(result.refutedBy).toContain('relies on off-chain governance assumptions');
     });
+
+    it('produces distinct, scenario-specific evidence across 3 distinct scenario kinds (Step 4.3)', () => {
+      const scenarioPrivilege: Partial<AttackScenario> = {
+        id: 'sc-privilege',
+        title: 'Privilege Abuse: Queue Arbitrary Proposal',
+        steps: [{ actionRef: 0, description: 'Invoke schedule() on Timelock' }],
+        impact: 'Queues unauthorized transaction',
+      };
+
+      const scenarioEscalation: Partial<AttackScenario> = {
+        id: 'sc-escalation',
+        title: 'Self-Escalation: Grant Other Roles to Attacker',
+        steps: [{ actionRef: 0, description: 'Attempt to grant admin roles or escalate privileges' }],
+        impact: 'Takeover of Timelock administration',
+      };
+
+      const scenarioExpiry: Partial<AttackScenario> = {
+        id: 'sc-expiry',
+        title: 'Tenure Permanence: Bypassing 2-Year Expiration Term',
+        steps: [{ actionRef: 0, description: 'Remain in power perpetually after expiration date' }],
+        impact: 'Perpetual role tenure without term limits',
+      };
+
+      const resPrivilege = evaluateScenarioRebuttal(scenarioPrivilege, mockActions, []);
+      const resEscalation = evaluateScenarioRebuttal(scenarioEscalation, mockActions, []);
+      const resExpiry = evaluateScenarioRebuttal(scenarioExpiry, mockActions, []);
+
+      // Verify all 3 produce valid non-empty evidence
+      expect(resPrivilege.refutedBy).toBeTruthy();
+      expect(resEscalation.refutedBy).toBeTruthy();
+      expect(resExpiry.refutedBy).toBeTruthy();
+
+      // Regression test: fails if three distinct scenario kinds return identical evidence
+      expect(resPrivilege.refutedBy).not.toEqual(resEscalation.refutedBy);
+      expect(resPrivilege.refutedBy).not.toEqual(resExpiry.refutedBy);
+      expect(resEscalation.refutedBy).not.toEqual(resExpiry.refutedBy);
+
+      // Specific checks
+      expect(resPrivilege.rebuttalStatus).toBe('not_refuted');
+      expect(resPrivilege.refutedBy).toContain('schedule()');
+
+      expect(resEscalation.rebuttalStatus).toBe('refuted_by_data');
+      expect(resEscalation.refutedBy).toContain('does not grant an admin role');
+
+      expect(resExpiry.rebuttalStatus).toBe('needs_human');
+      expect(resExpiry.refutedBy).toContain('standard grantRole call without an EVM-enforced deadline');
+    });
+
+    it('ensures "source verified" never implies refuted_by_data (Step 4.3)', () => {
+      const scenario: Partial<AttackScenario> = {
+        id: 'sc-verified',
+        title: 'Unverified Bytecode Execution',
+        steps: [{ actionRef: 0, description: 'Target executes unverified bytecode on-chain' }],
+        impact: 'Opaque logic risk',
+      };
+
+      const result = evaluateScenarioRebuttal(scenario, mockActions, mockFindings);
+      // Must NOT be refuted_by_data simply because source is verified
+      expect(result.rebuttalStatus).not.toBe('refuted_by_data');
+      expect(result.rebuttalStatus).toBe('needs_human');
+      expect(result.refutedBy).toContain('verified source alone does not guarantee absence of governance or economic risk');
+    });
   });
 
   describe('Dolphin Review Provider Scenario Generation', () => {
