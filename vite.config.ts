@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   // Load environment variables into process.env for server-side API handler in dev
   const env = loadEnv(mode, process.cwd(), '');
   for (const key of Object.keys(env)) {
-    if (!process.env[key]) {
+    if (env[key]) {
       process.env[key] = env[key];
     }
   }
@@ -40,8 +40,16 @@ export default defineConfig(({ mode }) => {
               req.on('end', async () => {
                 try {
                   const { default: reviewHandler } = await import('./api/_review');
-                  (req as any).body = JSON.parse(body || '{}');
-                  await reviewHandler(req as any, res as any);
+                  const webReq = new Request('http://localhost:5173/api/review', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body || '{}',
+                  });
+                  const response = (await reviewHandler(webReq)) as Response;
+                  const responseText = await response.text();
+                  res.statusCode = response.status;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(responseText);
                 } catch (err: unknown) {
                   const message = err instanceof Error ? err.message : 'Internal Server Error';
                   res.statusCode = 400;
