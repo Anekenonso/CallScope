@@ -49,13 +49,27 @@ Append newest entries at the top.
 ### 2026-11-14 — Rollback to Original Plan: P0 Baseline Verification Complete
 - **Branch**: `rollback/plan-core` branched from `0ec13ed`.
 - **Complex build preservation**: Tag `callscope-complex-2026-11-14` created at `41de829` and pushed to remote `origin`.
-- **Spec files committed**: `ARCHITECTURE.md`, `DESIGN.md`, `PRD.md`, `RULES.md`, `TASKS.md`, `Agent.md`.
+- **Spec files committed**: `ARCHITECTURE.md`, `DESIGN.md`, `PRD.md`, `RULES.md`, `TASKS.md`, `Agent.md`, `README-HANDOVER.md`.
 - **Live tests isolated**: Moved live regression tests to `tests/live/regression-fixtures.test.ts`. Configured `test:live` in `package.json`.
-- **Baseline Verification Outputs**:
+- **Cherry-picked deployment commits**:
+  - `bc75d1e` (cherry-picked `768715e`): Web Standard Request/Response and Vercel function timeout.
+  - `284b161` (cherry-picked `cbc8984`): Remove forbidden memory config for hobby plan.
+  - `617e6f4` (cherry-picked `1b1163d`): Pre-bundle standalone `api/analyse.js` via `bundle-api.mjs`.
+  - `a3a81ac` (cherry-picked `1a36f55`): Add `api/analyse.d.ts` re-exporting declarations.
+  - `f5a352f` (cherry-picked `07d64f7`): Configure `maxDuration: 60` for `api/analyse.js`.
+  - `67195ac` (cherry-picked `363882b`): Consume GET export in unit tests to satisfy `noUnusedLocals`.
+  - `d70a4b3` (cherry-picked `292f290`): Bound DeepSeek reasoning tokens and add structured reasoning fallback.
+- **Diff review of 3b617cd ported by hand**:
+  - `server/analysis/detect-findings.ts`: Ported role semantics distinction between verified contract roles, standard OpenZeppelin role hashes (`recognized_standard_hash`), and unknown roles.
+  - `server/analysis/check-consistency.ts`: Ported `transferFrom` recipient extraction (`args[1]`), transfer amount comparisons, and returning `indeterminate` on vague or unverified claims.
+  - `api/_analyse.ts`: Ported public error message sanitization (`sanitizePublicErrorMessage`), 64KB body size limit, and 20s race timeout for sponsor reviews.
+  - `tests/unit/reliability-fixes.test.ts`: Added unit tests covering these ported fixes.
+- **Verification Outputs**:
   - `npm run typecheck` (`tsc --noEmit`): Exit code 0 (clean).
-  - `npm test` (`vitest run`): 14 test files passed (102 passed, 0 failed).
+  - `npm test` (`vitest run`): 15 test files passed (112 passed, 0 failed).
   - `npm run test:live` (`vitest run tests/live`): 1 test file passed (2 passed: ENS and Unlock live regressions).
-  - `npm run build` (`tsc && vite build`): Exit code 0 (dist/assets/index-*.js 163.32 kB).
+  - `npm run build` (`tsc && node bundle-api.mjs && vite build`): Exit code 0 (dist/assets/index-*.js 163.47 kB).
+
 
 
 ### 2026-11-14 — Protected Incremental Upgrade: Phase I Complete (Preview Deployment, Smoke Test & Gate)
