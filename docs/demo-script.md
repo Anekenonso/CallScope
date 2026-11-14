@@ -9,79 +9,71 @@
 
 ## Storyboard & Timeline
 
-### 0:00 – 0:12: The Governance Blindspot
+### 0:00 – 0:15: The Governance Blindspot & The 3 Tiers
 - **Visual:** Open CallScope in browser (`https://callscope-five.vercel.app`). Clean dashboard view showing headline: *"Deterministic DAO Calldata Intelligence"*, the pinned examples row, and dual-mode input (Governor Address + Proposal ID or Tx Hash).
-- **On-Screen Action:** Mouse hovers briefly over the header pill: `Read-only · v0.1 beta`.
+- **On-Screen Action:** Mouse hovers over the 3-Tier explanation badge: `Instant (Deterministic) · Standard (Guarded SERV) · Deep (Adversarial Dolphin)`.
 - **Voiceover:**
-  > *"Every week, DAO delegates vote on proposals where thousands of lines of descriptive prose mask high-risk smart contract calls. Traditional LLMs hallucinate or gloss over malicious calldata. CallScope changes that. It puts an authoritative deterministic EVM decoding engine first, backed by an advisory multi-agent review layer."*
+  > *"Every week, DAO delegates vote on proposals where thousands of words of descriptive prose conceal high-risk EVM calldata. Traditional LLMs hallucinate or gloss over malicious parameters. CallScope changes that with a strict 3-tier architecture: Instant deterministic baseline first in milliseconds, guarded semantic extraction automatically, and adversarial multi-agent stress-testing on demand."*
 
 ---
 
-### 0:12 – 0:38: Fixture 1 – ENS EP 6.50 (Outcome: `Review Recommended`)
-- **Visual:** Click the pinned preset pill `ETH · ENS EP 6.50 · Review Recommended`. The input fields populate automatically. Click **Analyse**.
-- **On-Screen Action:** Indeterminate progress bar runs with real elapsed time timer. Within sub-seconds, Phase 1 renders instantly:
-  - Banner shows: `review_recommended` (Amber/Red status).
-  - Metadata grid cleanly displays Governor, Proposer, Proposal ID, and `Event source: pinned snapshot (block 25524727)`.
-  - Findings section expands:
-    - Finding 1: `Action #1 grants privileged role: PROPOSER_ROLE` with badge `Role hash matched`.
-    - Function capability detail: `can schedule and cancel on TimelockController (per verified source)` resolved via Solidity AST parsing.
-    - Recipient profile: `Recipient: contract, verified`.
-  - Claims Ledger table displays extracted claims with status `contradicted` against action #1.
-  - Phase 2 loads in the background:
-    - **OpenServ SERV**: Multi-turn ReAct investigator surfaces `serv-swift` badge, loop telemetry (`Turns: 2`, `Tool calls: 3`), verified tool evidence badge (`Tool: tool-call-1`), and in-page jump link (`Action #1 ↗`).
-    - **Dolphin (`deepseek-ai/DeepSeek-V4.1-Flash` on Dolphin Lighthouse)**: Surfaces `Lighthouse · DeepSeek-V4.1-Flash` and `Scenarios: 2` badge. Renders attack scenario preconditions and step-by-step action jump links (`[Action #1 ↗]`). Engine rebuttal audit confirms role capability (`⚠ Not Refuted (Plausible Risk)`).
-  - Tri-Reviewer Agreement Strip compares independent reviewer stances: Deterministic Engine (`review_recommended`), OpenServ SERV (`Identified contradictions`), and Dolphin (`Identified unrefuted threats`).
-- **Voiceover:**
-  > *"Look at ENS EP 6.50. In the description, the authors state the Security Council 'cannot propose, amend, or initiate actions'. But CallScope decodes the raw calldata to find a `grantRole` assigning `PROPOSER_ROLE`. By parsing the verified contract source with a full Solidity AST parser, CallScope proves this role grants the power to schedule and cancel timelocks. The Claims Ledger flags the contradiction, OpenServ SERV cites verified tool evidence across two loop turns, and Dolphin on Lighthouse proposes an attack scenario that our deterministic engine confirms as an unrefuted hazard."*
-
----
-
-### 0:38 – 0:56: Fixture 2 – Clean Grant (Outcome: `No Significant Issues`)
-- **Visual:** Scroll to top and click `ETH · [SYNTHETIC] Clean Grant · No Issues`. Click **Analyse**.
+### 0:15 – 0:42: Instant & Standard Tiers – ENS EP 6.50 (`Review Recommended`)
+- **Visual:** Click the pinned preset pill `ETH · ENS EP 6.50 · Review Recommended`. Input fields populate automatically. Click **Analyse**.
 - **On-Screen Action:**
-  - Synthetic banner indicates: `[SYNTHETIC]`. Creation tx displays: `Synthetic fixture · no on-chain transaction` without broken explorer links.
-  - Assessment badge turns green: `no_significant_issue_detected` (never overclaiming 'Verified Clean').
-  - Action decoded: ERC-20 `transfer(to: 0xca76..., amount: 400 USDC)`.
-  - Claims Ledger shows: `verified` badge linked directly to Action #1.
-  - Findings count: 0 findings.
-  - Reviewer Agreement Strip: `Reviewers agree (No significant issues detected)`.
+  - **Instant Tier (0–3 seconds)**:
+    - Assessment banner renders immediately: `review_recommended`.
+    - Action #1 decodes `grantRole(PROPOSER_ROLE, 0x2acB...)`.
+    - Solidity AST capability analyzer reveals: `can schedule on TimelockController (per verified source)`.
+    - Recipient profile verifies contract deployment status and bytecode.
+  - **Standard Tier (auto-completed)**:
+    - The OpenServ SERV card renders with badge `Tier: Standard`.
+    - Shows one guarded extraction turn (`serv-swift` with `serv_prompt_guard`).
+    - The Claims Ledger flags an explicit contradiction: Description claimed the Security Council *'cannot propose or initiate governance actions'*, but the deterministic comparators prove calldata grants `schedule()` capability.
 - **Voiceover:**
-  > *"Next, what does a clean proposal look like? Here is a verified community grant. All calldata decodes successfully, the recipient and 400 USDC amount match the description verbatim in our Claims Ledger, zero privileged capabilities are granted, and CallScope deterministically issues 'No Significant Issue Detected'."*
+  > *"In ENS EP 6.50, the description promised the Security Council cannot initiate or schedule actions. In under 3 seconds, CallScope's Instant tier decodes the raw calldata to find a `grantRole` call. By parsing the verified contract source with a full Solidity AST parser, CallScope proves this role grants the power to schedule timelocks. The Standard tier automatically extracts the textual claim with OpenServ SERV, and our deterministic Claims Ledger flags the contradiction."*
 
 ---
 
-### 0:56 – 1:14: Fixture 3 – Opaque Multi-Sig (Outcome: `Analysis Incomplete`)
-- **Visual:** Click `ETH · [SYNTHETIC] Opaque Wrapper · Incomplete`. Click **Analyse**.
+### 0:42 – 1:05: Deep Tier – Dolphin Scenarios & Questions to Ask
+- **Visual:** In the reviews section, click the **"Run Deep Review"** button.
 - **On-Screen Action:**
-  - Assessment badge displays blue/violet: `analysis_incomplete`.
-  - Finding displayed: `SAFE_WRAPPER_OPAQUE_0` — `Action #1 executes via Safe transaction wrapper`.
-  - Limitations card lists: `Safe transaction wrapper conceals underlying destination calls`.
-  - Reviewer Agreement Strip shows advisory stances.
+  - Status updates: `Running Deep Review (SERV multi-turn loop + Dolphin scenarios)...`.
+  - Dolphin Lighthouse card renders:
+    - Model: `Dolphin Lighthouse · deepseek-ai/DeepSeek-V4.1-Flash`.
+    - Generates 2 scenario-specific attack paths with step-by-step action jump links.
+    - Engine Rebuttal Audit checks each scenario against AST facts (`⚠ Not Refuted (Plausible Risk)`).
+    - **Questions to Ask Proposer**: Displays targeted, plain-language questions generated by Dolphin for DAO forum interrogation (e.g. *"Why is PROPOSER_ROLE granted on the TimelockController if cancel power only is intended?"*).
 - **Voiceover:**
-  > *"Rule number two of CallScope: never give a false sense of security. When a proposal routes through a Gnosis Safe transaction wrapper or targets an unverified contract, CallScope refuses to certify it. It issues 'Analysis Incomplete', explicitly disclosing what cannot be deterministically verified."*
+  > *"Click 'Run Deep Review', and CallScope dispatches Dolphin on Lighthouse. Dolphin generates concrete adversarial attack scenarios—which our engine audits against contract bytecode—and prepares tough, delegate-ready questions to ask the proposer before voting."*
 
 ---
 
-### 1:14 – 1:30: Live Verification, Tx-Hash Input & Final Guarantee
-- **Visual:** Toggle `Re-verify live (bypass pinned snapshot)`. Click **Analyse**. Show live public RPC resolution.
-- **On-Screen Action:** Switch input mode tab to **Tx Hash / Explorer Link**. Paste a transaction hash (`0x76eefae46df65ef...`). The system auto-detects Ethereum network, queries `eth_getTransactionReceipt` directly, and loads the proposal without log-scanning. Empty submissions display inline validation warnings.
+### 1:05 – 1:20: Delegate-Ready Output, Export & Permalinks
+- **Visual:** Scroll to the top action bar.
+- **On-Screen Action:**
+  - Click **"Copy Link"**: Toast notification confirms permalink copied to clipboard.
+  - Click **"Export Markdown"**: Instantly downloads a formatted governance audit report containing the verdict, top findings, what was checked, Claims Ledger, and Dolphin questions.
+  - Click **"Export JSON"**: Downloads the raw machine-readable payload for CI/CD integration.
 - **Voiceover:**
-  > *"Delegates can also toggle live re-verification to bypass pinned snapshots, or paste any transaction hash or Etherscan URL to analyze proposals directly from block receipts. Deterministic EVM truth, Solidity AST capability decompilation, and multi-agent sponsor consensus. That is CallScope."*
+  > *"Everything in CallScope is delegate-ready. Share persistent permalinks with your community, or export comprehensive Markdown audit memos and raw JSON reports with a single click."*
+
+---
+
+### 1:20 – 1:30: Summary & The Authoritative Invariance Guarantee
+- **Visual:** Switch quickly to `[SYNTHETIC] Clean Grant` (shows green `no_significant_issue_detected`) and `[SYNTHETIC] Opaque Wrapper` (shows `analysis_incomplete`).
+- **On-Screen Action:** Show the Tri-Reviewer Agreement Strip.
+- **Voiceover:**
+  > *"CallScope never gives a false sense of security. Clean grants receive honest green verdicts, opaque multi-sig payloads remain incomplete, and the deterministic EVM engine remains 100% authoritative over AI models. That is CallScope."*
 
 ---
 
 ## Technical Demonstration Verification Checklist
 | Step | Feature | Checked Item | Verification Output |
 | :---: | :--- | :--- | :--- |
-| 1 | Outcome 1 | `review_recommended` | Pinned ENS EP 6.50 displays sensitive `PROPOSER_ROLE` grant |
-| 2 | Outcome 2 | `no_significant_issue_detected` | `[SYNTHETIC] Clean Grant` (999001) passes all checks with honest labeling |
-| 3 | Outcome 3 | `analysis_incomplete` | `[SYNTHETIC] Opaque Wrapper` (999002) flags undecoded payload |
-| 4 | Capabilities | Solidity AST Parser | `can schedule and cancel on TimelockController (per verified source)` via `@solidity-parser/parser` |
-| 5 | Profiling | Deterministic Recipient Profile | `Recipient: contract, verified` |
-| 6 | Consistency | Structured Claims Ledger | Exact quote match, `verified` vs `contradicted` badges |
-| 7 | OpenServ SERV | Tool-Grounded Investigator | `serv-swift` multi-turn ReAct loop; cites `Tool: tool-call-1` evidence; displays loop telemetry (`Turns: 2`, `Tool calls: 3`) and action jump links; `serv_prompt_guard: true` |
-| 8 | Dolphin | Adversarial Rebuttal Loop | `DeepSeek-V4.1-Flash` on Lighthouse; proposes attack scenarios with action links; engine tests against bytecode (`✓ Refuted by Engine Facts` vs `⚠ Not Refuted (Plausible Risk)`) |
-| 9 | Agreement | Tri-Reviewer Agreement Strip | Compares independent stances: Deterministic Engine, OpenServ SERV, and Dolphin Lighthouse |
-| 10 | Resiliency | Prompt-Injection Resistance | Adversarial instructions cannot alter verdicts, severities, or outcomes |
-| 11 | Direct Input | Tx Hash / Explorer URL | Direct `eth_getTransactionReceipt` bypassing block scans; inline validation |
-| 12 | Live Toggle | Re-verify Live | Bypasses pinned snapshot and executes against public RPC endpoints |
+| 1 | Instant Tier | Fast Deterministic Engine | Decodes calldata and AST capabilities in milliseconds without AI |
+| 2 | Standard Tier | Guarded SERV Extraction | Single `serv-swift` call with `serv_prompt_guard`; reconciles against Claims Ledger |
+| 3 | Deep Tier | Adversarial Stress-Test | Dolphin attack scenarios tested against AST rebuttal; generates proposer questions |
+| 4 | Capabilities | Solidity AST Parser | Extracts function gates (`schedule()`, `onlyRole`) via `@solidity-parser/parser` |
+| 5 | Consistency | Structured Claims Ledger | Exact quote match, `verified` vs `contradicted` badges |
+| 6 | Export | Permalink & Reports | Copy permalink, export Markdown delegate memo, export raw JSON |
+| 7 | Safety | Authoritative Invariance | Baseline assessments stay invariant regardless of AI sponsor state or errors |

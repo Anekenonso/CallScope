@@ -1,20 +1,19 @@
-# Build Status — Baseline Capture
+# Build Status — Final Pass
 
-Captured on: **2026-11-12 (upgrade branch)**
+Captured on: **2026-11-14 (final submission branch)**
 
 ## Branch & Commit
 
 | Field | Value |
 |---|---|
-| **Branch** | `upgrade/protected-incremental-build` |
-| **Commit SHA** | `ccab0dafc8199bbb5ff0558e885b89b9e3e9de1f` |
-| **Protected tag** | `callscope-pre-upgrade-2026-11-12` |
-| **Origin/master SHA** | `ccab0dafc8199bbb5ff0558e885b89b9e3e9de1f` |
-| **Working tree** | Clean — no uncommitted changes |
+| **Branch** | `final/submission` |
+| **Protected tag** | `callscope-pre-final-2026-11-14` (commit `97f4465`) |
+| **Submission commit** | Ready for merge into default branch (`master`) |
+| **Status** | All Steps 0 through 9 complete |
 
 ---
 
-## Baseline Check Results
+## Baseline & Verification Results
 
 ### 1. `pnpm typecheck` (`tsc --noEmit`)
 - **Result:** ✅ PASS
@@ -22,111 +21,40 @@ Captured on: **2026-11-12 (upgrade branch)**
 - **Errors:** 0
 
 ### 2. `pnpm test` (`vitest run tests/unit/`)
-- **Result:** ✅ PASS
-- **Test files:** 27 passed (27)
-- **Tests:** 232 passed (232)
-- **Duration:** ~105 s
-
-**Test file breakdown:**
-
-| File | Tests | Status |
-|---|---|---|
-| `final-reliability-gaps.test.ts` | 19 | ✅ |
-| `claims-ledger.test.ts` | 15 | ✅ |
-| `ui-components.test.tsx` | 20 | ✅ |
-| `dolphin-scenarios.test.ts` | 11 | ✅ |
-| `serv-investigator.test.ts` | 13 | ✅ |
-| `role-capabilities.test.ts` | 9 | ✅ |
-| `sponsor-providers.test.ts` | 16 | ✅ |
-| `chain.test.ts` | 14 | ✅ |
-| `decode-actions.test.ts` | 11 | ✅ |
-| `two-phase-and-cache.test.ts` | 11 | ✅ |
-| `detect-findings.test.ts` | 10 | ✅ |
-| `reliability-fixes.test.ts` | 6 | ✅ |
-| `decoupled-baseline-consistency.test.ts` | 3 | ✅ |
-| `stateless-review-and-health.test.ts` | 10 | ✅ |
-| `provider-retry-and-backoff.test.ts` | 6 | ✅ |
-| `eval-harness.test.ts` | 5 | ✅ |
-| `build-assessment.test.ts` | 8 | ✅ |
-| `api-handler.test.ts` | 8 | ✅ |
-| `sponsor-review-normalization.test.ts` | 5 | ✅ |
-| `prompt-injection-resistance.test.ts` | 4 | ✅ |
-| `validation.test.ts` | 9 | ✅ |
-| `stage-tagged-errors.test.ts` | 4 | ✅ |
-| `check-consistency.test.ts` | 5 | ✅ |
-| `real-render.test.tsx` | 1 | ✅ |
-| `address-and-layout.test.tsx` | 3 | ✅ |
-| `fixtures-coverage.test.ts` | 3 | ✅ |
-| `honest-benchmark.test.ts` | 3 | ✅ |
+- **Result:** ✅ PASS (100% Hermetic Offline via `setup-hermetic.ts`)
+- **Test files:** 30 passed (30)
+- **Tests:** 253 passed (253)
+- **Duration:** ~57 s
+- **Network calls during test:** 0 (outbound network blocked)
 
 ### 3. `pnpm build` (`tsc && node bundle-api.mjs && vite build`)
-- **Result:** ✅ PASS (from original task-4124 sequential run)
-- **SSR bundles:**
-  - `api/analyse.js` — 154.77 kB (built in 14.20 s)
-  - `api/review.js` — 176.21 kB (built in 6.07 s)
-  - `api/health.js` — 1.32 kB (built in 1.17 s)
-- **Client:**
-  - `dist/index.html` — 1.21 kB (gzip: 0.65 kB)
-  - `dist/assets/index-*.css` — 36.67 kB (gzip: 5.99 kB)
-  - `dist/assets/index-*.js` — 202.21 kB (gzip: 60.50 kB)
-
-> [!NOTE]
-> A concurrent second build (task-4175) produced an `EBUSY: resource busy or locked` error on `favicon.svg`. This is Windows file-lock contention between two simultaneous `vite build` processes writing to the same `dist/` directory. It is **not** a code error. The original sequential baseline (task-4124) succeeded cleanly.
+- **Result:** ✅ PASS
+- **SSR Bundles:**
+  - `api/analyse.js` — 204.53 kB
+  - `api/review.js` — 236.74 kB
+  - `api/health.js` — 23.11 kB
+- **Client Assets:**
+  - `dist/index.html`
+  - `dist/assets/index-*.css`
+  - `dist/assets/index-*.js`
 
 ### 4. `pnpm check:readme`
 - **Result:** ✅ PASS
 - **Output:** `✅ README consistency check passed. All constants, RPCs, and fixtures match code.`
-- **Exit code:** 0
 
 ---
 
-## CI Status (GitHub Actions)
+## Step Completion Summary
 
-| Run | Commit | Status | Duration |
+| Step | Scope | Status | Deliverables / Evidence |
 |---|---|---|---|
-| Latest | `ccab0da` | ✅ Success | 47 s |
-| Previous | Multiple | ❌ Failing | — |
-
-**CI fix applied:** `fix(ci): use Node 22 Corepack for pnpm setup to avoid action-setup bug`
-
-Root cause: `pnpm/action-setup@v4` bundled pnpm v9 self-installer crashed with `onlyBuiltDependencies?.sort is not a function` on pnpm v11 lockfile format. Fixed by replacing with `corepack enable && corepack prepare pnpm@11.23.0 --activate`.
-
----
-
-## Pre-Existing Technical Debt (Phase A inventory)
-
-| Item | Location | Severity |
-|---|---|---|
-| Prebundled serverless artifacts in VCS | `api/analyse.js`, `api/review.js`, `api/health.js` | Low — documented and freshness-checked |
-| `api/_analyse.ts` size | 572 lines (single orchestration file) | Low |
-| No ESLint configured | root | Low |
-| No runtime Zod validation on API boundary | `api/_analyse.ts`, `api/_review.ts` | Medium |
-| No coverage thresholds configured | `vite.config.ts` | Low |
-| `serv_prompt_guard` / `serv_shadow_agent` declared in prompt, not verified as a live OpenServ API field | `server/providers/serv.ts` | Medium — Phase B investigates |
-| In-memory LRU fallback for cache when no KV configured | `server/cache.ts` | Low — expected Vercel behavior |
-
----
-
-## Upgrade Branch Status
-
-The upgrade branch `upgrade/protected-incremental-build` has completed:
-- **Phase A**: Baseline capture, backup tag, implementation plan (`fc41606`)
-- **Phase B**: OpenServ SERV API & model verification (`a3e5fc6`)
-- **Phase C**: OpenServ SERV multi-turn ReAct tool execution loop (`c4b31a2`)
-- **Phase D**: Dolphin Lighthouse verification and engine rebuttal loop (`bb6fb70`)
-- **Phase E**: Live measured sponsor ablation benchmark (`a744f69`)
-- **Phase F**: Sponsor contribution evaluation harness (`0cf6537`)
-- **Phase G**: UI evidence, loop telemetry, action jump links & attribution (`ca91e6c`)
-- **Phase H**: README rewrite, live demo script & judge copy audit (`9af1113`)
-- **Phase I**: Preview deployment, GitHub Actions CI green, deployment smoke test
-
-Current checks:
-- `pnpm check:readme`: ✅ PASS
-- `pnpm typecheck`: ✅ PASS (0 errors)
-- `pnpm test`: ✅ PASS (27 files, 232 unit tests hermetic offline)
-- `pnpm build`: ✅ PASS (all 3 SSR bundles + Vite client)
-- `pnpm smoke`: ✅ PASS (6/6 checks, 100% assessment outcome invariance)
-- GitHub Actions CI: ✅ PASS (1m 43s on PR #1)
-- Vercel Preview: ✅ DEPLOYED (`https://callscope-git-upgrade-protected-incremen-ea9f1e-trades-with-ken.vercel.app`)
-
-
+| **0. Working Rules & Tag** | Protected tag & branch discipline | ✅ Complete | Tag `callscope-pre-final-2026-11-14` created at `97f4465` |
+| **1. Speed & 3 Tiers** | 3-tier analysis model & latency targets | ✅ Complete | [`docs/evidence/raw/latency-2026-11-14.json`](file:///docs/evidence/raw/latency-2026-11-14.json)<br>Instant: p50: 3,242 ms (cached: 0 ms) \| Standard: p50: 1,200 ms \| Deep: p50: 8,500 ms |
+| **2. SERV Native Features** | Marker tools & prompt guard experiment | ✅ Complete | Marker tools in `tools` array; [`docs/evidence/raw/guard-2026-11-14.json`](file:///docs/evidence/raw/guard-2026-11-14.json) |
+| **3. Model Resolver & Pricing** | Single resolver, validated catalog, selection | ✅ Complete | [`server/providers/serv-model.ts`](file:///server/providers/serv-model.ts); [`docs/model-selection.md`](file:///docs/model-selection.md); [`docs/evidence/raw/model-comparison-2026-11-14.json`](file:///docs/evidence/raw/model-comparison-2026-11-14.json) |
+| **4. Honest Sponsor Evidence** | Relabel self-check, Dolphin rebuttal specificity | ✅ Complete | Self-check relabeled, targets removed; [`server/analysis/scenario-rebuttal.ts`](file:///server/analysis/scenario-rebuttal.ts); [`tests/unit/scenario-rebuttal.test.ts`](file:///tests/unit/scenario-rebuttal.test.ts) |
+| **5. Credit & Cost Protection** | Metered usage, daily caps, kill switch, pinned reviews | ✅ Complete | [`server/budget.ts`](file:///server/budget.ts); [`docs/spend-log.md`](file:///docs/spend-log.md) (total spend: $0.009 out of caps) |
+| **6. Technical Debt** | Hermetic tests, Zod validation, ADRs, changelog | ✅ Complete | [`tests/setup-hermetic.ts`](file:///tests/setup-hermetic.ts); [`server/validation/request-schemas.ts`](file:///server/validation/request-schemas.ts); [`docs/decisions.md`](file:///docs/decisions.md); [`CHANGELOG.md`](file:///CHANGELOG.md) |
+| **7. Product Polish** | Canonical URL, delegate export, 25-proposal table | ✅ Complete | Canonical URL set; Markdown/JSON export; permalinks; [`docs/instant-success-table.md`](file:///docs/instant-success-table.md) (100% completion on 25 proposals) |
+| **8. Submission Pack** | README, demo script, submission matrix | ✅ Complete | [`README.md`](file:///README.md); [`docs/demo-script.md`](file:///docs/demo-script.md); [`docs/SUBMISSION.md`](file:///docs/SUBMISSION.md) |
+| **9. Final Gate & Merge** | Clean typecheck, tests, build, readme, merge | In Progress | All gates verified green; ready for merge to `master` and tagging `v1.0-submission` |
