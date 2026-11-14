@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getHealthData } from '../../api/_health';
 import reviewHandler from '../../api/_review';
 import { classifyProviderError } from '../../server/providers/openai-compatible';
-import { getProposalCache, buildCacheKey } from '../../server/cache';
+import { getProposalCache, buildCacheKey, SCHEMA_VERSION } from '../../server/cache';
 
 describe('Task 1: Stateless-Safe Review Endpoint & Health Check', () => {
   const originalFetch = global.fetch;
@@ -56,7 +56,7 @@ describe('Task 1: Stateless-Safe Review Endpoint & Health Check', () => {
       expect(health.cacheMode).toBe('memory');
       expect(health.servConfigured).toBe(false);
       expect(health.dolphinConfigured).toBe(false);
-      expect(health.schemaVersion).toBe('v1');
+      expect(health.schemaVersion).toBe(SCHEMA_VERSION);
       expect(typeof health.buildSha).toBe('string');
     });
 

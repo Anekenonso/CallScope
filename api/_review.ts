@@ -153,36 +153,105 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
     }
   }
 
+  const requestedTier = (body.tier === 'standard' ? 'standard' : 'deep') as 'standard' | 'deep';
+  const tReviewStart = Date.now();
+  let tServExtractionMs = 0;
+  let tServInvestigatorMs = 0;
+  let tDolphinScenarioMs = 0;
+  let tClaimsLedgerMs = 0;
+
   const description = cached.proposal.description;
   const actions = cached.actions;
   const findings = cached.findings;
 
-  // Run each provider with independent timeout and classified retry
-  // One provider being slow or failing NEVER blocks or fails the other
-  const [servResult, dolphinResult] = await Promise.all([
-    executeWithRetry(() => reviewWithServ(description, actions), 'OpenServ SERV'),
-    executeWithRetry(() => reviewWithDolphin(description, actions, findings), 'Dolphin'),
-  ]);
-
-  // Extended claims check (Phase 2): When SERV is available, extract structured claims
-  // and evaluate them through the deterministic claims ledger.
-  // This extended check is advisory and never mutates Phase 1 baseline assessment.
+  let servResult: ProviderReview;
+  let dolphinResult: ProviderReview;
   let extendedClaimsCheck: DescriptionConsistency | undefined = undefined;
-  if (process.env.SERV_API_KEY && (servResult.status === 'ok' || servResult.status === 'available')) {
-    try {
-      const servClaims = await extractClaimsWithServ(description);
-      if (servClaims && servClaims.length > 0) {
-        extendedClaimsCheck = evaluateClaimsLedger(servClaims, actions, description);
+
+  if (requestedTier === 'standard') {
+    // Standard Tier (auto after Instant):
+    // ONE guarded SERV claim-extraction call, claims checked by deterministic comparators.
+    // No multi-turn tool loop. No Dolphin call.
+    const tExtractStart = Date.now();
+    let servClaims = null;
+    if (process.env.SERV_API_KEY) {
+      try {
+        servClaims = await extractClaimsWithServ(description, { enablePromptGuard: true });
+      } catch {
+        // Fall back gracefully
       }
-    } catch {
-      // Extended claims check is non-blocking advisory analysis
+    }
+    tServExtractionMs = Date.now() - tExtractStart;
+
+    if (servClaims && servClaims.length > 0) {
+      const tLedgerStart = Date.now();
+      extendedClaimsCheck = evaluateClaimsLedger(servClaims, actions, description);
+      tClaimsLedgerMs = Date.now() - tLedgerStart;
+    }
+
+    const claimCount = servClaims?.length ?? 0;
+    const isOk = servClaims !== null;
+    servResult = {
+      provider: 'OpenServ SERV',
+      status: isOk ? 'ok' : (process.env.SERV_API_KEY ? 'available' : 'not_configured'),
+      summary: isOk
+        ? `Standard Review: Extracted ${claimCount} claim(s) from proposal description; verified against deterministic on-chain actions.`
+        : (process.env.SERV_API_KEY ? 'Standard review completed.' : 'OpenServ SERV API key not configured in environment.'),
+      items: extendedClaimsCheck?.claims?.map((c) => ({
+        kind: c.status === 'contradicted' ? 'contradiction' : c.status === 'verified' ? 'supported' : 'note',
+        issue: `[${c.category.toUpperCase()}] "${c.quote}" — ${c.explanation || c.status}`,
+        evidence: c.explanation,
+        claimRef: c.id,
+      })) || [],
+      tier: 'standard',
+      durationMs: tServExtractionMs,
+      attempts: 1,
+    };
+
+    dolphinResult = {
+      provider: 'Dolphin',
+      status: process.env.DOLPHIN_API_KEY ? 'available' : 'not_configured',
+      summary: 'Adversarial execution scenarios and governance questions available in Deep review.',
+      tier: 'standard',
+    };
+  } else {
+    // Deep Tier (on click):
+    // SERV investigator tool loop + Dolphin scenarios + questions run concurrently.
+    let servClaimsPromise = Promise.resolve<any>(null);
+    if (process.env.SERV_API_KEY) {
+      servClaimsPromise = extractClaimsWithServ(description, { enablePromptGuard: true }).catch(() => null);
+    }
+
+    const tParallelStart = Date.now();
+    const [servToolRes, dolphinRes, servClaims] = await Promise.all([
+      executeWithRetry(() => reviewWithServ(description, actions), 'OpenServ SERV'),
+      executeWithRetry(() => reviewWithDolphin(description, actions, findings), 'Dolphin'),
+      servClaimsPromise,
+    ]);
+    const tParallelMs = Date.now() - tParallelStart;
+    tServInvestigatorMs = tParallelMs;
+    tDolphinScenarioMs = tParallelMs;
+
+    servResult = { ...servToolRes, tier: 'deep' };
+    dolphinResult = { ...dolphinRes, tier: 'deep' };
+
+    if (servClaims && servClaims.length > 0) {
+      extendedClaimsCheck = evaluateClaimsLedger(servClaims, actions, description);
     }
   }
 
   const reviewsResponse = {
+    tier: requestedTier,
     serv: servResult,
     dolphin: dolphinResult,
     ...(extendedClaimsCheck ? { extendedClaimsCheck } : {}),
+    timings: {
+      servExtractionMs: tServExtractionMs,
+      servInvestigatorMs: tServInvestigatorMs,
+      dolphinScenarioMs: tDolphinScenarioMs,
+      claimsLedgerMs: tClaimsLedgerMs,
+      totalMs: Date.now() - tReviewStart,
+    },
   };
 
   // Update cached proposal with reviews and extended claims check

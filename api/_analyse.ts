@@ -3,7 +3,7 @@ import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem,
 import { getAddress, type Address } from 'viem';
 import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
 import { retrieveProposalCreatedEvent, retrieveProposalEventFromTxHash, readGovernorProposalState, ProposalEventLookupError, type DecodedProposalEvent } from '../server/chain/proposal-events';
-import { getPinnedSnapshot } from '../server/chain/pinned-snapshots';
+import { getPinnedSnapshot, getPinnedSnapshotByTxHash } from '../server/chain/pinned-snapshots';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
 import { detectFindings } from '../server/analysis/detect-findings';
 import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
@@ -19,6 +19,7 @@ import {
   setProposalCache,
   buildCacheKey,
   checkIpRateLimit,
+  SCHEMA_VERSION,
 } from '../server/cache';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
 import { parseTxHashOrUrl } from '../src/lib/validation';
@@ -66,6 +67,18 @@ export function sanitizePublicErrorMessage(raw: string): string {
  * Core analysis engine pipeline that executes end-to-end analysis on a proposal
  */
 export async function executeAnalysis(request: AnalysisRequest): Promise<AnalysisResponse> {
+  const t0 = Date.now();
+  let tEventLookupMs = 0;
+  let tProposalStateMs = 0;
+  let tAbiResolutionMs = 0;
+  let tRoleCapabilitiesMs = 0;
+  let tRecipientProfilingMs = 0;
+  let tTokenMetadataMs = 0;
+  let tSecurityChecksMs = 0;
+  let tConsistencyCheckMs = 0;
+  let tAssessmentMs = 0;
+  let isPinned = false;
+
   let effectiveNetwork: SupportedNetwork = request.network;
   let validGovernor: Address;
   let trimmedProposalId: string;
@@ -73,6 +86,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   let eventSource: string;
   let client: any;
 
+  const tEventStart = Date.now();
   if (request.txHashOrUrl && request.txHashOrUrl.trim().length > 0) {
     const parsed = parseTxHashOrUrl(request.txHashOrUrl);
     if (!parsed) {
@@ -85,14 +99,26 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
       throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
     }
 
-    client = createChainClient(effectiveNetwork);
-    await verifyNetworkChainId(effectiveNetwork, client);
+    const pinnedTx = !request.reverifyLive ? getPinnedSnapshotByTxHash(parsed.txHash) : null;
+    if (pinnedTx) {
+      isPinned = true;
+      event = pinnedTx.event;
+      validGovernor = pinnedTx.governorAddress;
+      trimmedProposalId = pinnedTx.proposalId;
+      effectiveNetwork = pinnedTx.network;
+      eventSource = `pinned snapshot (block ${event.blockNumber})`;
+      client = createChainClient(effectiveNetwork);
+    } else {
+      client = createChainClient(effectiveNetwork);
+      await verifyNetworkChainId(effectiveNetwork, client);
 
-    const txResult = await retrieveProposalEventFromTxHash(client, parsed.txHash);
-    event = txResult.event;
-    validGovernor = txResult.governorAddress;
-    trimmedProposalId = txResult.proposalId;
-    eventSource = `live tx receipt (block ${event.blockNumber})`;
+      const txResult = await retrieveProposalEventFromTxHash(client, parsed.txHash);
+      event = txResult.event;
+      validGovernor = txResult.governorAddress;
+      trimmedProposalId = txResult.proposalId;
+      eventSource = `live tx receipt (block ${event.blockNumber})`;
+    }
+    tEventLookupMs = Date.now() - tEventStart;
   } else {
     const { network, governorAddress, proposalId } = request;
 
@@ -116,6 +142,13 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     if (!request.reverifyLive) {
       const cached = await getProposalCache(cacheKey);
       if (cached) {
+        if (cached.diagnostics) {
+          cached.diagnostics.cached = true;
+          cached.diagnostics.timings = {
+            ...cached.diagnostics.timings,
+            totalMs: Date.now() - t0,
+          };
+        }
         return cached;
       }
     }
@@ -125,6 +158,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
       : null;
 
     if (pinnedSnapshot) {
+      isPinned = true;
       event = pinnedSnapshot;
       eventSource = `pinned snapshot (block ${pinnedSnapshot.blockNumber})`;
       validGovernor = getAddress(governorAddress.trim());
@@ -148,21 +182,27 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
       event = retrieval;
       eventSource = retrieval.eventSource;
     }
+    tEventLookupMs = Date.now() - tEventStart;
   }
 
   // 4. Read current proposal state (gracefully fallback if offline / RPC unavailable)
+  const tStateStart = Date.now();
   let state = 'Executed';
-  try {
-    const statePromise = readGovernorProposalState(client, validGovernor, trimmedProposalId);
-    state = await Promise.race([
-      statePromise,
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
-    ]);
-  } catch {
-    state = 'Executed';
+  if (isPinned && !request.reverifyLive) {
+    state = (event as any).status || 'Executed';
+  } else {
+    try {
+      const statePromise = readGovernorProposalState(client, validGovernor, trimmedProposalId);
+      state = await Promise.race([
+        statePromise,
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+      ]);
+    } catch {
+      state = 'Executed';
+    }
   }
-
   // 5. Decode proposal actions
+  const tDecodeStart = Date.now();
   const { actions, limitations } = await decodeProposalActions({
     network: effectiveNetwork,
     targets: event.targets,
@@ -171,6 +211,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     calldatas: event.calldatas,
     client,
   });
+  tAbiResolutionMs = Date.now() - tDecodeStart;
 
   // 5.5 Resolve role capabilities and recipient profiles for role actions
   for (const action of actions) {
@@ -184,6 +225,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
         action.args?.[1]?.value ||
         '';
 
+      const tRoleStart = Date.now();
       const targetAddr = (action.implementation || action.target) as Address;
       const roleCap = await resolveRoleCapabilitiesFromSource(
         effectiveNetwork,
@@ -192,6 +234,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
         roleArg
       );
       action.roleCapability = roleCap;
+      tRoleCapabilitiesMs += Date.now() - tRoleStart;
 
       if (roleCap.status === 'unresolved') {
         const lim = `Action #${action.index + 1} to ${action.target}: Role capability unresolved; verified contract source code unavailable or unparseable.`;
@@ -200,6 +243,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
       }
 
       if (accountArg) {
+        const tProfStart = Date.now();
         const proposalTs = event.voteStart ? Number(event.voteStart) : undefined;
         try {
           const profilePromise = profileRecipient(
@@ -219,24 +263,32 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
             summary: `Recipient: ${accountArg.slice(0, 10)}... (profile timeout)`,
           };
         }
+        tRecipientProfilingMs += Date.now() - tProfStart;
       }
     }
   }
 
   // 6. Run deterministic security checks
+  const tSecStart = Date.now();
   const findings = detectFindings(actions);
+  tSecurityChecksMs = Date.now() - tSecStart;
 
   // 7. Check consistency between proposal description and executable actions
   // Phase 1 is strictly deterministic and rule-based; it never awaits or depends on sponsor LLMs.
+  const tConsStart = Date.now();
   const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
+  tConsistencyCheckMs = Date.now() - tConsStart;
 
   // 8. Build final deterministic assessment
+  const tAssessStart = Date.now();
   const assessment = buildAssessment({
     actions,
     findings,
     consistency: descriptionConsistency,
     limitations,
   });
+  tAssessmentMs = Date.now() - tAssessStart;
+  const totalMs = Date.now() - t0;
 
   // 9. Two-phase review architecture:
   // Deterministic result returns first and renders immediately.
@@ -322,6 +374,25 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     reviews,
     limitations,
     evidence,
+    tier: 'instant',
+    diagnostics: {
+      tier: 'instant',
+      timings: {
+        eventLookupMs: tEventLookupMs,
+        proposalStateMs: tProposalStateMs,
+        abiResolutionMs: tAbiResolutionMs,
+        roleCapabilitiesMs: tRoleCapabilitiesMs,
+        recipientProfilingMs: tRecipientProfilingMs,
+        tokenMetadataMs: tTokenMetadataMs,
+        securityChecksMs: tSecurityChecksMs,
+        consistencyCheckMs: tConsistencyCheckMs,
+        assessmentMs: tAssessmentMs,
+        totalMs,
+      },
+      cached: false,
+      eventSource,
+      schemaVersion: SCHEMA_VERSION,
+    },
   };
 
   // Cache response with TTL based on proposal status

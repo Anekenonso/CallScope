@@ -47,3 +47,21 @@ export function getPinnedSnapshot(
   return null;
 }
 
+export function getPinnedSnapshotByTxHash(
+  txHash: string
+): { event: DecodedProposalEvent; governorAddress: Address; network: SupportedNetwork; proposalId: string } | null {
+  const cleanTx = txHash.toLowerCase().trim();
+  const match = PINNED_SNAPSHOTS.find(
+    (s) => (s as any).transactionHash?.toLowerCase() === cleanTx
+  );
+  if (match) {
+    return {
+      event: parseSnapshot(match),
+      governorAddress: (match as any).governor as Address,
+      network: (match as any).chain as SupportedNetwork,
+      proposalId: (match as any).proposalId,
+    };
+  }
+  return null;
+}
+
