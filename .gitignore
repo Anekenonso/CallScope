@@ -8,6 +8,18 @@ _spec_backup/
 .DS_Store
 *.log
 docs/qa/
+docs/
+
+# Planning, building, specs & agent instruction docs
+Agent.md
+ARCHITECTURE.md
+DESIGN.md
+PRD.md
+PROGRESS.md
+README-HANDOVER.md
+RULES.md
+TASKS.md
+
 
 
 
