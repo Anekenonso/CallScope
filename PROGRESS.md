@@ -46,6 +46,22 @@ The agent must report after every implementation phase and wait for the user's c
 ## Implementation log
 Append newest entries at the top.
 
+### 2026-11-14 — Rollback to Original Plan: P1 Reliable Event Retrieval Complete
+- **Status**: P1 Complete and empirical verification executed.
+- **Key Enhancements**:
+  1. Strict lookup order: Blockscout (8s timeout, 1 retry) -> Full-range RPC getLogs -> Bounded adaptive chunk scan (10 requests max, 8s budget).
+  2. Zero block guessing: Completely eliminated votingDelay/timestamp/snapshot block guessing.
+  3. Fail-fast on nonexistent proposals: Checks `proposalSnapshot` / `state` and aborts in < 1.2s with HTTP 400.
+  4. Hard ~24.5s internal deadline: Catches pending timeouts and returns structured `Analysis incomplete` (HTTP 200) with diagnostic stage and hint to provide creation transaction hash, completely preventing platform HTTP 504s.
+  5. Creation-tx input: Added optional creation transaction hash / explorer URL input (with disclosure toggle per user approval) for direct `getTransactionReceipt` log recovery.
+  6. Compound-Bravo and OpenZeppelin event variants: Full support for both decoding formats preserving `signatures[]`.
+- **Verification Metrics**:
+  - `npm run typecheck`: Exit code 0 (clean).
+  - `npm test`: 95 unit tests across 11 files passing offline (0 failures, 100% clean).
+  - `npm run build`: Clean production build (bundled SSR `api/analyse.js` + client bundle).
+  - Empirical verification script: Zero HTTP 504s; Ethereum p50 = 4,947 ms (<= 8,000 ms); Base p50 = 2,757 ms (<= 12,000 ms); Nonexistent proposal fail-fast = 1,126 ms (< 5,000 ms).
+  - Raw evidence artifacts: `docs/evidence/raw/` and `docs/qa/evidence/raw/`.
+
 ### 2026-11-14 — Rollback to Original Plan: P0 Baseline Verification Complete
 - **Branch**: `rollback/plan-core` branched from `0ec13ed`.
 - **Complex build preservation**: Tag `callscope-complex-2026-11-14` created at `41de829` and pushed to remote `origin`.
