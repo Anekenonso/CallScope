@@ -114,15 +114,7 @@ describe('OpenServ SERV provider adapter', () => {
             role: 'assistant',
             content: JSON.stringify({
               summary: 'SERV: Actions match proposal claims.',
-              items: [
-                {
-                  kind: 'supported',
-                  issue: 'Verified permission grant to multisig.',
-                  evidenceId: 'tool-call-1',
-                  evidence: 'Action 0 matches specification in tool-call-1',
-                },
-              ],
-              findings: ['Verified permission grant to multisig.'],
+              findings: ['Action #1: Verified permission grant to multisig.'],
             }),
           },
         },
@@ -136,9 +128,9 @@ describe('OpenServ SERV provider adapter', () => {
     } as any);
 
     const result = await reviewWithServ('Test description', dummyActions);
-    expect(result.status).toBe('ok');
+    expect(result.status).toBe('available');
     expect(result.summary).toBe('SERV: Actions match proposal claims.');
-    expect(result.findings).toContain('Verified permission grant to multisig.');
+    expect(result.findings).toContain('Action #1: Verified permission grant to multisig.');
   });
 
   it('handles 401 Unauthorized from SERV', async () => {
@@ -151,10 +143,8 @@ describe('OpenServ SERV provider adapter', () => {
     } as any);
 
     const result = await reviewWithServ('Test description', dummyActions);
-    expect(result.status).toBe('auth_error');
-    expect(result.errorClass).toBe('auth_error');
-    expect(result.retryable).toBe(false);
-    expect(result.reason).toContain('401');
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('401');
   });
 
   it('handles 402 Payment Required / Out of Credits from SERV', async () => {
@@ -167,10 +157,8 @@ describe('OpenServ SERV provider adapter', () => {
     } as any);
 
     const result = await reviewWithServ('Test description', dummyActions);
-    expect(result.status).toBe('auth_error');
-    expect(result.errorClass).toBe('auth_error');
-    expect(result.retryable).toBe(false);
-    expect(result.reason).toContain('402');
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('402');
   });
 
   it('handles 429 Rate Limit from SERV', async () => {
@@ -183,10 +171,8 @@ describe('OpenServ SERV provider adapter', () => {
     } as any);
 
     const result = await reviewWithServ('Test description', dummyActions);
-    expect(result.status).toBe('rate_limited');
-    expect(result.errorClass).toBe('rate_limited');
-    expect(result.retryable).toBe(true);
-    expect(result.reason).toContain('429');
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('429');
   });
 
   it('handles 500 / 503 Provider Server Error', async () => {
@@ -199,10 +185,8 @@ describe('OpenServ SERV provider adapter', () => {
     } as any);
 
     const result = await reviewWithServ('Test description', dummyActions);
-    expect(result.status).toBe('upstream_error');
-    expect(result.errorClass).toBe('upstream_error');
-    expect(result.retryable).toBe(true);
-    expect(result.reason).toContain('503');
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('503');
   });
 
   it('handles malformed JSON output from model', async () => {
@@ -226,9 +210,8 @@ describe('OpenServ SERV provider adapter', () => {
     } as any);
 
     const result = await reviewWithServ('Test description', dummyActions);
-    expect(result.status).toBe('schema_invalid');
-    expect(result.errorClass).toBe('schema_invalid');
-    expect(result.retryable).toBe(false);
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('Failed to parse structured JSON');
   });
 });
 
@@ -278,12 +261,7 @@ describe('Dolphin provider adapter', () => {
             role: 'assistant',
             content: JSON.stringify({
               summary: 'Dolphin: No secondary governance risks identified.',
-              findings: [
-                {
-                  issue: 'Standard transfer within expected operational parameters.',
-                  actionRef: 0,
-                },
-              ],
+              findings: ['Action #1: Standard transfer within expected operational parameters.'],
             }),
           },
         },
@@ -297,7 +275,7 @@ describe('Dolphin provider adapter', () => {
     } as any);
 
     const result = await reviewWithDolphin('Test description', dummyActions, dummyFindings);
-    expect(result.status).toBe('ok');
+    expect(result.status).toBe('available');
     expect(result.summary).toContain('No secondary governance risks identified');
     expect(result.findings).toHaveLength(1);
   });
@@ -312,10 +290,8 @@ describe('Dolphin provider adapter', () => {
     } as any);
 
     const result = await reviewWithDolphin('Test description', dummyActions, dummyFindings);
-    expect(result.status).toBe('auth_error');
-    expect(result.errorClass).toBe('auth_error');
-    expect(result.retryable).toBe(false);
-    expect(result.reason).toContain('401');
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('401');
   });
 
   it('handles timeout gracefully', async () => {
@@ -326,8 +302,7 @@ describe('Dolphin provider adapter', () => {
     );
 
     const result = await reviewWithDolphin('Test description', dummyActions, dummyFindings);
-    expect(result.status).toBe('timed_out');
-    expect(result.errorClass).toBe('timed_out');
-    expect(result.retryable).toBe(true);
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('timed out');
   });
 });

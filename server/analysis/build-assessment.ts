@@ -49,11 +49,9 @@ export function buildAssessment(input: BuildAssessmentInput): AssessmentOutcome 
   // 2. Check for incomplete analysis or undecoded actions
   const hasUndecodedAction = actions.some((a) => !a.decoded);
   const hasIncompleteLimitation = limitations.some((l) =>
-    /unavailable|unverified|could not be decoded|not found in verified abi|unresolved|failed/i.test(l)
+    /unavailable|unverified|could not be decoded|not found in verified abi|failed/i.test(l)
   );
-  const isIndeterminate =
-    (consistency.status === 'indeterminate' || consistency.status === 'partially_verified') &&
-    actions.length > 0;
+  const isIndeterminate = consistency.status === 'indeterminate' && actions.length > 0;
 
   if (hasUndecodedAction || hasIncompleteLimitation || isIndeterminate) {
     return 'analysis_incomplete';

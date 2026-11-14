@@ -1,28 +1,14 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
-import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview, StageTaggedError, SupportedNetwork } from '../src/types/analysis';
-import { getAddress, type Address } from 'viem';
+import type { AnalysisRequest, AnalysisResponse, ApiErrorResponse, EvidenceItem, ProviderReview } from '../src/types/analysis';
 import { createChainClient, verifyNetworkChainId, validateGovernorContract } from '../server/chain/rpc-client';
-import { retrieveProposalCreatedEvent, retrieveProposalEventFromTxHash, readGovernorProposalState, ProposalEventLookupError, type DecodedProposalEvent } from '../server/chain/proposal-events';
-import { getPinnedSnapshot, getPinnedSnapshotByTxHash } from '../server/chain/pinned-snapshots';
+import { retrieveProposalCreatedEvent, readGovernorProposalState, ProposalNotFoundError } from '../server/chain/proposal-events';
 import { decodeProposalActions } from '../server/analysis/decode-actions';
 import { detectFindings } from '../server/analysis/detect-findings';
 import { checkDescriptionActionConsistency } from '../server/analysis/check-consistency';
 import { buildAssessment } from '../server/analysis/build-assessment';
 import { reviewWithServ } from '../server/providers/serv';
 import { reviewWithDolphin } from '../server/providers/dolphin';
-import {
-  resolveRoleCapabilitiesFromSource,
-  profileRecipient,
-} from '../server/analysis/role-capabilities';
-import {
-  getProposalCache,
-  setProposalCache,
-  buildCacheKey,
-  checkIpRateLimit,
-  SCHEMA_VERSION,
-} from '../server/cache';
 import { SUPPORTED_NETWORKS } from '../server/chain/networks';
-import { parseTxHashOrUrl } from '../src/lib/validation';
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -31,7 +17,21 @@ export class ValidationError extends Error {
   }
 }
 
-// Sliding window rate limiter imported from cache.ts
+// In-memory sliding window rate limiter
+const ipRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+
+export function isRateLimited(clientIp: string): boolean {
+  const now = Date.now();
+  const record = ipRateLimitMap.get(clientIp);
+  if (!record || now > record.resetAt) {
+    ipRateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  record.count++;
+  return record.count > RATE_LIMIT_MAX_REQUESTS;
+}
 
 /**
  * Sanitize public error messages to prevent leakage of paths, stack traces, or credentials
@@ -63,238 +63,133 @@ export function sanitizePublicErrorMessage(raw: string): string {
   return sanitized.trim() || 'An internal analysis error occurred.';
 }
 
+export const INTERNAL_DEADLINE_MS = 24_500;
+
 /**
  * Core analysis engine pipeline that executes end-to-end analysis on a proposal
  */
 export async function executeAnalysis(request: AnalysisRequest): Promise<AnalysisResponse> {
-  const t0 = Date.now();
-  let tEventLookupMs = 0;
-  let tProposalStateMs = 0;
-  let tAbiResolutionMs = 0;
-  let tRoleCapabilitiesMs = 0;
-  let tRecipientProfilingMs = 0;
-  let tTokenMetadataMs = 0;
-  let tSecurityChecksMs = 0;
-  let tConsistencyCheckMs = 0;
-  let tAssessmentMs = 0;
-  let isPinned = false;
+  const { network, governorAddress, proposalId, creationTxHash } = request;
 
-  let effectiveNetwork: SupportedNetwork = request.network;
-  let validGovernor: Address;
-  let trimmedProposalId: string;
-  let event: DecodedProposalEvent;
-  let eventSource: string;
-  let client: any;
+  if (!network || (network !== 'ethereum' && network !== 'base')) {
+    throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
+  }
 
-  const tEventStart = Date.now();
-  if (request.txHashOrUrl && request.txHashOrUrl.trim().length > 0) {
-    const parsed = parseTxHashOrUrl(request.txHashOrUrl);
-    if (!parsed) {
-      throw new ValidationError('Invalid transaction hash or explorer URL.');
-    }
-    if (parsed.inferredNetwork) {
-      effectiveNetwork = parsed.inferredNetwork;
-    }
-    if (!effectiveNetwork || (effectiveNetwork !== 'ethereum' && effectiveNetwork !== 'base')) {
-      throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
-    }
+  if (!governorAddress || !/^0x[a-fA-F0-9]{40}$/.test(governorAddress)) {
+    throw new ValidationError('Invalid Governor address: must be a valid 20-byte EVM hex address.');
+  }
 
-    const pinnedTx = !request.reverifyLive ? getPinnedSnapshotByTxHash(parsed.txHash) : null;
-    if (pinnedTx) {
-      isPinned = true;
-      event = pinnedTx.event;
-      validGovernor = pinnedTx.governorAddress;
-      trimmedProposalId = pinnedTx.proposalId;
-      effectiveNetwork = pinnedTx.network;
-      eventSource = `pinned snapshot (block ${event.blockNumber})`;
-      client = createChainClient(effectiveNetwork);
-    } else {
-      client = createChainClient(effectiveNetwork);
-      await verifyNetworkChainId(effectiveNetwork, client);
+  if (!proposalId || !/^\d+$/.test(proposalId.trim())) {
+    throw new ValidationError('Invalid proposal ID: must be a valid non-empty decimal string.');
+  }
 
-      const txResult = await retrieveProposalEventFromTxHash(client, parsed.txHash);
-      event = txResult.event;
-      validGovernor = txResult.governorAddress;
-      trimmedProposalId = txResult.proposalId;
-      eventSource = `live tx receipt (block ${event.blockNumber})`;
-    }
-    tEventLookupMs = Date.now() - tEventStart;
-  } else {
-    const { network, governorAddress, proposalId } = request;
+  const trimmedProposalId = proposalId.trim();
+  let currentStage = 'initialization';
 
-    if (!network || (network !== 'ethereum' && network !== 'base')) {
-      throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
-    }
-    effectiveNetwork = network;
+  const pipelinePromise = (async (): Promise<AnalysisResponse> => {
+    // 1. Create client and verify network
+    currentStage = 'network_verification';
+    const client = createChainClient(network);
+    await verifyNetworkChainId(network, client);
 
-    if (!governorAddress || !/^0x[a-fA-F0-9]{40}$/.test(governorAddress)) {
-      throw new ValidationError('Invalid Governor address: must be a valid 20-byte EVM hex address.');
-    }
+    // 2. Validate Governor contract
+    currentStage = 'governor_validation';
+    const validGovernor = await validateGovernorContract(client, governorAddress, network);
 
-    if (!proposalId || !/^\d+$/.test(proposalId.trim())) {
-      throw new ValidationError('Invalid proposal ID: must be a valid non-empty decimal string.');
-    }
-
-    trimmedProposalId = proposalId.trim();
-
-    // Check cache before RPC call unless reverifyLive is requested
-    const cacheKey = buildCacheKey(effectiveNetwork, governorAddress, trimmedProposalId);
-    if (!request.reverifyLive) {
-      const cached = await getProposalCache(cacheKey);
-      if (cached) {
-        if (cached.diagnostics) {
-          cached.diagnostics.cached = true;
-          cached.diagnostics.timings = {
-            ...cached.diagnostics.timings,
-            totalMs: Date.now() - t0,
-          };
-        }
-        return cached;
-      }
-    }
-
-    const pinnedSnapshot = !request.reverifyLive
-      ? getPinnedSnapshot(effectiveNetwork, governorAddress as Address, trimmedProposalId)
-      : null;
-
-    if (pinnedSnapshot) {
-      isPinned = true;
-      event = pinnedSnapshot;
-      eventSource = `pinned snapshot (block ${pinnedSnapshot.blockNumber})`;
-      validGovernor = getAddress(governorAddress.trim());
-      client = createChainClient(effectiveNetwork);
-    } else {
-      // 1. Create client and verify network
-      client = createChainClient(effectiveNetwork);
-      await verifyNetworkChainId(effectiveNetwork, client);
-
-      // 2. Validate Governor contract
-      validGovernor = await validateGovernorContract(client, governorAddress, effectiveNetwork);
-
-      // 3. Retrieve ProposalCreated event
-      const retrieval = await retrieveProposalCreatedEvent(
+    // 3. Retrieve ProposalCreated event (with direct tx or fail-fast check)
+    currentStage = 'event_retrieval';
+    let event;
+    try {
+      event = await retrieveProposalCreatedEvent(
         client,
-        effectiveNetwork,
+        network,
         validGovernor,
         trimmedProposalId,
-        { reverifyLive: request.reverifyLive }
+        creationTxHash
       );
-      event = retrieval;
-      eventSource = retrieval.eventSource;
-    }
-    tEventLookupMs = Date.now() - tEventStart;
-  }
-
-  // 4. Read current proposal state (gracefully fallback if offline / RPC unavailable)
-  let state = 'Executed';
-  if (isPinned && !request.reverifyLive) {
-    state = (event as any).status || 'Executed';
-  } else {
-    try {
-      const statePromise = readGovernorProposalState(client, validGovernor, trimmedProposalId);
-      state = await Promise.race([
-        statePromise,
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
-      ]);
-    } catch {
-      state = 'Executed';
-    }
-  }
-  // 5. Decode proposal actions
-  const tDecodeStart = Date.now();
-  const { actions, limitations } = await decodeProposalActions({
-    network: effectiveNetwork,
-    targets: event.targets,
-    values: event.values,
-    signatures: event.signatures,
-    calldatas: event.calldatas,
-    client,
-  });
-  tAbiResolutionMs = Date.now() - tDecodeStart;
-
-  // 5.5 Resolve role capabilities and recipient profiles for role actions
-  for (const action of actions) {
-    if (action.decoded && (action.functionName === 'grantRole' || action.functionName === 'revokeRole')) {
-      const roleArg =
-        action.args?.find((a) => a.name.toLowerCase().includes('role') || a.type === 'bytes32')?.value ||
-        action.args?.[0]?.value ||
-        '';
-      const accountArg =
-        action.args?.find((a) => a.name.toLowerCase().includes('account') || a.type === 'address')?.value ||
-        action.args?.[1]?.value ||
-        '';
-
-      const tRoleStart = Date.now();
-      const targetAddr = (action.implementation || action.target) as Address;
-      const roleCap = await resolveRoleCapabilitiesFromSource(
-        effectiveNetwork,
-        targetAddr,
-        action.targetName || 'target contract',
-        roleArg
-      );
-      action.roleCapability = roleCap;
-      tRoleCapabilitiesMs += Date.now() - tRoleStart;
-
-      if (roleCap.status === 'unresolved') {
-        const lim = `Action #${action.index + 1} to ${action.target}: Role capability unresolved; verified contract source code unavailable or unparseable.`;
-        action.limitations = [...(action.limitations || []), lim];
-        limitations.push(lim);
+    } catch (err: unknown) {
+      if (err instanceof ProposalNotFoundError) {
+        throw new ValidationError(`Proposal not found for this governor: ${err.message}`);
       }
-
-      if (accountArg) {
-        const tProfStart = Date.now();
-        const proposalTs = event.voteStart ? Number(event.voteStart) : undefined;
-        try {
-          const profilePromise = profileRecipient(
-            client,
-            effectiveNetwork,
-            accountArg,
-            proposalTs
-          );
-          action.recipientProfile = await Promise.race([
-            profilePromise,
-            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500)),
-          ]);
-        } catch {
-          action.recipientProfile = {
-            type: 'contract',
-            isVerified: false,
-            summary: `Recipient: ${accountArg.slice(0, 10)}... (profile timeout)`,
-          };
-        }
-        tRecipientProfilingMs += Date.now() - tProfStart;
-      }
+      // If event could not be established on-chain, return structured Analysis Incomplete per Rule 3
+      const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+      return {
+        assessment: 'analysis_incomplete',
+        network,
+        governorAddress: validGovernor,
+        proposal: {
+          id: trimmedProposalId,
+          description: `Analysis incomplete: ProposalCreated event could not be recovered by on-chain log scan.`,
+          status: state,
+        },
+        actions: [],
+        findings: [
+          {
+            id: 'PROPOSAL_EVENT_NOT_RECOVERED',
+            severity: 'high',
+            title: `Analysis incomplete: ProposalCreated log not recovered`,
+            description: `On-chain event logs for proposal ID ${trimmedProposalId} on Governor ${validGovernor} could not be established within the scan budget. Hint: Provide the proposal creation transaction hash or explorer URL to analyze this proposal directly.`,
+            verified: true,
+            whyItMatters:
+              'Without the ProposalCreated event log, executable action targets, values, signatures, and calldata cannot be proven from chain state.',
+          },
+        ],
+        descriptionConsistency: {
+          status: 'indeterminate',
+          explanation: 'Event retrieval incomplete; calldata not recovered.',
+        },
+        reviews: {
+          serv: { status: 'unavailable', error: 'Analysis incomplete: event not recovered' },
+          dolphin: { status: 'unavailable', error: 'Analysis incomplete: event not recovered' },
+        },
+        limitations: [
+          'On-chain log retrieval reached scan limits without locating the ProposalCreated event.',
+          'Provide the proposal creation transaction hash or explorer URL to decode actions directly without scanning.',
+        ],
+        evidence: [
+          {
+            label: 'Governor Contract',
+            url: `${SUPPORTED_NETWORKS[network].explorerUrl}/address/${validGovernor}`,
+            description: `Verified on-chain governor at ${validGovernor}`,
+          },
+        ],
+      };
     }
-  }
 
-  // 6. Run deterministic security checks
-  const tSecStart = Date.now();
-  const findings = detectFindings(actions);
-  tSecurityChecksMs = Date.now() - tSecStart;
+    // 4. Read current proposal state
+    currentStage = 'state_read';
+    const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
 
-  // 7. Check consistency between proposal description and executable actions
-  // Phase 1 is strictly deterministic and rule-based; it never awaits or depends on sponsor LLMs.
-  const tConsStart = Date.now();
-  const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
-  tConsistencyCheckMs = Date.now() - tConsStart;
+    // 5. Decode proposal actions
+    currentStage = 'action_decoding';
+    const { actions, limitations } = await decodeProposalActions({
+      network,
+      targets: event.targets,
+      values: event.values,
+      signatures: event.signatures,
+      calldatas: event.calldatas,
+      client,
+    });
 
-  // 8. Build final deterministic assessment
-  const tAssessStart = Date.now();
-  const assessment = buildAssessment({
-    actions,
-    findings,
-    consistency: descriptionConsistency,
-    limitations,
-  });
-  tAssessmentMs = Date.now() - tAssessStart;
-  const totalMs = Date.now() - t0;
+    // 6. Run deterministic security checks
+    currentStage = 'deterministic_checks';
+    const findings = detectFindings(actions);
 
-  // 9. Two-phase review architecture:
-  // Deterministic result returns first and renders immediately.
-  // Sponsor reviews load afterwards via a separate call (/api/review).
-  // When SYNC_REVIEWS === 'true' (e.g. in offline unit tests), run reviews synchronously.
-  let reviews: { serv: ProviderReview; dolphin: ProviderReview };
-  if (process.env.SYNC_REVIEWS === 'true') {
+    // 7. Check consistency between proposal description and executable actions
+    currentStage = 'consistency_check';
+    const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
+
+    // 8. Build final deterministic assessment
+    currentStage = 'assessment_synthesis';
+    const assessment = buildAssessment({
+      actions,
+      findings,
+      consistency: descriptionConsistency,
+      limitations,
+    });
+
+    // 9. Run sponsor advisory reviews with a bounded total execution time (max 20s)
+    currentStage = 'sponsor_reviews';
     const sponsorTimeoutPromise = new Promise<{ serv: ProviderReview; dolphin: ProviderReview }>(
       (resolve) => {
         setTimeout(() => {
@@ -302,7 +197,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
             serv: { status: 'error', error: 'SERV review timed out' },
             dolphin: { status: 'error', error: 'Dolphin review timed out' },
           });
-        }, 18_000);
+        }, 20_000);
       }
     );
 
@@ -320,130 +215,103 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
           : { status: 'error' as const, error: dolphinRes.reason?.message || 'Dolphin review failed' },
     }));
 
-    reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
-  } else {
-    reviews = {
-      serv: { status: 'pending', summary: 'Loading OpenServ SERV advisory review...' },
-      dolphin: { status: 'pending', summary: 'Loading Dolphin secondary review...' },
-    };
-  }
+    const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
 
-  // Evidence links
-  const networkConfig = SUPPORTED_NETWORKS[effectiveNetwork];
-  const evidence: EvidenceItem[] = [
-    {
-      label: 'Governor Contract',
-      url: `${networkConfig.explorerUrl}/address/${validGovernor}`,
-      description: `Verified on-chain governor at ${validGovernor}`,
-    },
-    {
-      label: 'Proposal Creation Transaction',
-      url: `${networkConfig.explorerUrl}/tx/${event.transactionHash}`,
-      description: `Emitted ProposalCreated event in block ${event.blockNumber.toString()}`,
-    },
-  ];
-
-  for (let i = 0; i < actions.length; i++) {
-    const act = actions[i]!;
-    evidence.push({
-      label: `Action #${i + 1} Target: ${act.targetName || act.target.slice(0, 10) + '...'}`,
-      url: `${networkConfig.explorerUrl}/address/${act.target}`,
-      description: act.isProxy && act.implementation
-        ? `Proxy contract pointing to implementation ${act.implementation}`
-        : `Direct target contract`,
-    });
-  }
-
-  const responseData: AnalysisResponse = {
-    assessment,
-    network: effectiveNetwork,
-    governorAddress: validGovernor,
-    proposal: {
-      id: trimmedProposalId,
-      description: event.description,
-      status: state,
-      proposer: event.proposer,
-      creationTransaction: event.transactionHash,
-      blockNumber: event.blockNumber.toString(),
-      eventSource,
-    },
-    actions,
-    findings,
-    descriptionConsistency,
-    reviews,
-    limitations,
-    evidence,
-    tier: 'instant',
-    diagnostics: {
-      tier: 'instant',
-      timings: {
-        eventLookupMs: tEventLookupMs,
-        proposalStateMs: tProposalStateMs,
-        abiResolutionMs: tAbiResolutionMs,
-        roleCapabilitiesMs: tRoleCapabilitiesMs,
-        recipientProfilingMs: tRecipientProfilingMs,
-        tokenMetadataMs: tTokenMetadataMs,
-        securityChecksMs: tSecurityChecksMs,
-        consistencyCheckMs: tConsistencyCheckMs,
-        assessmentMs: tAssessmentMs,
-        totalMs,
+    // Evidence links
+    const networkConfig = SUPPORTED_NETWORKS[network];
+    const evidence: EvidenceItem[] = [
+      {
+        label: 'Governor Contract',
+        url: `${networkConfig.explorerUrl}/address/${validGovernor}`,
+        description: `Verified on-chain governor at ${validGovernor}`,
       },
-      cached: false,
-      eventSource,
-      schemaVersion: SCHEMA_VERSION,
-    },
-  };
+      {
+        label: 'Proposal Creation Transaction',
+        url: `${networkConfig.explorerUrl}/tx/${event.transactionHash}`,
+        description: `Emitted ProposalCreated event in block ${event.blockNumber.toString()}`,
+      },
+    ];
 
-  // Cache response with TTL based on proposal status
-  const finalCacheKey = buildCacheKey(effectiveNetwork, validGovernor, trimmedProposalId);
-  const ttl = (state === 'Executed' || state === 'Defeated' || state === 'Canceled' || state === 'Expired')
-    ? 86400
-    : (state === 'Active' || state === 'Pending')
-      ? 60
-      : 300;
-  await setProposalCache(finalCacheKey, responseData, ttl);
+    for (let i = 0; i < actions.length; i++) {
+      const act = actions[i]!;
+      evidence.push({
+        label: `Action #${i + 1} Target: ${act.targetName || act.target.slice(0, 10) + '...'}`,
+        url: `${networkConfig.explorerUrl}/address/${act.target}`,
+        description:
+          act.isProxy && act.implementation
+            ? `Proxy contract pointing to implementation ${act.implementation}`
+            : `Direct target contract`,
+      });
+    }
 
-  return responseData;
-}
+    return {
+      assessment,
+      network,
+      governorAddress: validGovernor,
+      proposal: {
+        id: trimmedProposalId,
+        description: event.description,
+        status: state,
+        proposer: event.proposer,
+        creationTransaction: event.transactionHash,
+        blockNumber: event.blockNumber.toString(),
+      },
+      actions,
+      findings,
+      descriptionConsistency,
+      reviews,
+      limitations,
+      evidence,
+    };
+  })();
 
-export function extractStageTaggedError(err: unknown): StageTaggedError {
-  if (err instanceof ProposalEventLookupError) {
-    return {
-      stage: err.stage,
-      via: err.via,
-      reason: err.reason,
-      detail: err.detail,
-    };
+  // Wrap in internal hard deadline (~24.5s) to guarantee no raw 504 platform errors
+  let timerId: NodeJS.Timeout;
+  const deadlinePromise = new Promise<AnalysisResponse>((resolve) => {
+    timerId = setTimeout(() => {
+      resolve({
+        assessment: 'analysis_incomplete',
+        network,
+        governorAddress,
+        proposal: {
+          id: trimmedProposalId,
+          description: `Analysis timed out during ${currentStage}. The chain log scan exceeded the 25-second execution budget.`,
+          status: 'Incomplete',
+        },
+        actions: [],
+        findings: [
+          {
+            id: 'SCAN_DEADLINE_EXCEEDED',
+            severity: 'high',
+            title: `Analysis incomplete: stage stalled at ${currentStage}`,
+            description: `ProposalCreated event could not be retrieved within the 25-second deadline. Hint: Provide the creation transaction hash or explorer URL to analyze this proposal directly without scanning.`,
+            verified: true,
+            whyItMatters:
+              'Without the ProposalCreated event, executable calldata and parameters cannot be established on-chain.',
+          },
+        ],
+        descriptionConsistency: {
+          status: 'indeterminate',
+          explanation: 'Event retrieval incomplete; calldata not recovered.',
+        },
+        reviews: {
+          serv: { status: 'unavailable', error: 'Analysis incomplete' },
+          dolphin: { status: 'unavailable', error: 'Analysis incomplete' },
+        },
+        limitations: [
+          `Analysis exceeded the 25-second execution deadline during ${currentStage}.`,
+          'You can provide the proposal creation transaction hash directly to bypass log scanning.',
+        ],
+        evidence: [],
+      });
+    }, INTERNAL_DEADLINE_MS);
+  });
+
+  try {
+    return await Promise.race([pipelinePromise, deadlinePromise]);
+  } finally {
+    clearTimeout(timerId!);
   }
-  if (err instanceof ValidationError) {
-    return {
-      stage: 'input_validation',
-      reason: 'validation_error',
-      detail: err.message,
-    };
-  }
-  const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('network') || msg.includes('chain')) {
-    return {
-      stage: 'network_verification',
-      via: 'rpc',
-      reason: 'network_error',
-      detail: sanitizePublicErrorMessage(msg),
-    };
-  }
-  if (msg.includes('Governor') || msg.includes('contract')) {
-    return {
-      stage: 'governor_validation',
-      via: 'rpc',
-      reason: 'not_found',
-      detail: sanitizePublicErrorMessage(msg),
-    };
-  }
-  return {
-    stage: 'event_lookup',
-    reason: 'not_found',
-    detail: sanitizePublicErrorMessage(msg),
-  };
 }
 
 async function handleWebRequest(request: Request): Promise<Response> {
@@ -468,8 +336,7 @@ async function handleWebRequest(request: Request): Promise<Response> {
   const forwarded = request.headers.get('x-forwarded-for');
   const clientIp = forwarded?.split(',')[0]?.trim() || '127.0.0.1';
 
-  const rateCheck = checkIpRateLimit(clientIp);
-  if (rateCheck.isLimited) {
+  if (isRateLimited(clientIp)) {
     return new Response(
       JSON.stringify({
         error: 'Too Many Requests',
@@ -477,10 +344,7 @@ async function handleWebRequest(request: Request): Promise<Response> {
       } satisfies ApiErrorResponse),
       {
         status: 429,
-        headers: {
-          'Content-Type': 'application/json',
-          'Retry-After': String(rateCheck.retryAfterSeconds),
-        },
+        headers: { 'Content-Type': 'application/json' },
       }
     );
   }
@@ -530,14 +394,12 @@ async function handleWebRequest(request: Request): Promise<Response> {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err: unknown) {
-    const stageTagged = extractStageTaggedError(err);
     if (err instanceof ValidationError) {
       const errorTitle = err.message.split(':')[0] || 'Bad Request';
       return new Response(
         JSON.stringify({
           error: errorTitle,
           details: err.message,
-          stageTagged,
         } satisfies ApiErrorResponse),
         {
           status: 400,
@@ -550,7 +412,6 @@ async function handleWebRequest(request: Request): Promise<Response> {
       JSON.stringify({
         error: 'Analysis Error',
         details: sanitizePublicErrorMessage(rawMessage),
-        stageTagged,
       } satisfies ApiErrorResponse),
       {
         status: 500,
@@ -570,50 +431,22 @@ async function handleNodeReqRes(req: VercelRequest, res: VercelResponse) {
     } satisfies ApiErrorResponse);
   }
 
-  // Enforce payload size limit (max 64KB)
-  const bodyString = JSON.stringify(req.body || '');
-  if (bodyString.length > 65_536) {
-    return res.status(413).json({
-      error: 'Payload Too Large',
-      details: 'Request body exceeds maximum allowed size (64KB).',
-    } satisfies ApiErrorResponse);
-  }
-
-  // Lightweight IP rate limiting
-  const forwarded = req.headers?.['x-forwarded-for'];
-  const clientIp =
-    (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim() ||
-    (req as any).socket?.remoteAddress ||
-    '127.0.0.1';
-
-  const rateCheck = checkIpRateLimit(clientIp);
-  if (rateCheck.isLimited) {
-    res.setHeader('Retry-After', String(rateCheck.retryAfterSeconds));
-    return res.status(429).json({
-      error: 'Too Many Requests',
-      details: 'Rate limit exceeded. Please wait before submitting additional proposals.',
-    } satisfies ApiErrorResponse);
-  }
-
   try {
     const body = (req.body || {}) as Partial<AnalysisRequest>;
     const response = await executeAnalysis(body as AnalysisRequest);
     return res.status(200).json(response);
   } catch (err: unknown) {
-    const stageTagged = extractStageTaggedError(err);
     if (err instanceof ValidationError) {
       const errorTitle = err.message.split(':')[0] || 'Bad Request';
       return res.status(400).json({
         error: errorTitle,
         details: err.message,
-        stageTagged,
       } satisfies ApiErrorResponse);
     }
-    const rawMessage = err instanceof Error ? err.message : 'Internal Server Error';
+    const message = err instanceof Error ? err.message : 'Internal Server Error';
     return res.status(500).json({
       error: 'Analysis Error',
-      details: sanitizePublicErrorMessage(rawMessage),
-      stageTagged,
+      details: message,
     } satisfies ApiErrorResponse);
   }
 }

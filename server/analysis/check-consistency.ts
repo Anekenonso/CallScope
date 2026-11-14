@@ -1,38 +1,4 @@
 import type { ProposalAction, DescriptionConsistency } from '../../src/types/analysis';
-import {
-  extractClaimsWithServ,
-  extractFallbackClaims,
-  evaluateClaimsLedger,
-} from './claims-ledger';
-
-export { extractClaimsWithServ, extractFallbackClaims, evaluateClaimsLedger };
-
-interface ExecutedAmountInfo {
-  raw: bigint;
-  decimals?: number;
-  decimalsUnavailable?: boolean;
-  symbol?: string;
-  isApproval?: boolean;
-  spender?: string;
-}
-
-/**
- * Extract explicit recipient addresses designated in the description text.
- * Only addresses explicitly linked to transfer destinations, recipients, beneficiaries,
- * or grant winners are treated as explicit recipient constraints.
- */
-function extractExplicitRecipientAddresses(description: string): Set<string> {
-  const explicit = new Set<string>();
-  const recipientPattern =
-    /(?:to|recipient|beneficiary|destination|send\s+to|transfer\s+to|pay\s+to|grant\s+to|winner|wallet|payout\s+to)[:\s]+(0x[a-fA-F0-9]{40})/gi;
-  let match: RegExpExecArray | null;
-  while ((match = recipientPattern.exec(description)) !== null) {
-    if (match[1]) {
-      explicit.add(match[1].toLowerCase());
-    }
-  }
-  return explicit;
-}
 
 /**
  * Perform deterministic NLP-lite semantic consistency check between
@@ -71,30 +37,21 @@ export function checkDescriptionActionConsistency(
     mentionedAddresses.add(addr.toLowerCase());
   }
 
-  // Extract explicitly bound recipient addresses from description
-  const explicitRecipients = extractExplicitRecipientAddresses(description);
-
   // Topic indicators
-  const mentionsTransfer =
-    /\b(transfer|fund|funds|allocation|disbursement|treasury|usdc|dai|payment|budget)\b/i.test(
-      description
-    );
-  const mentionsRole =
-    /\b(role|proposer|executor|admin|permission|permissions|security\s+council|signer|multisig)\b/i.test(
-      description
-    );
-  const mentionsUpgrade = /\b(upgrade|implementation|logic|proxy|migrate)\b/i.test(description);
-  const mentionsOwnership = /\b(ownership|owner|transfer\s+ownership|renounce)\b/i.test(description);
-  const describesStream =
-    /\b(stream|streaming|daily\s+stream|daily\s+usdc|sablier|superfluid|continuous\s+stream)\b/i.test(
-      description
-    );
-  const describesApproval = /\b(approve|approval|allowance)\b/i.test(description);
+  const mentionsTransfer = /transfer|fund|allocation|disbursement|treasury|usdc|dai|payment|budget/i.test(
+    description
+  );
+  const mentionsRole = /role|proposer|executor|admin|permission|security council|signer|multisig/i.test(
+    description
+  );
+  const mentionsUpgrade = /upgrade|implementation|logic|proxy|migrate/i.test(description);
+  const mentionsOwnership = /ownership|owner|transfer\s+ownership/i.test(description);
 
   // Extract explicitly claimed transfer amounts from description text
+  // Pattern: (transfer|disburse|send|grant|pay) of? (amount) (token)?
   const claimedAmountMatches = [
     ...description.matchAll(
-      /(?:transfer|disburse|send|grant|pay|allocation\s+of|stream\s+of|stream)\s+(?:of\s+)?(\$?\d[\d,]*(?:\.\d+)?)\s*([a-zA-Z$]+)?/gi
+      /(?:transfer|disburse|send|grant|pay|allocation\s+of)\s+(?:of\s+)?(\$?\d[\d,]*(?:\.\d+)?)\s*([a-zA-Z$]+)?/gi
     ),
   ];
   const claimedNumericValues: number[] = [];
@@ -106,8 +63,7 @@ export function checkDescriptionActionConsistency(
     }
   }
 
-  const executedAmounts: ExecutedAmountInfo[] = [];
-  let hasActualTransferAction = false;
+  const executedTransferAmounts: bigint[] = [];
 
   for (let i = 0; i < actions.length; i++) {
     const action = actions[i]!;
@@ -122,55 +78,6 @@ export function checkDescriptionActionConsistency(
     }
 
     const fn = (action.functionName || '').toLowerCase();
-
-    // Check for direct native ETH transfer
-    if (action.isNativeTransfer || (action.value && action.value !== '0' && fn === 'transfer')) {
-      hasActualTransferAction = true;
-      const recipient =
-        action.args?.find((a) => a.name.toLowerCase() === 'recipient')?.value ||
-        action.target ||
-        '';
-      const recipientLower = recipient.toLowerCase();
-
-      let rawAmount = 0n;
-      try {
-        rawAmount = BigInt(action.value || '0');
-      } catch {
-        rawAmount = 0n;
-      }
-
-      if (rawAmount > 0n) {
-        executedAmounts.push({
-          raw: rawAmount,
-          decimals: 18,
-          symbol: 'ETH',
-        });
-      }
-
-      if (!mentionsTransfer) {
-        discrepancies.push(
-          `Action #${actionNum} transfers native ETH, but description does not describe funds disbursement.`
-        );
-      }
-
-      // Check recipient address consistency
-      if (
-        recipient &&
-        !mentionedAddresses.has(recipientLower) &&
-        !descLower.includes(recipientLower)
-      ) {
-        if (explicitRecipients.size > 0 && !explicitRecipients.has(recipientLower)) {
-          discrepancies.push(
-            `Recipient mismatch: Action #${actionNum} sends native ETH to ${recipient}, which contradicts the explicit recipient stated in description.`
-          );
-        } else {
-          omissions.push(
-            `Action #${actionNum}: Native ETH recipient ${recipient} is not specified by address in the description.`
-          );
-        }
-      }
-      continue;
-    }
 
     // 1. Role operations
     if (fn === 'grantrole' || fn === 'revokerole') {
@@ -187,15 +94,15 @@ export function checkDescriptionActionConsistency(
         );
       }
 
-      // Exact recipient address check
+      // Exact recipient address check - generic words like "multisig" do NOT bypass this check
       if (
         recipient &&
         !mentionedAddresses.has(recipientLower) &&
         !descLower.includes(recipientLower)
       ) {
-        if (explicitRecipients.size > 0 && !explicitRecipients.has(recipientLower)) {
+        if (mentionedAddresses.size > 0) {
           discrepancies.push(
-            `Recipient mismatch: Action #${actionNum} grants permissions to ${recipient}, which contradicts address stated in description.`
+            `Recipient mismatch: Action #${actionNum} grants permissions to ${recipient}, which does not match address stated in description.`
           );
         } else {
           omissions.push(
@@ -207,11 +114,11 @@ export function checkDescriptionActionConsistency(
 
     // 2. Token transfers: transfer vs transferFrom
     else if (fn === 'transfer' || fn === 'transferfrom') {
-      hasActualTransferAction = true;
       let recipient = '';
       let rawAmount = 0n;
 
       if (fn === 'transfer') {
+        // transfer(address to, uint256 amount) - Recipient is argument 1 (index 0)
         recipient =
           action.args?.find(
             (a) =>
@@ -233,6 +140,7 @@ export function checkDescriptionActionConsistency(
           rawAmount = 0n;
         }
       } else {
+        // transferFrom(address from, address to, uint256 amount) - Recipient is argument 2 (index 1)
         recipient =
           action.args?.find(
             (a) =>
@@ -256,12 +164,7 @@ export function checkDescriptionActionConsistency(
       }
 
       if (rawAmount > 0n) {
-        executedAmounts.push({
-          raw: rawAmount,
-          decimals: action.tokenDecimals,
-          decimalsUnavailable: action.decimalsUnavailable,
-          symbol: action.tokenSymbol,
-        });
+        executedTransferAmounts.push(rawAmount);
       }
 
       const recipientLower = recipient.toLowerCase();
@@ -272,18 +175,17 @@ export function checkDescriptionActionConsistency(
         );
       }
 
-      // Check if recipient is mentioned or explicitly contradicted
+      // Check if recipient is mentioned in description - exact address matching required
       if (
         recipient &&
         !mentionedAddresses.has(recipientLower) &&
         !descLower.includes(recipientLower)
       ) {
-        if (explicitRecipients.size > 0 && !explicitRecipients.has(recipientLower)) {
+        if (mentionedAddresses.size > 0) {
           discrepancies.push(
             `Recipient mismatch: Action #${actionNum} executes call to ${recipient}, which does not match address stated in description.`
           );
         } else {
-          // Address not in description, but no contradicting address was explicitly named
           omissions.push(
             `Action #${actionNum}: Token recipient ${recipient} (${action.targetName || 'token'}) is not specified in the description text.`
           );
@@ -291,54 +193,7 @@ export function checkDescriptionActionConsistency(
       }
     }
 
-    // 3. Token Approvals: approve(address spender, uint256 amount)
-    else if (fn === 'approve') {
-      const spender =
-        action.args?.find(
-          (a) =>
-            a.name.toLowerCase() === 'spender' ||
-            a.name.toLowerCase() === 'usr' ||
-            a.type === 'address'
-        )?.value ||
-        action.args?.[0]?.value ||
-        '';
-      const amountStr =
-        action.args?.find(
-          (a) => a.name.toLowerCase() === 'amount' || a.name.toLowerCase() === 'value'
-        )?.value ||
-        action.args?.[1]?.value ||
-        '0';
-
-      let rawAmount = 0n;
-      try {
-        rawAmount = BigInt(amountStr);
-      } catch {
-        rawAmount = 0n;
-      }
-
-      executedAmounts.push({
-        raw: rawAmount,
-        decimals: action.tokenDecimals,
-        decimalsUnavailable: action.decimalsUnavailable,
-        symbol: action.tokenSymbol,
-        isApproval: true,
-        spender,
-      });
-
-      // Catch scenario: Description claims a daily stream / streaming payment, but only executes approve
-      if (describesStream) {
-        discrepancies.push(
-          `Action #${actionNum} executes a token approval (\`approve\`) to ${spender} on ${action.targetName || action.target}, but the proposal describes establishing a payment stream (daily stream). A token approval only delegates withdrawal allowance and does not configure or initiate an active stream.`
-        );
-      } else if (mentionsTransfer && !describesApproval && !hasActualTransferAction) {
-        // Proposal claims direct transfer/grant/payment, but only approves
-        discrepancies.push(
-          `Action #${actionNum} executes a token approval (\`approve\`) rather than a direct transfer or disbursement as described in the proposal. An approval grants withdrawal allowance to ${spender} but does not transfer treasury funds.`
-        );
-      }
-    }
-
-    // 4. Upgrades
+    // 3. Upgrades
     else if (fn === 'upgradeto' || fn === 'upgradetoandcall') {
       if (!mentionsUpgrade) {
         discrepancies.push(
@@ -347,7 +202,7 @@ export function checkDescriptionActionConsistency(
       }
     }
 
-    // 5. Ownership
+    // 4. Ownership
     else if (fn === 'transferownership') {
       if (!mentionsOwnership) {
         discrepancies.push(
@@ -357,29 +212,23 @@ export function checkDescriptionActionConsistency(
     }
   }
 
-  // Compare claimed amounts against executed transfer amounts
-  const nonApprovalAmounts = executedAmounts.filter((ea) => !ea.isApproval);
-
+  // Compare claimed amounts against executed amounts
   for (const claimed of claimedNumericValues) {
-    const matchesAny = nonApprovalAmounts.some((ea) => {
-      // 1. Raw integer match
-      if (ea.raw.toString() === claimed.toString()) return true;
-
-      // 2. Verified decimals match (never guess if decimalsUnavailable)
-      if (ea.decimals !== undefined && !ea.decimalsUnavailable) {
-        const scaled = Number(ea.raw) / Math.pow(10, ea.decimals);
-        if (Math.abs(scaled - claimed) < 0.001) return true;
-      } else if (!ea.decimalsUnavailable) {
-        // Fallback standard decimals (6 or 18) only if decimalsUnavailable is NOT set
-        const amt6 = Number(ea.raw) / 1e6;
-        if (Math.abs(amt6 - claimed) < 0.001) return true;
-        const amt18 = Number(ea.raw) / 1e18;
-        if (Math.abs(amt18 - claimed) < 0.001) return true;
-      }
+    // Check if claimed amount matches any executed transfer under standard decimal bases (1, 6 decimals for USDC, 18 decimals for ERC20)
+    const matchesAny = executedTransferAmounts.some((amt) => {
+      const amtStr = amt.toString();
+      // Match raw integer
+      if (amtStr === claimed.toString()) return true;
+      // Match 6 decimals (e.g. 100 USDC = 100_000_000)
+      const amt6 = Number(amt) / 1e6;
+      if (Math.abs(amt6 - claimed) < 0.001) return true;
+      // Match 18 decimals (e.g. 100 tokens = 100 * 1e18)
+      const amt18 = Number(amt) / 1e18;
+      if (Math.abs(amt18 - claimed) < 0.001) return true;
       return false;
     });
 
-    if (nonApprovalAmounts.length > 0 && !matchesAny) {
+    if (executedTransferAmounts.length > 0 && !matchesAny) {
       discrepancies.push(
         `Amount mismatch: Description claims transfer of ${claimed}, but no executable action matches this amount.`
       );
@@ -390,10 +239,9 @@ export function checkDescriptionActionConsistency(
   if (discrepancies.length > 0) {
     return {
       status: 'inconsistent',
-      explanation: `Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Material discrepancies detected between proposal claims and executable calls: ${discrepancies.join(' ')}`,
+      explanation: `Material discrepancies detected between proposal claims and executable calls: ${discrepancies.join(' ')}`,
       omissions: omissions.length > 0 ? omissions : undefined,
       discrepancies,
-      mode: 'keyword_fallback',
     };
   }
 
@@ -402,9 +250,8 @@ export function checkDescriptionActionConsistency(
     return {
       status: 'indeterminate',
       explanation:
-        'Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Proposal contains undecoded actions that cannot be reliably verified against stated claims.',
+        'Proposal contains undecoded actions that cannot be reliably verified against stated claims.',
       omissions,
-      mode: 'keyword_fallback',
     };
   }
 
@@ -412,14 +259,13 @@ export function checkDescriptionActionConsistency(
   if (actions.length > 0 && omissions.length > 0) {
     return {
       status: 'indeterminate',
-      explanation: `Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: ${omissions.join(' ')}`,
+      explanation: `Claims cannot be reliably verified against executable actions: ${omissions.join(' ')}`,
       omissions,
-      mode: 'keyword_fallback',
     };
   }
 
   const mentionsAnyOperation =
-    mentionsTransfer || mentionsRole || mentionsUpgrade || mentionsOwnership || describesApproval;
+    mentionsTransfer || mentionsRole || mentionsUpgrade || mentionsOwnership;
   if (
     actions.length > 0 &&
     (!mentionsAnyOperation || (mentionedAddresses.size === 0 && claimedNumericValues.length === 0))
@@ -427,15 +273,13 @@ export function checkDescriptionActionConsistency(
     return {
       status: 'indeterminate',
       explanation:
-        'Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Proposal description is too vague to establish verifiable consistency with executable actions.',
-      mode: 'keyword_fallback',
+        'Proposal description is too vague to establish verifiable consistency with executable actions.',
     };
   }
 
   return {
     status: 'consistent',
     explanation:
-      'Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Executable actions match stated operations and recipients in the proposal description.',
-    mode: 'keyword_fallback',
+      'Executable actions match the stated operations, recipients, and intended effects in the proposal description.',
   };
 }

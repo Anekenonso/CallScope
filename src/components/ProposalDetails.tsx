@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import type { ProposalInfo, SupportedNetwork } from '../types/analysis';
-import { Address } from './Address';
 
 interface ProposalDetailsProps {
   proposal: ProposalInfo;
@@ -14,22 +13,17 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
   governorAddress,
 }) => {
   const [showFullDescription, setShowFullDescription] = useState(false);
-  const [copiedId, setCopiedId] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const explorerBase =
     network === 'ethereum' ? 'https://etherscan.io' : 'https://basescan.org';
 
-  const copyIdToClipboard = () => {
-    navigator.clipboard.writeText(proposal.id).then(() => {
-      setCopiedId(true);
-      setTimeout(() => setCopiedId(false), 2000);
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(label);
+      setTimeout(() => setCopiedField(null), 2000);
     });
   };
-
-  const isSynthetic =
-    proposal.description?.includes('[SYNTHETIC]') ||
-    proposal.id?.startsWith('999') ||
-    proposal.creationTransaction === '0x0000000000000000000000000000000000000000000000000000000000000000';
 
   const hasLongDescription =
     proposal.description && proposal.description.length > 300;
@@ -40,95 +34,53 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
 
   return (
     <section className="section-card proposal-details-section" aria-labelledby="proposal-heading">
-      {isSynthetic && (
-        <div
-          className="synthetic-fixture-banner"
-          style={{
-            padding: '8px 14px',
-            background: 'rgba(234, 179, 8, 0.1)',
-            border: '1px solid rgba(234, 179, 8, 0.3)',
-            borderRadius: '6px',
-            color: '#eab308',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-          }}
-        >
-          <span style={{ background: '#eab308', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
-            [SYNTHETIC]
-          </span>
-          <span>Synthetic fixture for deterministic edge-case testing · Offline simulated calldata</span>
-        </div>
-      )}
-
       <div className="section-header-row">
-        <div className="section-heading-group">
-          <span className="section-kicker">On-Chain Record</span>
-          <h2 id="proposal-heading" className="section-heading">Proposal record &amp; state</h2>
-        </div>
-        <div className="header-status-wrap">
-          <span className={`status-pill status-${proposal.status.toLowerCase()}`}>
-            <span className="status-dot-indicator" aria-hidden="true" />
-            <span>{proposal.status}</span>
-          </span>
-        </div>
+        <h2 id="proposal-heading" className="section-heading">Proposal details</h2>
+        <span className={`status-pill status-${proposal.status.toLowerCase()}`}>
+          {proposal.status}
+        </span>
       </div>
 
       <div className="details-grid">
         <div className="detail-item">
           <span className="detail-label">Network</span>
-          <span className="detail-value">{network === 'ethereum' ? 'Ethereum Mainnet (1)' : 'Base Mainnet (8453)'}</span>
+          <span className="detail-value">{network === 'ethereum' ? 'Ethereum Mainnet' : 'Base Mainnet'}</span>
         </div>
 
-        {proposal.eventSource && (
-          <div className="detail-item">
-            <span className="detail-label">Event Source</span>
-            <span className="detail-value" data-testid="event-source" style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-              {proposal.eventSource.startsWith('pinned snapshot') ? (
-                <span className="event-source-pill pinned" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '2px 8px', borderRadius: '4px' }}>
-                  Event source: {proposal.eventSource}
-                </span>
-              ) : (
-                <span className="event-source-pill live" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '2px 8px', borderRadius: '4px' }}>
-                  Event source: {proposal.eventSource}
-                </span>
-              )}
-            </span>
-          </div>
-        )}
-
         <div className="detail-item">
-          <span className="detail-label">Governor Contract</span>
+          <span className="detail-label">Governor</span>
           <span className="detail-value tabular-nums">
-            <Address
-              value={governorAddress}
-              explorerUrl={`${explorerBase}/address/${governorAddress}`}
-              label="Governor"
-            />
+            <a
+              href={`${explorerBase}/address/${governorAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="address-link"
+              title="View on Explorer"
+            >
+              {governorAddress}
+            </a>
+            <button
+              type="button"
+              className="copy-btn"
+              onClick={() => copyToClipboard(governorAddress, 'Governor')}
+              aria-label="Copy Governor address"
+            >
+              {copiedField === 'Governor' ? 'Copied' : 'Copy'}
+            </button>
           </span>
         </div>
 
         <div className="detail-item">
           <span className="detail-label">Proposal ID</span>
-          <span
-            className="detail-value tabular-nums"
-            style={{
-              overflowWrap: 'anywhere',
-              wordBreak: 'break-all',
-              minWidth: 0,
-            }}
-          >
-            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{proposal.id}</span>
+          <span className="detail-value tabular-nums break-all">
+            {proposal.id}
             <button
               type="button"
               className="copy-btn"
-              onClick={copyIdToClipboard}
+              onClick={() => copyToClipboard(proposal.id, 'ID')}
               aria-label="Copy Proposal ID"
             >
-              {copiedId ? 'Copied' : 'Copy'}
+              {copiedField === 'ID' ? 'Copied' : 'Copy'}
             </button>
           </span>
         </div>
@@ -137,11 +89,22 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
           <div className="detail-item">
             <span className="detail-label">Proposer</span>
             <span className="detail-value tabular-nums">
-              <Address
-                value={proposal.proposer}
-                explorerUrl={`${explorerBase}/address/${proposal.proposer}`}
-                label="Proposer"
-              />
+              <a
+                href={`${explorerBase}/address/${proposal.proposer}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="address-link"
+              >
+                {proposal.proposer}
+              </a>
+              <button
+                type="button"
+                className="copy-btn"
+                onClick={() => copyToClipboard(proposal.proposer!, 'Proposer')}
+                aria-label="Copy Proposer address"
+              >
+                {copiedField === 'Proposer' ? 'Copied' : 'Copy'}
+              </button>
             </span>
           </div>
         )}
@@ -150,18 +113,13 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
           <div className="detail-item">
             <span className="detail-label">Created at block</span>
             <span className="detail-value tabular-nums">
-              {isSynthetic ? (
-                <span style={{ color: 'var(--text-muted, #94a3b8)' }}>{proposal.blockNumber} (synthetic block)</span>
-              ) : (
-                <a
-                  href={`${explorerBase}/block/${proposal.blockNumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="address-link"
-                >
-                  {proposal.blockNumber}
-                </a>
-              )}
+              <a
+                href={`${explorerBase}/block/${proposal.blockNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {proposal.blockNumber}
+              </a>
             </span>
           </div>
         )}
@@ -169,35 +127,22 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
         {proposal.creationTransaction && (
           <div className="detail-item">
             <span className="detail-label">Creation transaction</span>
-            <span className="detail-value tabular-nums">
-              {isSynthetic ? (
-                <span
-                  className="synthetic-tx-indicator"
-                  style={{ color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic', fontSize: '0.85rem' }}
-                >
-                  Synthetic fixture · no on-chain transaction
-                </span>
-              ) : (
-                <Address
-                  value={proposal.creationTransaction}
-                  explorerUrl={`${explorerBase}/tx/${proposal.creationTransaction}`}
-                  label="Creation transaction"
-                  prefixLength={10}
-                  suffixLength={8}
-                />
-              )}
+            <span className="detail-value tabular-nums break-all">
+              <a
+                href={`${explorerBase}/tx/${proposal.creationTransaction}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="address-link"
+              >
+                {proposal.creationTransaction}
+              </a>
             </span>
           </div>
         )}
       </div>
 
-      <div className="description-container" id="proposal-description">
-        <div className="description-header-row">
-          <span className="detail-label">Submitted Description</span>
-          <span className="description-meta-len">
-            {proposal.description ? `${proposal.description.length} chars` : '0 chars'}
-          </span>
-        </div>
+      <div className="description-container">
+        <span className="detail-label">Description</span>
         <div className="description-box">
           <p className="description-text">{displayedDescription}</p>
           {hasLongDescription && (
@@ -214,3 +159,4 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
     </section>
   );
 };
+

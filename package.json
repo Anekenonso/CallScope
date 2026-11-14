@@ -8,27 +8,16 @@
     "build": "tsc && node bundle-api.mjs && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run tests/unit/",
-    "test:live": "vitest run tests/live/",
-    "test:all": "vitest run",
-    "test:watch": "vitest",
-    "check:readme": "node --experimental-strip-types scripts/check-readme-consistency.ts",
-    "compare:sponsors": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=sim",
-    "compare:sponsors:sim": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=sim",
-    "compare:sponsors:live": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=live",
-    "eval": "node --experimental-strip-types eval/sponsor-contribution.ts",
-    "eval:sim": "node --experimental-strip-types eval/sponsor-contribution.ts --mode=sim",
-    "eval:live": "node --experimental-strip-types eval/sponsor-contribution.ts --mode=live",
-    "smoke": "node --env-file=.env --experimental-strip-types scripts/smoke-test-deployment.ts"
+    "test": "vitest run",
+    "test:live": "vitest run tests/live",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "viem": "^2.21.44",
-    "zod": "^3.23.8"
+    "viem": "^2.21.44"
   },
   "devDependencies": {
-    "@solidity-parser/parser": "^0.20.2",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -36,6 +25,5 @@
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^2.1.4"
-  },
-  "packageManager": "pnpm@11.23.0"
+  }
 }

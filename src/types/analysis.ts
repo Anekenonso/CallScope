@@ -13,33 +13,12 @@ export interface ProposalInfo {
   proposer?: string;
   creationTransaction?: string;
   blockNumber?: string;
-  eventSource?: string;
 }
 
 export interface DecodedArg {
   name: string;
   type: string;
   value: string;
-  formattedValue?: string;
-  rawAmount?: string;
-  decimals?: number;
-  symbol?: string;
-  decimalsUnavailable?: boolean;
-}
-
-export interface RoleCapability {
-  status: 'resolved' | 'unresolved';
-  capabilities?: { fn: string; gatedBy: string }[];
-  summary?: string;
-  sourceOrigin?: 'verified_source' | 'fallback' | 'unresolved';
-}
-
-export interface RecipientProfile {
-  type: 'EOA' | 'contract';
-  isVerified?: boolean;
-  deployedDaysBefore?: number;
-  deployedTimestamp?: number;
-  summary: string;
 }
 
 export interface ProposalAction {
@@ -56,15 +35,6 @@ export interface ProposalAction {
   isProxy?: boolean;
   implementation?: string;
   decodeError?: string;
-  tokenDecimals?: number;
-  tokenSymbol?: string;
-  formattedAmount?: string;
-  decimalsUnavailable?: boolean;
-  isSafeWrapper?: boolean;
-  isNativeTransfer?: boolean;
-  limitations?: string[];
-  roleCapability?: RoleCapability;
-  recipientProfile?: RecipientProfile;
 }
 
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
@@ -78,121 +48,20 @@ export interface Finding {
   target?: string;
   verified: boolean;
   whyItMatters: string;
-  verificationBadge?: string;
 }
-
-export type ClaimCategory =
-  | 'recipient'
-  | 'amount'
-  | 'role'
-  | 'capability'
-  | 'duration'
-  | 'ownership'
-  | 'upgrade'
-  | 'other';
-
-export type ClaimStatus = 'verified' | 'contradicted' | 'not_checkable';
-
-export interface Claim {
-  id: string;
-  quote: string;
-  category: ClaimCategory;
-  params?: Record<string, unknown>;
-  status?: ClaimStatus;
-  explanation?: string;
-  evidenceRef?: { actionIndex?: number; argName?: string };
-}
-
-export type ConsistencyStatus =
-  | 'consistent'
-  | 'inconsistent'
-  | 'partially_verified'
-  | 'indeterminate';
 
 export interface DescriptionConsistency {
-  status: ConsistencyStatus;
+  status: 'consistent' | 'inconsistent' | 'indeterminate';
   explanation: string;
   omissions?: string[];
   discrepancies?: string[];
-  claims?: Claim[];
-  mode?: 'claims_ledger' | 'keyword_fallback';
-}
-
-export type ReviewItemKind = 'supported' | 'unsupported_claim' | 'risk' | 'contradiction' | 'note';
-
-export interface ReviewItem {
-  kind: ReviewItemKind;
-  issue: string;
-  evidence?: string;
-  actionRef?: number;
-  findingRef?: string;
-  claimRef?: string;
-  evidenceId?: string;
-  toolCallId?: string;
-}
-
-export type ProviderStatus =
-  | 'ok'
-  | 'available'
-  | 'pending'
-  | 'not_configured'
-  | 'rate_limited'
-  | 'timed_out'
-  | 'auth_error'
-  | 'guard_blocked'
-  | 'local_injection_precheck_flagged'
-  | 'schema_invalid'
-  | 'upstream_error'
-  | 'unavailable'
-  | 'error';
-
-export type ProviderErrorClass =
-  | 'not_configured'
-  | 'rate_limited'
-  | 'timed_out'
-  | 'auth_error'
-  | 'guard_blocked'
-  | 'local_injection_precheck_flagged'
-  | 'schema_invalid'
-  | 'upstream_error';
-
-export type ScenarioRebuttalStatus = 'refuted_by_data' | 'not_refuted' | 'needs_human';
-
-export interface AttackScenarioStep {
-  actionRef?: number;
-  findingRef?: string;
-  description?: string;
-}
-
-export interface AttackScenario {
-  id: string;
-  title: string;
-  preconditions: string[];
-  steps: AttackScenarioStep[];
-  impact: string;
-  severityHint?: 'critical' | 'high' | 'medium' | 'low';
-  rebuttalStatus: ScenarioRebuttalStatus;
-  refutedBy?: string;
 }
 
 export interface ProviderReview {
-  provider?: string;
-  status: ProviderStatus;
+  status: 'available' | 'unavailable' | 'error' | 'not_configured';
   summary?: string;
-  items?: ReviewItem[];
   findings?: string[];
-  scenarios?: AttackScenario[];
-  questions?: string[];
-  modelReturned?: string;
   error?: string;
-  reason?: string;
-  errorClass?: ProviderErrorClass;
-  retryable?: boolean;
-  attempts?: number;
-  toolCallCount?: number;
-  loopTurns?: number;
-  tier?: 'instant' | 'standard' | 'deep';
-  durationMs?: number;
 }
 
 export interface EvidenceItem {
@@ -201,60 +70,11 @@ export interface EvidenceItem {
   description?: string;
 }
 
-export type AnalysisStage =
-  | 'input_validation'
-  | 'network_verification'
-  | 'governor_validation'
-  | 'event_lookup'
-  | 'action_decoding'
-  | 'role_resolution'
-  | 'consistency_check'
-  | 'assessment'
-  | 'sponsor_review';
-
-export interface StageTaggedError {
-  stage: AnalysisStage;
-  via?: 'blockscout' | 'rpc';
-  reason?: 'timeout' | 'range_rejected' | 'rate_limited' | 'not_found' | 'network_error' | 'validation_error' | 'execution_error';
-  detail?: string;
-}
-
 export interface AnalysisRequest {
   network: SupportedNetwork;
-  governorAddress?: string;
-  proposalId?: string;
-  txHashOrUrl?: string;
-  reverifyLive?: boolean;
-}
-
-export interface AnalysisTimings {
-  eventLookupMs?: number;
-  proposalStateMs?: number;
-  abiResolutionMs?: number;
-  tokenMetadataMs?: number;
-  roleCapabilitiesMs?: number;
-  recipientProfilingMs?: number;
-  securityChecksMs?: number;
-  consistencyCheckMs?: number;
-  assessmentMs?: number;
-  totalMs: number;
-}
-
-export interface ReviewTimings {
-  servExtractionMs?: number;
-  servInvestigatorMs?: number;
-  servLoopTurns?: number;
-  dolphinScenarioMs?: number;
-  claimsLedgerMs?: number;
-  totalMs: number;
-}
-
-export interface AnalysisDiagnostics {
-  tier: 'instant' | 'standard' | 'deep';
-  timings: AnalysisTimings & Partial<ReviewTimings>;
-  cached?: boolean;
-  eventSource?: string;
-  schemaVersion?: string;
+  governorAddress: string;
+  proposalId: string;
+  creationTxHash?: string;
 }
 
 export interface AnalysisResponse {
@@ -265,22 +85,17 @@ export interface AnalysisResponse {
   actions: ProposalAction[];
   findings: Finding[];
   descriptionConsistency: DescriptionConsistency;
-  extendedConsistency?: DescriptionConsistency;
   reviews: {
     serv: ProviderReview;
     dolphin: ProviderReview;
-    extendedClaimsCheck?: DescriptionConsistency;
   };
   limitations: string[];
   evidence: EvidenceItem[];
-  tier?: 'instant' | 'standard' | 'deep';
-  diagnostics?: AnalysisDiagnostics;
 }
 
 export interface ApiErrorResponse {
   error: string;
   code?: string;
   details?: string;
-  stageTagged?: StageTaggedError;
 }
 

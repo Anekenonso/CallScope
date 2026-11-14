@@ -8,7 +8,6 @@ import {
   toFunctionSelector,
   decodeFunctionData,
   concatHex,
-  formatEther,
 } from 'viem';
 import type {
   SupportedNetwork,
@@ -16,7 +15,6 @@ import type {
   DecodedArg,
 } from '../../src/types/analysis';
 import { resolveContractAbi, type ResolvedAbiResult } from './resolve-abi';
-import { resolveTokenMetadata, formatTokenAmount, type TokenMetadata } from './token-metadata';
 
 export interface DecodeActionsInput {
   network: SupportedNetwork;
@@ -148,7 +146,6 @@ export async function decodeProposalActions(
   const actions: ProposalAction[] = [];
   const limitations: string[] = [];
   const abiCache = new Map<string, ResolvedAbiResult>();
-  const tokenCache = new Map<string, TokenMetadata>();
 
   for (let i = 0; i < targets.length; i++) {
     const rawTarget = targets[i]!;
@@ -180,58 +177,6 @@ export async function decodeProposalActions(
       rawCalldata,
     };
 
-    const hasEmptyCalldata = !rawCalldata || rawCalldata === '0x' || rawCalldata.trim() === '';
-    const hasNativeValue = rawValue !== '0';
-
-    // A. Native ETH transfers: non-zero value and empty calldata recognized as direct transfer
-    if (hasEmptyCalldata && hasNativeValue) {
-      const ethFormatted = `${formatEther(BigInt(rawValue))} ETH`;
-      action.decoded = true;
-      action.functionName = 'transfer';
-      action.selector = '0x';
-      action.signature = 'transfer(address,uint256)';
-      action.isNativeTransfer = true;
-      action.targetName = action.targetName || 'Recipient';
-      action.formattedAmount = ethFormatted;
-      action.tokenDecimals = 18;
-      action.tokenSymbol = 'ETH';
-      action.args = [
-        {
-          name: 'recipient',
-          type: 'address',
-          value: targetAddress,
-        },
-        {
-          name: 'amount',
-          type: 'uint256',
-          value: rawValue,
-          formattedValue: ethFormatted,
-          rawAmount: rawValue,
-          decimals: 18,
-          symbol: 'ETH',
-        },
-      ];
-      actions.push(action);
-      continue;
-    }
-
-    // E. Safe Transaction Wrapper (execTransaction selector: 0x6a761202)
-    if (selector === '0x6a761202') {
-      action.decoded = false;
-      action.isSafeWrapper = true;
-      action.functionName = 'execTransaction (Safe Transaction Wrapper)';
-      action.selector = '0x6a761202';
-      action.signature =
-        'execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)';
-      action.decodeError =
-        'Safe execTransaction wrapper detected (0x6a761202). Nested inner calls cannot be inspected; analysis is opaque.';
-      const safeLimitation = `Action #${i + 1} to ${targetAddress}: Executes via Safe wrapper (0x6a761202). Inner payload calls are opaque and cannot be inspected; analysis is marked incomplete.`;
-      action.limitations = [safeLimitation];
-      limitations.push(safeLimitation);
-      actions.push(action);
-      continue;
-    }
-
     // 1. Try legacy signature decoding if signature string is present
     if (rawSignature.trim() !== '') {
       const legacyResult = decodeLegacySignature(rawSignature, rawCalldata);
@@ -240,7 +185,6 @@ export async function decodeProposalActions(
         action.functionName = legacyResult.functionName;
         action.selector = legacyResult.selector;
         action.args = legacyResult.args;
-        await enrichTokenAmountMetadata(action, network, targetAddress as Address, client, tokenCache);
         actions.push(action);
         continue;
       }
@@ -275,7 +219,6 @@ export async function decodeProposalActions(
           action.args = abiFn
             ? mapDecodedArgs(abiFn, decoded.args as any)
             : [];
-          await enrichTokenAmountMetadata(action, network, targetAddress as Address, client, tokenCache);
           actions.push(action);
           continue;
         } catch (decodeErr: any) {
@@ -302,54 +245,4 @@ export async function decodeProposalActions(
   }
 
   return { actions, limitations };
-}
-
-async function enrichTokenAmountMetadata(
-  action: ProposalAction,
-  network: SupportedNetwork,
-  targetAddress: Address,
-  client: PublicClient<any, any>,
-  tokenCache: Map<string, TokenMetadata>
-): Promise<void> {
-  const fn = (action.functionName || '').toLowerCase();
-  if (fn !== 'transfer' && fn !== 'transferfrom' && fn !== 'approve') {
-    return;
-  }
-
-  let amountArg: DecodedArg | undefined;
-  if (fn === 'transfer' || fn === 'approve') {
-    amountArg =
-      action.args?.find(
-        (a) => a.name.toLowerCase() === 'amount' || a.name.toLowerCase() === 'value'
-      ) || action.args?.[1];
-  } else if (fn === 'transferfrom') {
-    amountArg =
-      action.args?.find(
-        (a) => a.name.toLowerCase() === 'amount' || a.name.toLowerCase() === 'value'
-      ) || action.args?.[2];
-  }
-
-  if (!amountArg || !amountArg.value) {
-    return;
-  }
-
-  amountArg.rawAmount = amountArg.value;
-
-  const meta = await resolveTokenMetadata(network, targetAddress, client, tokenCache);
-
-  if (meta.verified && meta.decimals !== undefined) {
-    amountArg.decimals = meta.decimals;
-    amountArg.symbol = meta.symbol;
-    action.tokenDecimals = meta.decimals;
-    action.tokenSymbol = meta.symbol;
-
-    const formatted = formatTokenAmount(amountArg.value, meta.decimals, meta.symbol);
-    if (formatted.formatted) {
-      amountArg.formattedValue = formatted.formatted;
-      action.formattedAmount = formatted.formatted;
-    }
-  } else {
-    amountArg.decimalsUnavailable = true;
-    action.decimalsUnavailable = true;
-  }
 }

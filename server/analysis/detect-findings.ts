@@ -113,47 +113,30 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
 
     // Check for native value transfer
     if (action.value && action.value !== '0') {
-      const formatted = action.formattedAmount || `${action.value} wei`;
       findings.push({
         id: `NATIVE_VALUE_TRANSFER_${i}`,
         severity: 'medium',
         title: `Action #${actionNum} transfers native ETH`,
-        description: `Action transfers ${formatted} (${action.value} wei) to ${action.target}.`,
+        description: `Action transfers ${action.value} wei to ${action.target}.`,
         actionIndex: i,
         target: action.target,
         verified: true,
-        verificationBadge: 'Decoded from calldata',
         whyItMatters: 'Direct treasury balance transfers alter DAO reserves and should match requested appropriations.',
       });
     }
 
-    // Check undecoded action or known Safe transaction wrapper
+    // Check undecoded action
     if (!action.decoded) {
-      if (action.isSafeWrapper || action.selector === '0x6a761202') {
-        findings.push({
-          id: `SAFE_WRAPPER_OPAQUE_${i}`,
-          severity: 'medium',
-          title: `Action #${actionNum} executes via Safe transaction wrapper`,
-          description: `Action targets ${action.targetName || action.target} using Gnosis/Safe execTransaction (0x6a761202). Inner payload calls are opaque and cannot be verified deterministically without multi-call simulation.`,
-          actionIndex: i,
-          target: action.target,
-          verified: true,
-          verificationBadge: 'Decoded from calldata',
-          whyItMatters:
-            'Safe transaction wrappers conceal the underlying destination addresses, token amounts, and contract calls of the transaction.',
-        });
-      } else {
-        findings.push({
-          id: `UNDECODED_ACTION_${i}`,
-          severity: 'high',
-          title: `Action #${actionNum} could not be decoded`,
-          description: action.decodeError || `Calldata with selector ${action.selector} to ${action.target} could not be decoded.`,
-          actionIndex: i,
-          target: action.target,
-          verified: false,
-          whyItMatters: 'Opaque or undecoded actions prevent delegates from verifying execution safety.',
-        });
-      }
+      findings.push({
+        id: `UNDECODED_ACTION_${i}`,
+        severity: 'high',
+        title: `Action #${actionNum} could not be decoded`,
+        description: action.decodeError || `Calldata with selector ${action.selector} to ${action.target} could not be decoded.`,
+        actionIndex: i,
+        target: action.target,
+        verified: false,
+        whyItMatters: 'Opaque or undecoded actions prevent delegates from verifying execution safety.',
+      });
       continue;
     }
 
@@ -177,33 +160,17 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
         roleSemantics.status === 'verified'
           ? `Action #${actionNum} grants privileged role: ${roleSemantics.roleName}`
           : roleSemantics.status === 'recognized_standard_hash'
-            ? `Action #${actionNum} grants privileged role (unconfirmed semantics): ${roleSemantics.roleName}`
-            : `Action #${actionNum} grants unrecognized role`;
-
-      let descriptionText: string;
-      if (action.roleCapability && action.roleCapability.status === 'resolved') {
-        const capText = action.roleCapability.summary;
-        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
-        descriptionText = `Grants ${roleSemantics.roleName} to ${accountArg} → ${capText}. ${recText}`;
-      } else if (action.roleCapability && action.roleCapability.status === 'unresolved') {
-        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
-        descriptionText = `Grants ${roleSemantics.roleName} to ${accountArg} (capability: unresolved). ${recText}`;
-      } else {
-        descriptionText = `Grants role ${roleSemantics.roleName} (${roleArg}) to account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`;
-      }
+          ? `Action #${actionNum} grants privileged role (unconfirmed semantics): ${roleSemantics.roleName}`
+          : `Action #${actionNum} grants unrecognized role`;
 
       findings.push({
         id: `SENSITIVE_GRANT_ROLE_${i}`,
         severity: 'high',
         title,
-        description: descriptionText,
+        description: `Grants role ${roleSemantics.roleName} (${roleArg}) to account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`,
         actionIndex: i,
         target: action.target,
         verified: roleSemantics.status === 'verified',
-        verificationBadge:
-          roleSemantics.status === 'verified' || roleSemantics.status === 'recognized_standard_hash'
-            ? 'Role hash matched'
-            : 'Decoded from calldata',
         whyItMatters:
           'Permission grants alter access control topology and confer privileged capabilities on the recipient address.',
       });
@@ -228,33 +195,17 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
         roleSemantics.status === 'verified'
           ? `Action #${actionNum} revokes privileged role: ${roleSemantics.roleName}`
           : roleSemantics.status === 'recognized_standard_hash'
-            ? `Action #${actionNum} revokes role (unconfirmed semantics): ${roleSemantics.roleName}`
-            : `Action #${actionNum} revokes unrecognized role`;
-
-      let descriptionText: string;
-      if (action.roleCapability && action.roleCapability.status === 'resolved') {
-        const capText = action.roleCapability.summary;
-        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
-        descriptionText = `Revokes ${roleSemantics.roleName} from ${accountArg} → revokes ability to ${capText}. ${recText}`;
-      } else if (action.roleCapability && action.roleCapability.status === 'unresolved') {
-        const recText = action.recipientProfile?.summary || `Recipient: ${accountArg}`;
-        descriptionText = `Revokes ${roleSemantics.roleName} from ${accountArg} (capability: unresolved). ${recText}`;
-      } else {
-        descriptionText = `Revokes role ${roleSemantics.roleName} (${roleArg}) from account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`;
-      }
+          ? `Action #${actionNum} revokes role (unconfirmed semantics): ${roleSemantics.roleName}`
+          : `Action #${actionNum} revokes unrecognized role`;
 
       findings.push({
         id: `SENSITIVE_REVOKE_ROLE_${i}`,
         severity: 'medium',
         title,
-        description: descriptionText,
+        description: `Revokes role ${roleSemantics.roleName} (${roleArg}) from account ${accountArg} on ${action.targetName || action.target}. ${roleSemantics.explanation}`,
         actionIndex: i,
         target: action.target,
         verified: roleSemantics.status === 'verified',
-        verificationBadge:
-          roleSemantics.status === 'verified' || roleSemantics.status === 'recognized_standard_hash'
-            ? 'Role hash matched'
-            : 'Decoded from calldata',
         whyItMatters:
           'Permission revocations remove capabilities and can affect operational multisigs or automated runners.',
       });
@@ -263,40 +214,16 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
 
     // 3. transferOwnership(address)
     if (fn === 'transferOwnership') {
-      const newOwner = (action.args?.[0]?.value || '').toLowerCase();
-      const isZeroAddress =
-        newOwner === '0x0000000000000000000000000000000000000000' ||
-        newOwner === '0x0' ||
-        !newOwner;
-      const isTimelockOrGov =
-        /timelock|governor|governance/i.test(action.targetName || '') ||
-        /timelock|governor/i.test(action.args?.[0]?.name || '');
-
-      let severity: 'medium' | 'high' = 'high';
-      let title = `Action #${actionNum} transfers contract ownership`;
-      let description = `Transfers administrative ownership of ${action.targetName || action.target} to ${action.args?.[0]?.value || newOwner}. Delegates should confirm that the recipient address is the intended administrative controller or multisig.`;
-
-      if (isZeroAddress) {
-        severity = 'high';
-        title = `Action #${actionNum} renounces contract ownership`;
-        description = `Transfers ownership of ${action.targetName || action.target} to the zero address (0x0). This permanently removes contract ownership and eliminates owner-only administrative functions.`;
-      } else if (isTimelockOrGov) {
-        severity = 'medium';
-        title = `Action #${actionNum} transfers ownership to governance Timelock`;
-        description = `Transfers administrative ownership of ${action.targetName || action.target} to governance controller ${action.args?.[0]?.value || newOwner}. This places contract administrative controls under DAO governance.`;
-      }
-
+      const newOwner = action.args?.[0]?.value || '';
       findings.push({
         id: `SENSITIVE_TRANSFER_OWNERSHIP_${i}`,
-        severity,
-        title,
-        description,
+        severity: 'critical',
+        title: `Action #${actionNum} transfers contract ownership`,
+        description: `Transfers owner rights of ${action.targetName || action.target} to ${newOwner}.`,
         actionIndex: i,
         target: action.target,
         verified: true,
-        verificationBadge: 'Decoded from calldata',
-        whyItMatters:
-          'Transferring contract ownership relinquishes exclusive administrative control over the target contract.',
+        whyItMatters: 'Transferring contract ownership relinquishes exclusive administrative control over the target contract.',
       });
       continue;
     }
@@ -312,7 +239,6 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
         actionIndex: i,
         target: action.target,
         verified: true,
-        verificationBadge: 'Decoded from calldata',
         whyItMatters: 'Smart contract upgrades modify the executable bytecode of the proxy, replacing contract rules and state handling.',
       });
       continue;
@@ -329,56 +255,29 @@ export function detectFindings(actions: ProposalAction[]): Finding[] {
         actionIndex: i,
         target: action.target,
         verified: true,
-        verificationBadge: 'Decoded from calldata',
         whyItMatters: 'Proxy admins possess direct authority to upgrade implementation logic or manipulate proxy routing.',
       });
       continue;
     }
 
-    // 6. Token approval checks (both infinite and finite material approvals)
+    // 6. Token approval checks (e.g. infinite approvals)
     if (fn === 'approve') {
       const spender = action.args?.[0]?.value || '';
       const amount = action.args?.[1]?.value || '';
-      const isInfinite =
-        amount.startsWith('115792089237316195423570985008687907853269984665640564039457584007913129639935') ||
+      const isInfinite = amount.startsWith('115792089237316195423570985008687907853269984665640564039457584007913129639935') ||
         amount.toLowerCase().startsWith('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
 
       if (isInfinite) {
         findings.push({
           id: `INFINITE_TOKEN_APPROVAL_${i}`,
           severity: 'high',
-          title: `Action #${actionNum} grants unlimited token allowance`,
-          description: `Approves unlimited token allowance on ${action.targetName || action.target} to spender ${spender}. This grants the spender recurring withdrawal authority up to the entire treasury balance without further governance votes.`,
+          title: `Action #${actionNum} grants infinite token allowance`,
+          description: `Approves unlimited token allowance on ${action.targetName || action.target} to spender ${spender}.`,
           actionIndex: i,
           target: action.target,
           verified: true,
-          verificationBadge: 'Decoded from calldata',
-          whyItMatters:
-            'Unlimited token allowances permit the spender address to drain approved tokens up to the balance held without transaction-level DAO approval.',
+          whyItMatters: 'Unlimited token allowances permit the spender address to drain approved tokens up to the balance held.',
         });
-      } else {
-        let rawAmount = 0n;
-        try {
-          rawAmount = BigInt(amount);
-        } catch {
-          rawAmount = 0n;
-        }
-
-        if (rawAmount > 0n) {
-          const displayAmount = action.formattedAmount || `${amount} base units`;
-          findings.push({
-            id: `MATERIAL_TOKEN_APPROVAL_${i}`,
-            severity: 'medium',
-            title: `Action #${actionNum} grants material token approval`,
-            description: `Approves a token allowance of ${displayAmount} on ${action.targetName || action.target} to spender ${spender}. This authorizes the spender to withdraw up to this amount via transferFrom.`,
-            actionIndex: i,
-            target: action.target,
-            verified: true,
-            verificationBadge: 'Decoded from calldata',
-            whyItMatters:
-              'Token approvals delegate withdrawal authority to an external contract or address rather than transferring funds directly. An approval does not automatically execute a transfer or configure an active payment stream.',
-          });
-        }
       }
     }
   }

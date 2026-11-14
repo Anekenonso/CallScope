@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   // Load environment variables into process.env for server-side API handler in dev
   const env = loadEnv(mode, process.cwd(), '');
   for (const key of Object.keys(env)) {
-    if (env[key]) {
+    if (!process.env[key]) {
       process.env[key] = env[key];
     }
   }
@@ -18,48 +18,6 @@ export default defineConfig(({ mode }) => {
         name: 'api-server',
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
-            if (req.url === '/api/health' && (req.method === 'GET' || !req.method)) {
-              try {
-                const { getHealthData } = await import('./api/_health');
-                res.statusCode = 200;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(getHealthData()));
-              } catch (err: unknown) {
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Health Check Failed' }));
-              }
-              return;
-            }
-
-            if (req.url === '/api/review' && req.method === 'POST') {
-              let body = '';
-              req.on('data', (chunk) => {
-                body += chunk;
-              });
-              req.on('end', async () => {
-                try {
-                  const { default: reviewHandler } = await import('./api/_review');
-                  const webReq = new Request('http://localhost:5173/api/review', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: body || '{}',
-                  });
-                  const response = (await reviewHandler(webReq)) as Response;
-                  const responseText = await response.text();
-                  res.statusCode = response.status;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(responseText);
-                } catch (err: unknown) {
-                  const message = err instanceof Error ? err.message : 'Internal Server Error';
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Review Error', details: message }));
-                }
-              });
-              return;
-            }
-
             if (req.url === '/api/analyse' && req.method === 'POST') {
               let body = '';
               req.on('data', (chunk) => {
@@ -92,8 +50,9 @@ export default defineConfig(({ mode }) => {
       environment: 'node',
       fileParallelism: false,
       testTimeout: 45000,
-      setupFiles: ['./tests/setup-hermetic.ts'],
-      include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+      exclude: process.argv.some((a) => a.includes('live'))
+        ? ['**/node_modules/**', '**/dist/**']
+        : ['**/node_modules/**', '**/dist/**', '**/tests/live/**'],
     },
     server: {
       port: 5173,

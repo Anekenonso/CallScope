@@ -5,12 +5,6 @@
   "functions": {
     "api/analyse.js": {
       "maxDuration": 60
-    },
-    "api/review.js": {
-      "maxDuration": 60
-    },
-    "api/health.js": {
-      "maxDuration": 15
     }
   }
 }

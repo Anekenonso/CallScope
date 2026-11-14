@@ -7,9 +7,7 @@ export interface OpenAiCompatibleOptions {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
-  responseFormat?: { type: string; [key: string]: unknown };
-  tools?: Array<Record<string, unknown>>;
-  extraBody?: Record<string, unknown>;
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 export interface OpenAiCompletionResponse {
@@ -18,14 +16,6 @@ export interface OpenAiCompletionResponse {
     message?: {
       role?: string;
       content?: string;
-      tool_calls?: Array<{
-        id: string;
-        type: string;
-        function: {
-          name: string;
-          arguments: string;
-        };
-      }>;
     };
     finish_reason?: string;
   }>;
@@ -34,155 +24,6 @@ export interface OpenAiCompletionResponse {
     type?: string;
     code?: string | number;
   };
-}
-
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content?: string | null;
-  tool_calls?: Array<{
-    id: string;
-    type: string;
-    function: {
-      name: string;
-      arguments: string;
-    };
-  }>;
-  tool_call_id?: string;
-}
-
-export interface CallChatTurnOptions {
-  endpoint: string;
-  apiKey: string;
-  model: string;
-  messages: ChatMessage[];
-  tools?: Array<Record<string, unknown>>;
-  toolChoice?: string | Record<string, unknown>;
-  maxTokens?: number;
-  temperature?: number;
-  timeoutMs?: number;
-  extraBody?: Record<string, unknown>;
-}
-
-export interface ChatTurnResult {
-  message: ChatMessage;
-  finishReason?: string;
-}
-
-/**
- * Execute a single turn in a multi-turn tool-calling chat session
- */
-export async function callOpenAiChatTurn(
-  options: CallChatTurnOptions
-): Promise<ChatTurnResult> {
-  const {
-    endpoint,
-    apiKey,
-    model,
-    messages,
-    tools,
-    toolChoice,
-    maxTokens = 800,
-    temperature = 0.1,
-    timeoutMs = 15_000,
-    extraBody,
-  } = options;
-
-  if (!apiKey || apiKey.trim().length === 0) {
-    throw new Error('API key is not configured');
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const requestBody: Record<string, unknown> = {
-      model,
-      messages,
-      max_completion_tokens: maxTokens,
-      temperature,
-      ...(extraBody || {}),
-    };
-    if (tools && tools.length > 0) {
-      requestBody.tools = tools;
-      if (toolChoice) {
-        requestBody.tool_choice = toolChoice;
-      }
-    }
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey.trim()}`,
-        'User-Agent': 'Callscope/1.0 (DAO Proposal Analysis Tool)',
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      let errMsg = `HTTP ${res.status}`;
-      try {
-        const errorJson = (await res.json()) as OpenAiCompletionResponse;
-        if (errorJson?.error?.message) {
-          errMsg = `${errMsg}: ${errorJson.error.message}`;
-        }
-      } catch {
-        // ignore json parse error on error response
-      }
-
-      if (res.status === 401 || res.status === 403) {
-        throw new Error(`Authentication failed or access denied (${res.status}): ${errMsg}`);
-      }
-      if (res.status === 402) {
-        throw new Error(`Payment required / insufficient credits (402): ${errMsg}`);
-      }
-      if (res.status === 429) {
-        throw new Error(`Rate limit exceeded (429): ${errMsg}`);
-      }
-      if (res.status >= 500) {
-        throw new Error(`Provider server error (${res.status}): ${errMsg}`);
-      }
-      throw new Error(`Provider request failed (${res.status}): ${errMsg}`);
-    }
-
-    const data = (await res.json()) as OpenAiCompletionResponse;
-    const choice = data?.choices?.[0];
-    const rawMsg = choice?.message;
-    const finishReason = choice?.finish_reason;
-
-    let content = rawMsg?.content;
-
-    // Handle reasoning models where JSON might be present in reasoning output
-    if ((typeof content !== 'string' || content.trim().length === 0) && rawMsg) {
-      const msgObj = rawMsg as Record<string, unknown>;
-      const reasoning = msgObj.reasoning || msgObj.reasoning_content;
-      if (typeof reasoning === 'string' && reasoning.trim().length > 0) {
-        const jsonMatch = reasoning.match(/\{[\s\S]*"summary"[\s\S]*\}/);
-        if (jsonMatch) {
-          content = jsonMatch[0];
-        }
-      }
-    }
-
-    const resultMessage: ChatMessage = {
-      role: 'assistant',
-      content: content || null,
-      tool_calls: rawMsg?.tool_calls || undefined,
-    };
-
-    return {
-      message: resultMessage,
-      finishReason,
-    };
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /**
@@ -211,20 +52,17 @@ export async function callOpenAiCompatible(
 
   try {
     const requestBody: Record<string, unknown> = {
-      model,
+      model: model || 'serv-swift',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
       max_completion_tokens: maxTokens,
       temperature,
-      ...(options.extraBody || {}),
     };
-    if (options.responseFormat) {
-      requestBody.response_format = options.responseFormat;
-    }
-    if (options.tools && options.tools.length > 0) {
-      requestBody.tools = options.tools;
+
+    if (options.reasoningEffort) {
+      requestBody.reasoning_effort = options.reasoningEffort;
     }
 
     const res = await fetch(endpoint, {
@@ -249,8 +87,8 @@ export async function callOpenAiCompatible(
         // ignore json parse error on error response
       }
 
-      if (res.status === 401 || res.status === 403) {
-        throw new Error(`Authentication failed or access denied (${res.status}): ${errMsg}`);
+      if (res.status === 401) {
+        throw new Error(`Authentication failed (401): ${errMsg}`);
       }
       if (res.status === 402) {
         throw new Error(`Payment required / insufficient credits (402): ${errMsg}`);
@@ -316,103 +154,5 @@ export function extractStructuredJson<T>(rawContent: string): T {
   } catch {
     throw new Error(`Failed to parse structured JSON output from provider response: ${rawContent.slice(0, 100)}...`);
   }
-}
-
-/**
- * Classify provider errors into exact typed states with retryability indications
- */
-export function classifyProviderError(err: unknown): {
-  status: 'not_configured' | 'rate_limited' | 'timed_out' | 'auth_error' | 'guard_blocked' | 'schema_invalid' | 'upstream_error';
-  errorClass: 'not_configured' | 'rate_limited' | 'timed_out' | 'auth_error' | 'guard_blocked' | 'schema_invalid' | 'upstream_error';
-  reason: string;
-  retryable: boolean;
-} {
-  const message = err instanceof Error ? err.message : String(err || 'Unknown error');
-  const lower = message.toLowerCase();
-
-  if (
-    lower.includes('not configured') ||
-    lower.includes('api key is not configured') ||
-    lower.includes('api key is missing')
-  ) {
-    return {
-      status: 'not_configured',
-      errorClass: 'not_configured',
-      reason: 'API key is not configured in server environment.',
-      retryable: false,
-    };
-  }
-
-  if (
-    lower.includes('401') ||
-    lower.includes('402') ||
-    lower.includes('403') ||
-    lower.includes('unauthorized') ||
-    lower.includes('forbidden') ||
-    lower.includes('access denied') ||
-    lower.includes('authentication failed') ||
-    lower.includes('payment required') ||
-    lower.includes('insufficient credits')
-  ) {
-    return {
-      status: 'auth_error',
-      errorClass: 'auth_error',
-      reason: 'Authentication failed or insufficient credits (HTTP 401/402/403).',
-      retryable: false,
-    };
-  }
-
-  if (lower.includes('429') || lower.includes('rate limit')) {
-    return {
-      status: 'rate_limited',
-      errorClass: 'rate_limited',
-      reason: 'Provider API rate limit reached (HTTP 429). Retry after cooldown.',
-      retryable: true,
-    };
-  }
-
-  if (
-    lower.includes('timeout') ||
-    lower.includes('timed out') ||
-    lower.includes('aborted') ||
-    lower.includes('aborterror')
-  ) {
-    return {
-      status: 'timed_out',
-      errorClass: 'timed_out',
-      reason: 'Provider request timed out before receiving completion.',
-      retryable: true,
-    };
-  }
-
-  if (
-    lower.includes('prompt_guard') ||
-    lower.includes('guard_blocked') ||
-    lower.includes('safety guard') ||
-    lower.includes('injection attempt')
-  ) {
-    return {
-      status: 'guard_blocked',
-      errorClass: 'guard_blocked',
-      reason: 'Proposal text triggered provider prompt injection safety guard.',
-      retryable: false,
-    };
-  }
-
-  if (lower.includes('schema') || lower.includes('json parse') || lower.includes('unexpected token') || lower.includes('failed to parse structured json')) {
-    return {
-      status: 'schema_invalid',
-      errorClass: 'schema_invalid',
-      reason: 'Provider returned output that did not match the expected JSON schema.',
-      retryable: false,
-    };
-  }
-
-  return {
-    status: 'upstream_error',
-    errorClass: 'upstream_error',
-    reason: `Provider server or network error: ${message}`,
-    retryable: true,
-  };
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { executeAnalysis } from '../../api/_analyse';
+import { executeAnalysis } from '../../api/analyse';
 import { AssessmentBanner } from '../../src/components/AssessmentBanner';
 import { ProposalDetails } from '../../src/components/ProposalDetails';
 import { ActionList } from '../../src/components/ActionList';

@@ -1,22 +1,19 @@
-import { createPublicClient, fallback, getAddress, http, type PublicClient, type Address } from 'viem';
+import { createPublicClient, getAddress, http, type PublicClient, type Address } from 'viem';
 import { mainnet, base } from 'viem/chains';
 import type { SupportedNetwork } from './types';
-import { getNetworkConfig, getRpcUrls } from './networks';
+import { getNetworkConfig, getRpcUrl } from './networks';
 
 export function createChainClient(network: SupportedNetwork): PublicClient<any, any> {
+  const rpcUrl = getRpcUrl(network);
   const chain = network === 'ethereum' ? mainnet : base;
-  const candidateUrls = getRpcUrls(network);
-
-  const transports = candidateUrls.map((url) =>
-    http(url, {
-      timeout: 3_500,
-      retryCount: 0,
-    })
-  );
 
   return createPublicClient({
     chain,
-    transport: fallback(transports, { rank: false }),
+    transport: http(rpcUrl, {
+      timeout: 15_000,
+      retryCount: 3,
+      retryDelay: 1_000,
+    }),
   });
 }
 

@@ -10,10 +10,7 @@ export const EvidenceLinks: React.FC<EvidenceLinksProps> = ({ evidence, limitati
   return (
     <section className="section-card evidence-section" aria-labelledby="evidence-heading">
       <div className="section-header-row">
-        <div className="section-heading-group">
-          <span className="section-kicker">Provenance &amp; Scope</span>
-          <h2 id="evidence-heading" className="section-heading">Evidence &amp; verification</h2>
-        </div>
+        <h2 id="evidence-heading" className="section-heading">Evidence &amp; verification</h2>
         <span className="section-note">On-chain references</span>
       </div>
 
@@ -29,8 +26,7 @@ export const EvidenceLinks: React.FC<EvidenceLinksProps> = ({ evidence, limitati
                   rel="noopener noreferrer"
                   className="evidence-link break-all tabular-nums"
                 >
-                  <span className="external-arrow" aria-hidden="true">↗</span>
-                  <span>{item.description || item.url}</span>
+                  {item.description || item.url}
                 </a>
               ) : (
                 <span className="evidence-text break-all">{item.description}</span>
@@ -42,15 +38,11 @@ export const EvidenceLinks: React.FC<EvidenceLinksProps> = ({ evidence, limitati
 
       {limitations && limitations.length > 0 && (
         <div className="limitations-container">
-          <div className="limitations-header">
-            <span className="limitations-stamp" aria-hidden="true">SCOPE</span>
-            <h3 className="subheading-minor">Analysis limitations &amp; boundaries:</h3>
-          </div>
+          <h3 className="subheading-minor">Analysis limitations:</h3>
           <ul className="limitations-list">
             {limitations.map((lim, idx) => (
               <li key={idx} className="limitations-list-item">
-                <span className="limitation-bullet" aria-hidden="true">―</span>
-                <span>{lim}</span>
+                {lim}
               </li>
             ))}
           </ul>
@@ -59,3 +51,4 @@ export const EvidenceLinks: React.FC<EvidenceLinksProps> = ({ evidence, limitati
     </section>
   );
 };
+
