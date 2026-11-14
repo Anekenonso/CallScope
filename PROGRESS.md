@@ -46,6 +46,19 @@ The agent must report after every implementation phase and wait for the user's c
 ## Implementation log
 Append newest entries at the top.
 
+### 2026-11-14 — Rollback to Original Plan: P3 Verification & README Complete
+- **Status**: P3 Verification Complete.
+- **Verification Summary**:
+  1. `npm run typecheck`: Exit code 0 (clean, no unused locals/types).
+  2. `npm test`: 95 unit tests passing across 11 suites offline with 0 failures and 0 live network calls.
+  3. `npm run build`: Production build succeeded (`dist/` + bundled `api/analyse.js`).
+  4. Live sponsor verification executed:
+     - Ethereum ENS EP 6.50: Both OpenServ SERV (`serv-swift` returned `claude-haiku-4-5-20251001`) and Dolphin (`deepseek-ai/DeepSeek-V4.1-Flash`) returned valid advisory reviews.
+     - Base Unlock Proposal: Both returned valid reviews.
+     - Raw responses saved in `docs/evidence/raw/P3_live_sponsor_eth.json` and `docs/evidence/raw/P3_live_sponsor_base.json`.
+     - Spend cap respected (SERV spend < $0.02, Dolphin spend < $0.05).
+  5. README.md: Completely updated with empirical measurements, honest limits, environment table, and direct links to evidence artifacts.
+
 ### 2026-11-14 — Rollback to Original Plan: P2 Sponsor Calls & UI per Plan Complete
 - **Status**: P2 Complete.
 - **Key Enhancements**:
