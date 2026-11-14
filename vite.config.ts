@@ -50,6 +50,9 @@ export default defineConfig(({ mode }) => {
       environment: 'node',
       fileParallelism: false,
       testTimeout: 45000,
+      exclude: process.argv.some((a) => a.includes('live'))
+        ? ['**/node_modules/**', '**/dist/**']
+        : ['**/node_modules/**', '**/dist/**', '**/tests/live/**'],
     },
     server: {
       port: 5173,
