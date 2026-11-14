@@ -1,11 +1,12 @@
 import React from 'react';
+import { GovernanceLogo } from './GovernanceLogo';
 
 export const Header: React.FC = () => {
   return (
     <>
       <header className="app-header">
         <div className="header-brand-group">
-          <span className="app-brand-logo" aria-hidden="true" />
+          <GovernanceLogo size={28} className="app-brand-logo-svg" />
           <h1 className="app-brand">Callscope</h1>
           <span className="app-tagline">DAO governance executable analysis</span>
         </div>

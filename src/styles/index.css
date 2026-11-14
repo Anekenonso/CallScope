@@ -177,13 +177,17 @@ a:hover {
   gap: 8px;
 }
 
-.app-brand-logo {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  background-color: var(--color-action);
-  border-radius: 2px;
-  box-shadow: 0 0 10px var(--color-action);
+.app-brand-logo-svg {
+  display: block;
+  border-radius: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 0 14px rgba(201, 157, 65, 0.25);
+  transition: transform 200ms var(--ease-smooth), box-shadow 200ms var(--ease-smooth);
+}
+
+.app-brand:hover .app-brand-logo-svg {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(201, 157, 65, 0.45);
 }
 
 .app-tagline {
