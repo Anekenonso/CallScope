@@ -14,18 +14,6 @@ The deterministic analysis engine is authoritative. AI advisory reviews provide 
 
 ---
 
-### What Callscope Is Not
-
-To maintain strict evaluation boundaries, Callscope is explicitly scoped:
-- **Not an automated voting platform**: Callscope does not cast votes or execute transactions.
-- **Not a transaction simulator**: It performs static calldata decoding and rule analysis; it does not simulate EVM state transitions or execute forks.
-- **Not a smart contract security auditor**: It does not audit contract source code for logic bugs, economic exploits, or reentrancy vectors.
-- **Not a wallet or DAO management platform**: It provides read-only inspection for delegates and reviewers.
-- **Not an AI chatbot**: All analysis outputs are structured, reproducible findings tied directly to verified calldata and event logs.
-- **Not a guarantee of proposal safety**: A clean analysis indicates no recognized sensitive operations were detected, not that the proposal is risk-free.
-
----
-
 ## The Problem
 
 DAO governance proposals frequently combine an extensive narrative description with an array of raw contract calls. While delegates review forum posts, rationale documents, and markdown summaries, the blockchain only executes the raw byte arrays submitted to the Governor contract.
@@ -317,7 +305,18 @@ To maintain technical integrity, reviewers and users should be aware of Callscop
 
 ---
 
-## License & Project Status
+## What Callscope Is Not
 
-- **Status**: Built and deployed for the OpenServ SERV Hackathon.
-- **License**: No formal open-source license file is currently present in the repository root. All rights are reserved by the repository owner unless otherwise specified.
+To maintain strict evaluation boundaries, Callscope is explicitly scoped:
+- **Not an automated voting platform**: Callscope does not cast votes or execute transactions.
+- **Not a transaction simulator**: It performs static calldata decoding and rule analysis; it does not simulate EVM state transitions or execute forks.
+- **Not a smart contract security auditor**: It does not audit contract source code for logic bugs, economic exploits, or reentrancy vectors.
+- **Not a wallet or DAO management platform**: It provides read-only inspection for delegates and reviewers.
+- **Not an AI chatbot**: All analysis outputs are structured, reproducible findings tied directly to verified calldata and event logs.
+- **Not a guarantee of proposal safety**: A clean analysis indicates no recognized sensitive operations were detected, not that the proposal is risk-free.
+
+---
+
+## License
+
+This project is licensed under the MIT License. Built for the OpenServ SERV Hackathon.
