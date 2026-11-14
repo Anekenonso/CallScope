@@ -92,6 +92,7 @@ export default defineConfig(({ mode }) => {
       environment: 'node',
       fileParallelism: false,
       testTimeout: 45000,
+      setupFiles: ['./tests/setup-hermetic.ts'],
       include: ['tests/**/*.{test,spec}.{ts,tsx}'],
     },
     server: {
