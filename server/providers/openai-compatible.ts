@@ -7,6 +7,7 @@ export interface OpenAiCompatibleOptions {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 export interface OpenAiCompletionResponse {
@@ -51,7 +52,7 @@ export async function callOpenAiCompatible(
 
   try {
     const requestBody: Record<string, unknown> = {
-      model: model || 'serv-mini',
+      model: model || 'serv-swift',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -59,6 +60,10 @@ export async function callOpenAiCompatible(
       max_completion_tokens: maxTokens,
       temperature,
     };
+
+    if (options.reasoningEffort) {
+      requestBody.reasoning_effort = options.reasoningEffort;
+    }
 
     const res = await fetch(endpoint, {
       method: 'POST',

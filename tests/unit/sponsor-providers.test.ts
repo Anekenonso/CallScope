@@ -114,7 +114,7 @@ describe('OpenServ SERV provider adapter', () => {
             role: 'assistant',
             content: JSON.stringify({
               summary: 'SERV: Actions match proposal claims.',
-              findings: ['Verified permission grant to multisig.'],
+              findings: ['Action #1: Verified permission grant to multisig.'],
             }),
           },
         },
@@ -130,7 +130,7 @@ describe('OpenServ SERV provider adapter', () => {
     const result = await reviewWithServ('Test description', dummyActions);
     expect(result.status).toBe('available');
     expect(result.summary).toBe('SERV: Actions match proposal claims.');
-    expect(result.findings).toContain('Verified permission grant to multisig.');
+    expect(result.findings).toContain('Action #1: Verified permission grant to multisig.');
   });
 
   it('handles 401 Unauthorized from SERV', async () => {
@@ -261,7 +261,7 @@ describe('Dolphin provider adapter', () => {
             role: 'assistant',
             content: JSON.stringify({
               summary: 'Dolphin: No secondary governance risks identified.',
-              findings: ['Standard transfer within expected operational parameters.'],
+              findings: ['Action #1: Standard transfer within expected operational parameters.'],
             }),
           },
         },
