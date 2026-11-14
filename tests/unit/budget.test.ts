@@ -6,8 +6,6 @@ import {
   resetTrackedSpend,
   checkBudgetAvailability,
   getStoredPinnedReview,
-  SERV_PRICING,
-  DOLPHIN_PRICING,
 } from '../../server/budget';
 
 describe('Server Budget & Spend Protection', () => {

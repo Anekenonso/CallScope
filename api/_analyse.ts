@@ -186,7 +186,6 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
   }
 
   // 4. Read current proposal state (gracefully fallback if offline / RPC unavailable)
-  const tStateStart = Date.now();
   let state = 'Executed';
   if (isPinned && !request.reverifyLive) {
     state = (event as any).status || 'Executed';

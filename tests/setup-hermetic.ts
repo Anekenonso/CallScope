@@ -61,7 +61,6 @@ beforeAll(() => {
       }
 
       if (method === 'eth_call') {
-        const to = (body.params?.[0]?.to || '').toLowerCase();
         const data = (body.params?.[0]?.data || '').toLowerCase();
 
         // decimals() -> 6

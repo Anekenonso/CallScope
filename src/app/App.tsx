@@ -246,8 +246,6 @@ ${
     setCopiedPermalink(true);
     setTimeout(() => setCopiedPermalink(false), 2000);
   };
-    }
-  };
 
   const undecodedCount =
     result?.actions?.filter((act) => !act.decoded).length ?? 0;
