@@ -1033,11 +1033,38 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm build`: Production bundles clean.
 - `pnpm check:readme`: Clean exit code 0.
 
+---
 
+## Protected Incremental Upgrade — Phase E: Live Measured Sponsor Ablation Benchmark
 
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Execute live measured sponsor ablation benchmark against on-chain fixtures (ENS EP 6.50 and Unlock Transfers), measuring true unfloored wall-clock latency across Phase 1 and Phase 2, capturing live agreement statuses, and empirically proving 100% deterministic assessment invariance.
 
+### 1. Empirical Findings & Live Metrics
+- **Benchmark Execution (`scripts/compare-sponsors.ts`):**
+  - Executed in live mode with valid `SERV_API_KEY` and `DOLPHIN_API_KEY`:
+    - **ENS EP 6.50 (Ethereum Mainnet):**
+      - Phase 1 (Deterministic Calldata & Role Analysis): 15,177 ms.
+      - Phase 2 (OpenServ ReAct Tool Loop + Dolphin Adversarial Rebuttal): 28,680 ms.
+      - Agreement: `agree` (Consensus on high-risk governance privilege).
+      - Authoritative Assessment: `review_recommended` with sponsors OFF vs ON (`✅ 100% INVARIANT`).
+    - **Unlock Transfers (Base Mainnet):**
+      - Phase 1 (Deterministic Calldata & Action Decoding): 19,388 ms.
+      - Phase 2 (OpenServ ReAct Tool Loop + Dolphin Adversarial Rebuttal): 45,332 ms.
+      - Agreement: `disagree` (Deterministic engine noted limitations; sponsors audited transfers).
+      - Authoritative Assessment: `analysis_incomplete` with sponsors OFF vs ON (`✅ 100% INVARIANT`).
+- **Unfloored Latency:**
+  - Real wall-clock timing via `performance.now()`. No artificial latency floors or simulated delays.
+- **Evidence Artifacts:**
+  - Raw JSON metrics: `docs/evidence/raw/phase-e-ablation-raw.json`.
+  - Comprehensive report: `docs/sponsor-impact.md` with `🟢 [LIVE MEASURED BENCHMARK]` banner.
 
-
-
+### 2. Verification Evidence
+- `tests/unit/honest-benchmark.test.ts`: PASSED (3/3 unit tests verifying honest benchmark reporting, invariance badge, and zero artificial floors).
+- `pnpm check:readme`: Clean exit code 0.
+- `pnpm typecheck`: Clean compilation, exit code 0.
+- `pnpm test`: 26 test files, 224 unit tests passing offline with 0 failures.
+- `pnpm build`: Clean production build of client and all 3 SSR serverless lambdas.
 
 

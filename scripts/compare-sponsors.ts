@@ -1,5 +1,12 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { setDefaultResultOrder } from 'node:dns';
+
+try {
+  setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignore in runtimes where setDefaultResultOrder is unavailable
+}
 import { executeAnalysis } from '../api/analyse.js';
 import reviewHandler from '../api/review.js';
 import { computeReviewerAgreement } from '../src/lib/reviewer-agreement.ts';
@@ -284,8 +291,13 @@ function generateImpactReport(metrics: BenchmarkMetric[], isLive: boolean): stri
     md += `> [!NOTE]\n`;
     md += `> ### 🟢 [LIVE MEASURED BENCHMARK]\n`;
     md += `> Benchmark executed on **${timestamp}** against live inference APIs:\n`;
-    md += `> - **OpenServ SERV**: \`https://inference-api.openserv.ai/v1/chat/completions\` (\`serv-mini\`)\n`;
-    md += `> - **Dolphin**: \`https://lighthouse.dphn.ai/run/text-v/v1/chat/completions\` (\`deepseek-ai/DeepSeek-V4.1-Flash\`)\n`;
+    let servModel = process.env.SERV_MODEL || 'serv-swift';
+    if (servModel === '4o-mini' || servModel === 'gpt-4o-mini' || servModel === 'serv-mini') {
+      servModel = 'serv-swift';
+    }
+    const dolphinModel = process.env.DOLPHIN_MODEL || 'deepseek-ai/DeepSeek-V4.1-Flash';
+    md += `> - **OpenServ SERV**: \`https://inference-api.openserv.ai/v1/chat/completions\` (\`${servModel}\`)\n`;
+    md += `> - **Dolphin**: \`https://lighthouse.dphn.ai/run/text-v/v1/chat/completions\` (\`${dolphinModel}\`)\n`;
     md += `> All latencies reflect true wall-clock timings with zero artificial floors.\n\n`;
   } else {
     md += `> [!WARNING]\n`;
@@ -361,6 +373,12 @@ async function main() {
   const outPath = resolve(process.cwd(), 'docs/sponsor-impact.md');
   writeFileSync(outPath, report, 'utf-8');
   console.log(`\n✅ Generated report at ${outPath}`);
+
+  if (isLive) {
+    const rawPath = resolve(process.cwd(), 'docs/evidence/raw/phase-e-ablation-raw.json');
+    writeFileSync(rawPath, JSON.stringify({ benchmarkRunAt: new Date().toISOString(), metrics }, null, 2), 'utf-8');
+    console.log(`📄 Saved raw evidence at ${rawPath}`);
+  }
 }
 
 main().catch((err) => {

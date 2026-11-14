@@ -108,5 +108,17 @@ Root cause: `pnpm/action-setup@v4` bundled pnpm v9 self-installer crashed with `
 
 ## Upgrade Branch Status
 
-The upgrade branch `upgrade/protected-incremental-build` is **identical** to `master` at `ccab0dafc8`. Phase A documentation is the first diverging commit on this branch.
+The upgrade branch `upgrade/protected-incremental-build` has completed:
+- **Phase A**: Baseline capture, backup tag, implementation plan (`fc41606`)
+- **Phase B**: OpenServ SERV API & model verification (`a3e5fc6`)
+- **Phase C**: OpenServ SERV multi-turn ReAct tool execution loop (`c4b31a2`)
+- **Phase D**: Dolphin Lighthouse verification and engine rebuttal loop (`bb6fb70`)
+- **Phase E**: Live measured sponsor ablation benchmark (current)
+
+Current checks:
+- `pnpm check:readme`: ✅ PASS
+- `pnpm typecheck`: ✅ PASS (0 errors)
+- `pnpm test`: ✅ PASS (26 files, 224 unit tests hermetic offline)
+- `pnpm build`: ✅ PASS (all 3 SSR bundles + Vite client)
+
 
