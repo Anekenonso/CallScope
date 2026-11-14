@@ -1,0 +1,286 @@
+{
+  "request": {
+    "network": "ethereum",
+    "governorAddress": "0x408ED6354d4973f66138C91495F2f2FCbd8724C3",
+    "proposalId": "67"
+  },
+  "coldRun": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 2350,
+    "body": {
+      "assessment": "analysis_incomplete",
+      "network": "ethereum",
+      "governorAddress": "0x408ED6354d4973f66138C91495F2f2FCbd8724C3",
+      "proposal": {
+        "id": "67",
+        "description": "# Deploy Uniswap v3 on X Layer\n### Summary:\nThis proposal proposes deploying Uniswap v3 on X Layer. GFX Labs is sponsoring this proposal on behalf of X Layer.\n\n* X Layer will provide $1m of liquidity for a minimum of 6 months via a community multisig.\n* Uniswap DAO to provide the front end [cost](https://gov.uniswap.org/t/uniswap-revitalization-and-growth/22616?u=gfxlabs) for Oku Trade.\n* At a later date, OKX may create a new proposal seeking UNI incentives.\n\n### Background:\nX Layer is a zkEVM Layer 2 network built on Ethereum, powered by Polygon CDK, a zkEVM stack for building Ethereum L2 scaling solutions. Developers can easily deploy their existing contracts on zkEVM, and users can move their assets from Ethereum and conduct transactions off-chain. These transactions are bundled into groups with zero-knowledge proofs to verify their validity.\n\n### Motivation:\nDeploying an instance of Uniswap v3 on X Layer provides numerous opportunities for Uniswap to gain millions of new users from the OKX ecosystem which comprises of approximately 50m. This deployment will be a win-win for both parties as it provides Uniswap with a new user base and revenue stream and X Layer the chance to offer its users access to a battle tested DeFi primitive, which is Uniswap v3.\n\n\n**Boundless scalability:** 100% EVM compatibility and easy-to-use developer tools for deployment.\n\n**X Layer is Powered by OKX:** seamless integration to all OKX products, all-in-one Web3 gateway, and access to 50M+ users in the OKX ecosystem.\n\n**Security:** rely on robust secure mechanisms from Ethereum, with trustless interoperability.\n\n**Low fee:** same coding experience as Ethereum but 100x cheaper.\n\n**Portal to Web3:** enter the world of Web3 via OKX Wallet, built with compact infrastructure modules to create innovative DApps.\n\n## Proposal Stakeholders:\nThe following list of stakeholders is present to transparently communicate which entities and individuals are involved in proposal creation and implementation.\n\n### Proposer: Yohaan (X Layer DeFi Strategy)\nThis entity is responsible for authoring the proposal & managing the governance process\n\n#### Deployer: [GFX Labs](https://x.com/labsGFX)\nThis entity is responsible for the technical deployment of the contracts on the target chain\n* GFX Labs will help deploy the v3 contracts on X Layer and has a track record of safely deploying Uniswap v3 on various EVM-compatible chains\n\n#### Frontend: [Oku Trade](https://oku.trade)\nThe initial frontend where users can interact with the new Uniswap v3 deployment\n* Oku is built and managed by GFX Labs\n* Oku was seeded by a Uniswap Foundation grant in 2022\n* Oku supports twelve chains and continues to aid Uniswap’s expansion to new protocols\n\n**Note:** Oku Trade has become the DAO’s go-to third party front-end for Uniswap deployments since the canonical front-end is owned and operated by Uniswap Labs\n\n#### Bridge Provider: [zkEVM Bridge](https://etherscan.io/address/0x2a3dd3eb832af982ec71669e178424b10dca2ede#writeProxyContract)\nX Layer mainnet bridge allows you to seamlessly move value between Ethereum and X Layer mainnet and can also be used to send and claim messages to and from Ethereum and X Layer.\n\n#### Target Chain: [X Layer](https://www.okx.com/xlayer)\nThis is the chain that v3 contracts are deployed on\n\n#### Proposal Sponsor: [GFX Labs](https://x.com/labsGFX)\nThis entity has >1M UNI and is therefore eligible for administering the onchain vote\n\n### Liquidity Bootstrapping and Incentives:\n\n#### X Layer’s Commitment:\nX Layer commits $1M worth of liquidity to Uniswap pools on X Layer for a minimum of 6 months. All liquidity will be provided on the day of launch. The tokens will be deployed on Uniswap through the X Layer integration with Oku Trade. All liquidity will be provided immediately upon deploying an instance of Uniswap v3 on X Layer.\n**Pools and liquidity commitment:**\n* $500k in OKB/USDT 0.30%\n* $200k in OKB/USDC 0.30%\n* $200k in OKB/wETH 0.30%\n* $100k in USDC/USDT 0.05%\n\n#### Community Multisig for Liquidity Provisioning:\nThe liquidity committment made by X layer will be sent to a Gnosis Safe on X Layer prior to launch with signers from OKX, Oku Trade and select Uniswap Delegates.\n\nThe Uniswap representatives for the multsig will be PGov (Jun) and Arana (Abdullah).  \n\n#### Deployment Details:\nIf no major points of contention are posed by the DAO during the RFC, the Accountability Committee will\n* Optimistically approve this deployment and consider the deployed contracts on the X layer as canonical, and a comment will be posted on this forum with all the verified contracts\n* As is the case with all canonical v3 deployments, this deployment will be subject to Ethereum Layer 1 Uniswap Protocol governance and control. The text record of the uniswap.eth ENS subdomain titled v3-deployments.uniswap.eth will be amended by the Accountability Committee to include the reference to the stated v3 contracts on X Layer.\n\n#### Timeline:\n**July 2024:** RFC\n\n**August 2024:** Liquidity commitment Temp Check\n\n**August 2024:** Onchain vote to approve onboarding package\n\n**September 2024:** Uni v3 contracts, as well as the front end on Oku Trade, will be deployed by GFX Labs\n",
+        "status": "Executed",
+        "proposer": "0xa6e8772af29b29B9202a073f8E36f447689BEef6",
+        "creationTransaction": "0x23ea669518d73d54f7cdb9320cd9b7408e086a84de2852652078ac813739c319",
+        "blockNumber": "20529031",
+        "eventSource": "live RPC (block 20529031)"
+      },
+      "actions": [
+        {
+          "index": 0,
+          "target": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000003b59c6d0034490093460787566dc5d6ce17f2f9c0000000000000000000000000000000000000000000003805d38add0bbfc0000",
+          "targetName": "Uni",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "dst",
+              "type": "address",
+              "value": "0x3B59C6d0034490093460787566dc5D6cE17F2f9C"
+            },
+            {
+              "name": "rawAmount",
+              "type": "uint256",
+              "value": "16535000000000000000000",
+              "rawAmount": "16535000000000000000000",
+              "decimals": 18,
+              "symbol": "UNI",
+              "formattedValue": "16535 UNI"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UNI",
+          "formattedAmount": "16535 UNI"
+        }
+      ],
+      "findings": [],
+      "descriptionConsistency": {
+        "status": "indeterminate",
+        "explanation": "Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: Action #1: Token recipient 0x3B59C6d0034490093460787566dc5D6cE17F2f9C (Uni) is not specified in the description text.",
+        "omissions": [
+          "Action #1: Token recipient 0x3B59C6d0034490093460787566dc5D6cE17F2f9C (Uni) is not specified in the description text."
+        ],
+        "mode": "keyword_fallback"
+      },
+      "reviews": {
+        "serv": {
+          "status": "pending",
+          "summary": "Loading OpenServ SERV advisory review..."
+        },
+        "dolphin": {
+          "status": "pending",
+          "summary": "Loading Dolphin secondary review..."
+        }
+      },
+      "limitations": [],
+      "evidence": [
+        {
+          "label": "Governor Contract",
+          "url": "https://etherscan.io/address/0x408ED6354d4973f66138C91495F2f2FCbd8724C3",
+          "description": "Verified on-chain governor at 0x408ED6354d4973f66138C91495F2f2FCbd8724C3"
+        },
+        {
+          "label": "Proposal Creation Transaction",
+          "url": "https://etherscan.io/tx/0x23ea669518d73d54f7cdb9320cd9b7408e086a84de2852652078ac813739c319",
+          "description": "Emitted ProposalCreated event in block 20529031"
+        },
+        {
+          "label": "Action #1 Target: Uni",
+          "url": "https://etherscan.io/address/0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+          "description": "Direct target contract"
+        }
+      ],
+      "tier": "instant",
+      "diagnostics": {
+        "tier": "instant",
+        "timings": {
+          "eventLookupMs": 1239,
+          "proposalStateMs": 0,
+          "abiResolutionMs": 623,
+          "roleCapabilitiesMs": 0,
+          "recipientProfilingMs": 0,
+          "tokenMetadataMs": 0,
+          "securityChecksMs": 0,
+          "consistencyCheckMs": 0,
+          "assessmentMs": 0,
+          "totalMs": 1881
+        },
+        "cached": false,
+        "eventSource": "live RPC (block 20529031)",
+        "schemaVersion": "v2"
+      }
+    }
+  },
+  "standardReview": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 9720,
+    "body": {
+      "tier": "standard",
+      "serv": {
+        "provider": "OpenServ SERV",
+        "status": "available",
+        "summary": "Standard review completed.",
+        "items": [],
+        "tier": "standard",
+        "durationMs": 8132,
+        "attempts": 1
+      },
+      "dolphin": {
+        "provider": "Dolphin",
+        "status": "available",
+        "summary": "Adversarial execution scenarios and governance questions available in Deep review.",
+        "tier": "standard"
+      },
+      "timings": {
+        "servExtractionMs": 8132,
+        "servInvestigatorMs": 0,
+        "dolphinScenarioMs": 0,
+        "claimsLedgerMs": 0,
+        "totalMs": 8132
+      }
+    }
+  },
+  "deepReview": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 12199,
+    "body": {
+      "tier": "deep",
+      "serv": {
+        "provider": "serv",
+        "status": "ok",
+        "summary": "Analysis complete.",
+        "items": [
+          {
+            "kind": "note",
+            "issue": "The proposal text does not mention or justify a direct transfer of 16,535 UNI tokens. The proposal discusses X Layer providing $1M in liquidity and Uniswap DAO covering frontend costs for Oku Trade, but does not explain the purpose, recipient, or justification for this specific UNI transfer.",
+            "evidenceId": "tool-call-1"
+          },
+          {
+            "kind": "note",
+            "issue": "The recipient address (0x3B59C6d0034490093460787566dc5D6cE17F2f9C) is a verified contract deployed on 2024-10-16, not an EOA. The contract's purpose and relationship to the proposal stakeholders is not documented in the proposal text.",
+            "evidenceId": "tool-call-4"
+          },
+          {
+            "kind": "note",
+            "issue": "The proposal does not disclose what the 16,535 UNI transfer represents (e.g., deployment incentives, team compensation, liquidity mining, etc.) or how it aligns with the stated commitments from X Layer and Uniswap DAO. This creates ambiguity about the true cost and distribution of resources.",
+            "evidenceId": "tool-call-1"
+          }
+        ],
+        "findings": [
+          "The proposal text does not mention or justify a direct transfer of 16,535 UNI tokens. The proposal discusses X Layer providing $1M in liquidity and Uniswap DAO covering frontend costs for Oku Trade, but does not explain the purpose, recipient, or justification for this specific UNI transfer.",
+          "The recipient address (0x3B59C6d0034490093460787566dc5D6cE17F2f9C) is a verified contract deployed on 2024-10-16, not an EOA. The contract's purpose and relationship to the proposal stakeholders is not documented in the proposal text.",
+          "The proposal does not disclose what the 16,535 UNI transfer represents (e.g., deployment incentives, team compensation, liquidity mining, etc.) or how it aligns with the stated commitments from X Layer and Uniswap DAO. This creates ambiguity about the true cost and distribution of resources."
+        ],
+        "attempts": 1,
+        "toolCallCount": 4,
+        "loopTurns": 2,
+        "tier": "deep"
+      },
+      "dolphin": {
+        "provider": "dolphin",
+        "status": "ok",
+        "summary": "The executable payload does not match the proposal: it only transfers 16,535 UNI to an unidentified address, with no deployment, multisig, or liquidity actions. This is a high-risk treasury transfer hidden inside a benign deployment proposal.",
+        "scenarios": [
+          {
+            "id": "scenario-1",
+            "title": "Hidden treasury drain via benign deployment proposal",
+            "preconditions": [
+              "Delegates approve based on the proposal text describing only a Uniswap v3 deployment on X Layer",
+              "The recipient address 0x3B59C6d0034490093460787566dc5D6cE17F2f9C is controlled by the proposer or an attacker",
+              "No separate UNI transfer is disclosed or justified in the proposal"
+            ],
+            "steps": [
+              {
+                "actionRef": 0,
+                "description": "Execute the UNI transfer of 16,535 UNI to 0x3B59C6d0034490093460787566dc5D6cE17F2f9C while delegates believe they are approving only an X Layer deployment."
+              }
+            ],
+            "impact": "16,535 UNI is irreversibly transferred from the Uniswap treasury to an undisclosed recipient, with no deployment or liquidity commitment enforced by the execution.",
+            "severityHint": "critical",
+            "rebuttalStatus": "needs_human",
+            "refutedBy": "Needs human delegate review: Scenario assumptions require manual governance review."
+          },
+          {
+            "id": "scenario-2",
+            "title": "Recipient uses transferred UNI to influence governance or market conditions",
+            "preconditions": [
+              "The recipient address is an EOA or contract controlled by a malicious actor",
+              "The 16,535 UNI can be delegated, sold, or used to amplify a future governance attack",
+              "Delegates do not verify the recipient's ownership or intended use"
+            ],
+            "steps": [
+              {
+                "actionRef": 0,
+                "description": "The transfer sends 16,535 UNI to 0x3B59C6d0034490093460787566dc5D6cE17F2f9C, which can then delegate or sell the tokens."
+              }
+            ],
+            "impact": "The recipient gains voting power or market liquidity that can be used to influence future Uniswap governance or profit from treasury assets.",
+            "severityHint": "high",
+            "rebuttalStatus": "needs_human",
+            "refutedBy": "Needs human delegate review: Scenario assumptions require manual governance review."
+          },
+          {
+            "id": "scenario-3",
+            "title": "Execution mismatch leaves deployment unenforceable",
+            "preconditions": [
+              "The proposal promises $1M liquidity, multisig setup, and canonical deployment details",
+              "The executable action contains no calls to deploy contracts, create a Safe, or fund liquidity",
+              "Delegates rely on the on-chain execution as the binding commitment"
+            ],
+            "steps": [
+              {
+                "actionRef": 0,
+                "description": "The only executed action is the UNI transfer; none of the stated deployment, multisig, or liquidity obligations are encoded or enforced."
+              }
+            ],
+            "impact": "The DAO pays UNI while receiving no enforceable on-chain guarantee that X Layer deploys Uniswap v3, provides $1M liquidity, or establishes the promised multisig.",
+            "severityHint": "high",
+            "rebuttalStatus": "needs_human",
+            "refutedBy": "Needs human delegate review: Scenario relies on off-chain governance assumptions (multisig key compromise or external signer collusion) that cannot be proved or disproved on-chain."
+          }
+        ],
+        "questions": [
+          "Why does the executable payload transfer 16,535 UNI when the proposal text states that OKX may seek UNI incentives only at a later date?",
+          "Who controls address 0x3B59C6d0034490093460787566dc5D6cE17F2f9C, and what is the legal or operational purpose of this transfer?",
+          "Where in the proposal is this 16,535 UNI transfer authorized, budgeted, or disclosed to delegates?"
+        ],
+        "items": [
+          {
+            "kind": "contradiction",
+            "issue": "The proposal says OKX may create a future proposal seeking UNI incentives, but the executable action transfers 16,535 UNI now.",
+            "actionRef": 0
+          },
+          {
+            "kind": "risk",
+            "issue": "The recipient address has no disclosed profile, role, or relationship to X Layer, GFX Labs, Oku Trade, or the proposed multisig.",
+            "actionRef": 0
+          },
+          {
+            "kind": "unsupported_claim",
+            "issue": "The proposal claims a $1M liquidity commitment and multisig setup, but the executable payload contains no such actions.",
+            "actionRef": 0
+          }
+        ],
+        "findings": [
+          "Hidden treasury drain via benign deployment proposal: needs_human",
+          "Recipient uses transferred UNI to influence governance or market conditions: needs_human",
+          "Execution mismatch leaves deployment unenforceable: needs_human",
+          "The proposal says OKX may create a future proposal seeking UNI incentives, but the executable action transfers 16,535 UNI now.",
+          "The recipient address has no disclosed profile, role, or relationship to X Layer, GFX Labs, Oku Trade, or the proposed multisig.",
+          "The proposal claims a $1M liquidity commitment and multisig setup, but the executable payload contains no such actions."
+        ],
+        "attempts": 1,
+        "tier": "deep"
+      },
+      "timings": {
+        "servExtractionMs": 0,
+        "servInvestigatorMs": 11873,
+        "dolphinScenarioMs": 11873,
+        "claimsLedgerMs": 0,
+        "totalMs": 11874
+      }
+    }
+  }
+}

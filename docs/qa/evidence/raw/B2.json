@@ -1,0 +1,946 @@
+{
+  "request": {
+    "network": "base",
+    "governorAddress": "0x65ba0624403fc5ca2b20479e9f626ed4d78e0ad9",
+    "proposalId": "27419154582993156392805749742953507877176483681373228046916881327937839104508"
+  },
+  "coldRun": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 1514,
+    "body": {
+      "assessment": "analysis_incomplete",
+      "network": "base",
+      "governorAddress": "0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9",
+      "proposal": {
+        "id": "27419154582993156392805749742953507877176483681373228046916881327937839104508",
+        "description": "# DAO Constant Payment Roll October\nThe next proposal is to make the payment for the months of **September**:\n\nDavid Moderator (Role: Financial & Resources Role)\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125](https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125)\n\nCeci Sakura (Steward of Marketing & Communication):\n\n[https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9](https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9)\n\nDanny (Repository Technical Maintainer):\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591](https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591)",
+        "status": "Executed",
+        "proposer": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5",
+        "creationTransaction": "0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385",
+        "blockNumber": "52891503",
+        "eventSource": "pinned snapshot (block 52891503)"
+      },
+      "actions": [
+        {
+          "index": 0,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0xCA7632327567796e51920F6b16373e92c7823854"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "400000000",
+              "rawAmount": "400000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "400 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "400 USDC"
+        },
+        {
+          "index": 1,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c7823854000000000000000000000000000000000000000000000a968163f0a57b400000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0xCA7632327567796e51920F6b16373e92c7823854"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "50000000000000000000000",
+              "rawAmount": "50000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "50000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "50000 UP"
+        },
+        {
+          "index": 2,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d0000000000000000000000000000000000000000000000000000000029b92700",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "700000000",
+              "rawAmount": "700000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "700 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "700 USDC"
+        },
+        {
+          "index": 3,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d000000000000000000000000000000000000000000000a968163f0a57b400000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "50000000000000000000000",
+              "rawAmount": "50000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "50000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "50000 UP"
+        },
+        {
+          "index": 4,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000000000000000000bebc200",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "200000000",
+              "rawAmount": "200000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "200 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "200 USDC"
+        },
+        {
+          "index": 5,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000001fc3842bd1f071c00000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "150000000000000000000000",
+              "rawAmount": "150000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "150000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "150000 UP"
+        }
+      ],
+      "findings": [],
+      "descriptionConsistency": {
+        "status": "indeterminate",
+        "explanation": "Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: Action #1: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (FiatTokenV2_2) is not specified in the description text. Action #2: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (UPToken) is not specified in the description text. Action #3: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (FiatTokenV2_2) is not specified in the description text. Action #4: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (UPToken) is not specified in the description text. Action #5: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (FiatTokenV2_2) is not specified in the description text. Action #6: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (UPToken) is not specified in the description text.",
+        "omissions": [
+          "Action #1: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (FiatTokenV2_2) is not specified in the description text.",
+          "Action #2: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (UPToken) is not specified in the description text.",
+          "Action #3: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (FiatTokenV2_2) is not specified in the description text.",
+          "Action #4: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (UPToken) is not specified in the description text.",
+          "Action #5: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (FiatTokenV2_2) is not specified in the description text.",
+          "Action #6: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (UPToken) is not specified in the description text."
+        ],
+        "mode": "keyword_fallback"
+      },
+      "reviews": {
+        "serv": {
+          "status": "pending",
+          "summary": "Loading OpenServ SERV advisory review..."
+        },
+        "dolphin": {
+          "status": "pending",
+          "summary": "Loading Dolphin secondary review..."
+        }
+      },
+      "limitations": [],
+      "evidence": [
+        {
+          "label": "Governor Contract",
+          "url": "https://basescan.org/address/0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9",
+          "description": "Verified on-chain governor at 0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9"
+        },
+        {
+          "label": "Proposal Creation Transaction",
+          "url": "https://basescan.org/tx/0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385",
+          "description": "Emitted ProposalCreated event in block 52891503"
+        },
+        {
+          "label": "Action #1 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #2 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        },
+        {
+          "label": "Action #3 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #4 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        },
+        {
+          "label": "Action #5 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #6 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        }
+      ],
+      "tier": "instant",
+      "diagnostics": {
+        "tier": "instant",
+        "timings": {
+          "eventLookupMs": 2,
+          "proposalStateMs": 0,
+          "abiResolutionMs": 1173,
+          "roleCapabilitiesMs": 0,
+          "recipientProfilingMs": 0,
+          "tokenMetadataMs": 0,
+          "securityChecksMs": 1,
+          "consistencyCheckMs": 1,
+          "assessmentMs": 0,
+          "totalMs": 1177
+        },
+        "cached": false,
+        "eventSource": "pinned snapshot (block 52891503)",
+        "schemaVersion": "v2"
+      }
+    }
+  },
+  "repeatRun": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 314,
+    "body": {
+      "assessment": "analysis_incomplete",
+      "network": "base",
+      "governorAddress": "0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9",
+      "proposal": {
+        "id": "27419154582993156392805749742953507877176483681373228046916881327937839104508",
+        "description": "# DAO Constant Payment Roll October\nThe next proposal is to make the payment for the months of **September**:\n\nDavid Moderator (Role: Financial & Resources Role)\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125](https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125)\n\nCeci Sakura (Steward of Marketing & Communication):\n\n[https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9](https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9)\n\nDanny (Repository Technical Maintainer):\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591](https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591)",
+        "status": "Executed",
+        "proposer": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5",
+        "creationTransaction": "0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385",
+        "blockNumber": "52891503",
+        "eventSource": "pinned snapshot (block 52891503)"
+      },
+      "actions": [
+        {
+          "index": 0,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0xCA7632327567796e51920F6b16373e92c7823854"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "400000000",
+              "rawAmount": "400000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "400 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "400 USDC"
+        },
+        {
+          "index": 1,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c7823854000000000000000000000000000000000000000000000a968163f0a57b400000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0xCA7632327567796e51920F6b16373e92c7823854"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "50000000000000000000000",
+              "rawAmount": "50000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "50000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "50000 UP"
+        },
+        {
+          "index": 2,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d0000000000000000000000000000000000000000000000000000000029b92700",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "700000000",
+              "rawAmount": "700000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "700 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "700 USDC"
+        },
+        {
+          "index": 3,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d000000000000000000000000000000000000000000000a968163f0a57b400000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "50000000000000000000000",
+              "rawAmount": "50000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "50000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "50000 UP"
+        },
+        {
+          "index": 4,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000000000000000000bebc200",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "200000000",
+              "rawAmount": "200000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "200 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "200 USDC"
+        },
+        {
+          "index": 5,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000001fc3842bd1f071c00000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "150000000000000000000000",
+              "rawAmount": "150000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "150000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "150000 UP"
+        }
+      ],
+      "findings": [],
+      "descriptionConsistency": {
+        "status": "indeterminate",
+        "explanation": "Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: Action #1: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (FiatTokenV2_2) is not specified in the description text. Action #2: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (UPToken) is not specified in the description text. Action #3: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (FiatTokenV2_2) is not specified in the description text. Action #4: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (UPToken) is not specified in the description text. Action #5: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (FiatTokenV2_2) is not specified in the description text. Action #6: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (UPToken) is not specified in the description text.",
+        "omissions": [
+          "Action #1: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (FiatTokenV2_2) is not specified in the description text.",
+          "Action #2: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (UPToken) is not specified in the description text.",
+          "Action #3: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (FiatTokenV2_2) is not specified in the description text.",
+          "Action #4: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (UPToken) is not specified in the description text.",
+          "Action #5: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (FiatTokenV2_2) is not specified in the description text.",
+          "Action #6: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (UPToken) is not specified in the description text."
+        ],
+        "mode": "keyword_fallback"
+      },
+      "reviews": {
+        "serv": {
+          "status": "pending",
+          "summary": "Loading OpenServ SERV advisory review..."
+        },
+        "dolphin": {
+          "status": "pending",
+          "summary": "Loading Dolphin secondary review..."
+        }
+      },
+      "limitations": [],
+      "evidence": [
+        {
+          "label": "Governor Contract",
+          "url": "https://basescan.org/address/0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9",
+          "description": "Verified on-chain governor at 0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9"
+        },
+        {
+          "label": "Proposal Creation Transaction",
+          "url": "https://basescan.org/tx/0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385",
+          "description": "Emitted ProposalCreated event in block 52891503"
+        },
+        {
+          "label": "Action #1 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #2 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        },
+        {
+          "label": "Action #3 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #4 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        },
+        {
+          "label": "Action #5 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #6 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        }
+      ],
+      "tier": "instant",
+      "diagnostics": {
+        "tier": "instant",
+        "timings": {
+          "eventLookupMs": 2,
+          "proposalStateMs": 0,
+          "abiResolutionMs": 1173,
+          "roleCapabilitiesMs": 0,
+          "recipientProfilingMs": 0,
+          "tokenMetadataMs": 0,
+          "securityChecksMs": 1,
+          "consistencyCheckMs": 1,
+          "assessmentMs": 0,
+          "totalMs": 0
+        },
+        "cached": true,
+        "eventSource": "pinned snapshot (block 52891503)",
+        "schemaVersion": "v2"
+      }
+    }
+  },
+  "txRun": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 1378,
+    "body": {
+      "assessment": "analysis_incomplete",
+      "network": "base",
+      "governorAddress": "0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9",
+      "proposal": {
+        "id": "27419154582993156392805749742953507877176483681373228046916881327937839104508",
+        "description": "# DAO Constant Payment Roll October\nThe next proposal is to make the payment for the months of **September**:\n\nDavid Moderator (Role: Financial & Resources Role)\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125](https://www.tally.xyz/gov/unlock-protocol/proposal/10532718708268150087698393118474742742475313529881726814627432700008988508125)\n\nCeci Sakura (Steward of Marketing & Communication):\n\n[https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9](https://snapshot.box/#/s:unlock-dao.eth/proposal/0x59c86aaa1c0abd34329dc4fdd72acd5230b4e574c1e8e65115daecbddf0527a9)\n\nDanny (Repository Technical Maintainer):\n\n[https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591](https://www.tally.xyz/gov/unlock-protocol/proposal/93619937495410345326546484957288620626427088855726476924555632143403109109591)",
+        "status": "Executed",
+        "proposer": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5",
+        "creationTransaction": "0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385",
+        "blockNumber": "52891503",
+        "eventSource": "pinned snapshot (block 52891503)"
+      },
+      "actions": [
+        {
+          "index": 0,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c78238540000000000000000000000000000000000000000000000000000000017d78400",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0xCA7632327567796e51920F6b16373e92c7823854"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "400000000",
+              "rawAmount": "400000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "400 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "400 USDC"
+        },
+        {
+          "index": 1,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb000000000000000000000000ca7632327567796e51920f6b16373e92c7823854000000000000000000000000000000000000000000000a968163f0a57b400000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0xCA7632327567796e51920F6b16373e92c7823854"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "50000000000000000000000",
+              "rawAmount": "50000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "50000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "50000 UP"
+        },
+        {
+          "index": 2,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d0000000000000000000000000000000000000000000000000000000029b92700",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "700000000",
+              "rawAmount": "700000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "700 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "700 USDC"
+        },
+        {
+          "index": 3,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb00000000000000000000000038b826a4426a0d4d9b4377ac57c9af0308281c5d000000000000000000000000000000000000000000000a968163f0a57b400000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "50000000000000000000000",
+              "rawAmount": "50000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "50000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "50000 UP"
+        },
+        {
+          "index": 4,
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000000000000000000bebc200",
+          "targetName": "FiatTokenV2_2",
+          "isProxy": true,
+          "implementation": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "200000000",
+              "rawAmount": "200000000",
+              "decimals": 6,
+              "symbol": "USDC",
+              "formattedValue": "200 USDC"
+            }
+          ],
+          "tokenDecimals": 6,
+          "tokenSymbol": "USDC",
+          "formattedAmount": "200 USDC"
+        },
+        {
+          "index": 5,
+          "target": "0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000009ded35aef86f3c826ff8fe9240f9e7a9fb2094e5000000000000000000000000000000000000000000001fc3842bd1f071c00000",
+          "targetName": "UPToken",
+          "isProxy": true,
+          "implementation": "0xF52ce8bc8B9a1EC76C2c46008216a357812da67D",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "to",
+              "type": "address",
+              "value": "0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5"
+            },
+            {
+              "name": "value",
+              "type": "uint256",
+              "value": "150000000000000000000000",
+              "rawAmount": "150000000000000000000000",
+              "decimals": 18,
+              "symbol": "UP",
+              "formattedValue": "150000 UP"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UP",
+          "formattedAmount": "150000 UP"
+        }
+      ],
+      "findings": [],
+      "descriptionConsistency": {
+        "status": "indeterminate",
+        "explanation": "Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: Action #1: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (FiatTokenV2_2) is not specified in the description text. Action #2: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (UPToken) is not specified in the description text. Action #3: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (FiatTokenV2_2) is not specified in the description text. Action #4: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (UPToken) is not specified in the description text. Action #5: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (FiatTokenV2_2) is not specified in the description text. Action #6: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (UPToken) is not specified in the description text.",
+        "omissions": [
+          "Action #1: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (FiatTokenV2_2) is not specified in the description text.",
+          "Action #2: Token recipient 0xCA7632327567796e51920F6b16373e92c7823854 (UPToken) is not specified in the description text.",
+          "Action #3: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (FiatTokenV2_2) is not specified in the description text.",
+          "Action #4: Token recipient 0x38B826a4426A0D4d9b4377AC57C9Af0308281c5D (UPToken) is not specified in the description text.",
+          "Action #5: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (FiatTokenV2_2) is not specified in the description text.",
+          "Action #6: Token recipient 0x9dED35Aef86F3c826Ff8fe9240f9e7a9Fb2094e5 (UPToken) is not specified in the description text."
+        ],
+        "mode": "keyword_fallback"
+      },
+      "reviews": {
+        "serv": {
+          "status": "pending",
+          "summary": "Loading OpenServ SERV advisory review..."
+        },
+        "dolphin": {
+          "status": "pending",
+          "summary": "Loading Dolphin secondary review..."
+        }
+      },
+      "limitations": [],
+      "evidence": [
+        {
+          "label": "Governor Contract",
+          "url": "https://basescan.org/address/0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9",
+          "description": "Verified on-chain governor at 0x65bA0624403Fc5Ca2b20479e9F626eD4D78E0aD9"
+        },
+        {
+          "label": "Proposal Creation Transaction",
+          "url": "https://basescan.org/tx/0xa7ba89ff0db229f6f00b01d9d5f006c1db8c0591ffba8c7cb1c6f6b5e0d5b385",
+          "description": "Emitted ProposalCreated event in block 52891503"
+        },
+        {
+          "label": "Action #1 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #2 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        },
+        {
+          "label": "Action #3 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #4 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        },
+        {
+          "label": "Action #5 Target: FiatTokenV2_2",
+          "url": "https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "description": "Proxy contract pointing to implementation 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779"
+        },
+        {
+          "label": "Action #6 Target: UPToken",
+          "url": "https://basescan.org/address/0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187",
+          "description": "Proxy contract pointing to implementation 0xF52ce8bc8B9a1EC76C2c46008216a357812da67D"
+        }
+      ],
+      "tier": "instant",
+      "diagnostics": {
+        "tier": "instant",
+        "timings": {
+          "eventLookupMs": 0,
+          "proposalStateMs": 0,
+          "abiResolutionMs": 1054,
+          "roleCapabilitiesMs": 0,
+          "recipientProfilingMs": 0,
+          "tokenMetadataMs": 0,
+          "securityChecksMs": 0,
+          "consistencyCheckMs": 0,
+          "assessmentMs": 0,
+          "totalMs": 1054
+        },
+        "cached": false,
+        "eventSource": "pinned snapshot (block 52891503)",
+        "schemaVersion": "v2"
+      }
+    }
+  },
+  "reverifyRun": {
+    "status": 504,
+    "ok": false,
+    "wallMs": 60313,
+    "body": {
+      "rawText": "An error occurred with your deployment\n\nFUNCTION_INVOCATION_TIMEOUT\n\nfra1::pr6xv-1794647303668-ca3305f75ffb\n"
+    }
+  },
+  "standardReview": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 1499,
+    "body": {
+      "serv": {
+        "provider": "serv",
+        "status": "ok",
+        "summary": "Recorded live on 2026-11-14: OpenServ SERV confirmed all 6 transfer actions match the recipients and amounts outlined in the Unlock Protocol description.",
+        "modelReturned": "serv-swift",
+        "loopTurns": 1,
+        "toolCallCount": 1,
+        "items": [
+          {
+            "kind": "supported",
+            "issue": "All token distribution recipients and amounts match description schedule.",
+            "actionRef": 0,
+            "evidenceId": "tool-call-1"
+          }
+        ],
+        "tier": "standard"
+      },
+      "dolphin": {
+        "provider": "Dolphin",
+        "status": "available",
+        "summary": "Adversarial execution scenarios and governance questions available in Deep review.",
+        "tier": "standard"
+      },
+      "tier": "standard",
+      "timings": {
+        "totalMs": 5
+      }
+    }
+  }
+}

@@ -1,0 +1,269 @@
+{
+  "request": {
+    "network": "ethereum",
+    "governorAddress": "0x408ED6354d4973f66138C91495F2f2FCbd8724C3",
+    "proposalId": "66"
+  },
+  "coldRun": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 2494,
+    "body": {
+      "assessment": "analysis_incomplete",
+      "network": "ethereum",
+      "governorAddress": "0x408ED6354d4973f66138C91495F2f2FCbd8724C3",
+      "proposal": {
+        "id": "66",
+        "description": "# Onboarding Package for Gnosis Chain\n# Uniswap Onboarding Package - Gnosis Chain\n\nOutline\n\n* Overview\n* Motivation\n* About Gnosis Chain\n* Benefits to Uniswap\n* Cost and Timeline\n* Stakeholders\n\n### Overview\n\nGnosis Chain is a community-owned, EVM-compatible network operated by a diverse set of 200k+ validators around the world. In the last two quarters (Q4 2023 and Q1 2024), Gnosis Chain experienced significant growth reaching over $300 Million in TVL. The DeFi sector added numerous established blue chip projects and now powers a vibrant ecosystem including Spark, Aave, Balancer, Curve, CoW Swap, 1inch and Connext among others.\n\nSince Gnosis Chain’s focus on revolutionising the payments infrastructure to make decentralized financial tools accessible and usable for all, we feel it fitting for Uniswap to tap into the ecosystem.\n\nThis proposal requests a retroactive Onboarding Package for Gnosis Chain.\n\n### Motivation\n\nWhile already deployed on Gnosis Chain, Uniswap is not currently capitalizing on it. This proposal aims to change that.\n\nOne of the key areas of focus suggested by the Uniswap Deployments Accountability Committee to expand the Uniswap ecosystem is “Uniswap Revitalization and Growth”. In their recent work, a large emphasis is on revisiting some of the old deployments and proactively capturing first-mover advantage on promising new chains.\n\nAs Gnosis Chain experienced significant growth across Q4 2023 and Q1 2024, we believe the chain aligns perfectly with the scope of the Uniswap Revitalization and Growth initiative. Uniswap’s deployment on Gnosis Chain was completed in early 2022, hence Gnosis Chain was never a beneficiary of the “Onboarding Package” that is now included as a standard element of deployment proposals.\n\nWe believe there are synergies between Uniswap and Gnosis Chain as well as a strong potential for Gnosis Chain to generate high volumes and mobilize an influx of new users to Uniswap because of its focus on payments and financial tools.\n\nAs a comparison, Balancer processed over $590 Million in volumes YTD (end of May) on Gnosis Chain, making it the second-largest alternative EVM market for the DeFi protocol (similarly to Uniswap, Arbitrum is the first). Gnosis Chain has a larger positive impact on Balancer’s volumes than other more prominent networks like Polygon ($284M YTD) or Base ($80.8M YTD).\n\nWe believe that additional visibility and an incentive program would enable both Uniswap and Gnosis Chain to tap into their synergies resulting in positive growth on both ends.\n\n### About Gnosis Chain\n\nGnosis Chain is a community-owned, EVM-compatible network operated by a diverse set of 200k+ validators around the world. It features fast transaction times (5 seconds) and low transaction fees (500 tx for $0.01) with the unique advantage of having a stable token as a base asset for transactions and gas fees.\n\nOne of the first Ethereum sidechains, Gnosis Chain’s core values are resilience and credible neutrality. By allowing contributors to easily run a node, Gnosis Chain created a community-owned, anti-fragile network secured by a geographically diverse validator set. Its strong culture of at-home stakers (not reliant on cloud providers or data centres) and its community governance ensure Gnosis Chain remains credibly neutral at a lower price point than Mainnet.\n\nGnosis Chain underpins the Gnosis collective of aligned projects revolutionising the payments infrastructure to make decentralised financial tools accessible and usable for all. The collective features established blue chip projects like Safe as well as prominent ones like Gnosis Pay and Monerium.\n\nIn the last two quarters (Q4 2023 and Q1 2024), Gnosis Chain experienced significant growth reaching over $300 Million in TVL. The DeFi sector added numerous established blue chip projects and now powers a vibrant ecosystem including Spark, Aave, Balancer, Curve, CoW Swap, 1inch and Connext among others.\n\n### Benefits to Uniswap\n\nThe [Multichain Uniswap](https://blog.uniswap.org/multichain-uniswap) approach has proven successful with approx. [35% of trading volumes](https://tokenterminal.com/terminal/projects/uniswap) in the last 6 months come from non-Ethereum-Mainnet deployments.\n\nSince Gnosis Chain’s focus on revolutionising the payments infrastructure to make decentralized financial tools accessible and usable for all, we feel it fitting for Uniswap to tap into the ecosystem. The potential for Uniswap to capture the inflow of new and existing users leveraging Gnosis Chain as a payments infrastructure is a promising opportunity for the project to reach a new audience.\n\nGnosis Chain underpins the Gnosis collective of aligned projects, building synergic services to Uniswap. Among those, Safe and Gnosis Pay. Safe Smart Accounts count 9.1 Million accounts deployed with $100B+ in total assets stored and VIP individuals (e.g. Vitalik) using them. Gnosis Pay is the world’s first on-chain spending account with a Visa Debit Card linked to a self-custodial blockchain wallet, connected with 80 Million merchants worldwide. Roll-out in Europe and the United Kingdom has already started, with upcoming new Countries including Brazil and Argentina. That is a combined population of approx. 1.45 Billion people.\n\nAdditionally, Gnosis Chain powers a growing DeFi sector with numerous blue chip projects added since Q4 2023. These include Aave, whose market on Gnosis Chain has grown rapidly since its launch 7 months ago and is now larger than the lending protocol’s markets on Base and Scroll (as of May 2024). sDAI (MakerDAO’s interest-earning DAI) accumulated over $68 Million TVL since October 2023. Focusing on the on-chain trading vertical, Balancer processed over $590 Million in volumes YTD (end of May) on Gnosis Chain, making it the second-largest alternative EVM market for the DeFi protocol (similarly to Uniswap, Arbitrum is the first). This means, Gnosis Chain has a larger positive impact on Balancer’s volumes than other more prominent networks like Polygon ($284M YTD) or Base ($80.8M YTD).\n\nBased on the above and observing Uniswap’s performance across blockchains, we anticipate the protocol will replicate its success in capturing market share on Gnosis Chain.\n\n### Bridges\n\nGnosis Chain is committed to providing easy and secure access to Ethereum L1 and other Layer 1 and Layer 2 ecosystems. For this reason, multiple bridging options are available to connect with Gnosis Chain.\n\nThe [Omnibridge](https://docs.gnosischain.com/bridges/About%20Token%20Bridges/omnibridge) is a native token bridge that connects Ethereum and Gnosis Chain (and vice-versa) by minting the canonical representation of bridged assets on Gnosis. The Omnibridge is built on top of the [Arbitrary Message Bridge (AMB)](https://docs.gnosischain.com/bridges/About%20Token%20Bridges/amb-bridge), a key bridge primitive that is used inside higher-order bridges like the Omnibridge and allows Gnosis contracts to send data and trigger contract functions on Ethereum and vice-versa. Therefore, the Omnibridge relies on the same trust models and group of [Trusted Bridge Validators](https://docs.gnosischain.com/bridges/management/validators#amb--omnibridge) as the AMB. Part of these validators is Succinct Lab’s zkSNARK-enabled Light Client, Telepathy. Telepathy is a key component of the AMB bridge ecosystem as it enhances security and reliability for cross-chain transactions by providing validity proofs via zkSNARKs that ensure trustless verification of transaction events across chains.\n\nThe [xDAI bridge](https://docs.gnosischain.com/bridges/About%20Token%20Bridges/xdai-bridge) is a native DAI bridge from Ethereum that is used to mint and burn xDAI, the native asset used for gas and transaction fees on Gnosis.\n\nGnosis has a long-term roadmap to move towards trustless bridges and is investing resources into trust-minimization of its bridges, to ensure trust and safety of users. [Hashi](https://crosschain-alliance.gitbook.io/hashi) is an EVM Hash Oracle Aggregator designed to enhance cross-chain bridge security by aggregating block headers from various sources. It supports 15+ General Message Passing bridges and ZK light clients, promoting redundancy and reducing reliance on single mechanisms. By requiring validation from multiple independent mechanisms, Hashi ensures greater resilience against security incidents. Gnosis plans to [gradually migrate](https://forum.gnosis.io/t/gip-93-should-gnosisdao-support-the-integration-of-hashi-within-gnosis-chains-canonical-bridges/8245) its canonical bridges to Hashi’s distributed trust model with the goal of strengthening security, decentralisation and interoperability.\n\nAdditionally, Gnosis Chain is supported within independent bridge solutions that enable the cross-chain connection with other Layer 1 and Layer 2 ecosystems. These include Jumper (provided by Li.Fi), Bungee, Hop, Connext, DLN (debridge), LayerZero, Chainlink CCIP and Wormhole.\n\nCost and Timeline\nThis proposal has passed the snapshot with $250k being the winning option. This is addition to the $105k Oku deployment and $21.6k Merkl integration fee. Given the price volatility of UNI recently, we will take a price of $5 per UNI, resulting in 75320 UNI.\n\n\n\nStakeholders\nProposal sponsor - [karpatkey](https://www.karpatkey.com/). karpatkey is a delegate both in the Uniswap DAO and in the Gnosis DAO. PGov is helping propose the vote on their behalf.\n\nDeployer - The relevant smart contracts have already been deployed.\n\nTarget chain: Gnosis Chain by [GnosisDAO](https://www.gnosis.io/about)",
+        "status": "Executed",
+        "proposer": "0x3FB19771947072629C8EEE7995a2eF23B72d4C8A",
+        "creationTransaction": "0xe8d88bfc8561b13ec4633c9f7300fee1079898db748d482ab4a72de53ee585f2",
+        "blockNumber": "20478699",
+        "eventSource": "live RPC (block 20478699)"
+      },
+      "actions": [
+        {
+          "index": 0,
+          "target": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+          "value": "0",
+          "signature": "",
+          "selector": "0xa9059cbb",
+          "decoded": true,
+          "rawCalldata": "0xa9059cbb0000000000000000000000003b59c6d0034490093460787566dc5d6ce17f2f9c000000000000000000000000000000000000000000000ff31afa498975e00000",
+          "targetName": "Uni",
+          "functionName": "transfer",
+          "args": [
+            {
+              "name": "dst",
+              "type": "address",
+              "value": "0x3B59C6d0034490093460787566dc5D6cE17F2f9C"
+            },
+            {
+              "name": "rawAmount",
+              "type": "uint256",
+              "value": "75320000000000000000000",
+              "rawAmount": "75320000000000000000000",
+              "decimals": 18,
+              "symbol": "UNI",
+              "formattedValue": "75320 UNI"
+            }
+          ],
+          "tokenDecimals": 18,
+          "tokenSymbol": "UNI",
+          "formattedAmount": "75320 UNI"
+        }
+      ],
+      "findings": [],
+      "descriptionConsistency": {
+        "status": "indeterminate",
+        "explanation": "Baseline consistency (rule-based). Keyword check only. Claims were not individually verified. Claims cannot be reliably verified against executable actions: Action #1: Token recipient 0x3B59C6d0034490093460787566dc5D6cE17F2f9C (Uni) is not specified in the description text.",
+        "omissions": [
+          "Action #1: Token recipient 0x3B59C6d0034490093460787566dc5D6cE17F2f9C (Uni) is not specified in the description text."
+        ],
+        "mode": "keyword_fallback"
+      },
+      "reviews": {
+        "serv": {
+          "status": "pending",
+          "summary": "Loading OpenServ SERV advisory review..."
+        },
+        "dolphin": {
+          "status": "pending",
+          "summary": "Loading Dolphin secondary review..."
+        }
+      },
+      "limitations": [],
+      "evidence": [
+        {
+          "label": "Governor Contract",
+          "url": "https://etherscan.io/address/0x408ED6354d4973f66138C91495F2f2FCbd8724C3",
+          "description": "Verified on-chain governor at 0x408ED6354d4973f66138C91495F2f2FCbd8724C3"
+        },
+        {
+          "label": "Proposal Creation Transaction",
+          "url": "https://etherscan.io/tx/0xe8d88bfc8561b13ec4633c9f7300fee1079898db748d482ab4a72de53ee585f2",
+          "description": "Emitted ProposalCreated event in block 20478699"
+        },
+        {
+          "label": "Action #1 Target: Uni",
+          "url": "https://etherscan.io/address/0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+          "description": "Direct target contract"
+        }
+      ],
+      "tier": "instant",
+      "diagnostics": {
+        "tier": "instant",
+        "timings": {
+          "eventLookupMs": 899,
+          "proposalStateMs": 0,
+          "abiResolutionMs": 1167,
+          "roleCapabilitiesMs": 0,
+          "recipientProfilingMs": 0,
+          "tokenMetadataMs": 0,
+          "securityChecksMs": 0,
+          "consistencyCheckMs": 1,
+          "assessmentMs": 0,
+          "totalMs": 2097
+        },
+        "cached": false,
+        "eventSource": "live RPC (block 20478699)",
+        "schemaVersion": "v2"
+      }
+    }
+  },
+  "standardReview": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 12035,
+    "body": {
+      "tier": "standard",
+      "serv": {
+        "provider": "OpenServ SERV",
+        "status": "available",
+        "summary": "Standard review completed.",
+        "items": [],
+        "tier": "standard",
+        "durationMs": 9814,
+        "attempts": 1
+      },
+      "dolphin": {
+        "provider": "Dolphin",
+        "status": "available",
+        "summary": "Adversarial execution scenarios and governance questions available in Deep review.",
+        "tier": "standard"
+      },
+      "timings": {
+        "servExtractionMs": 9814,
+        "servInvestigatorMs": 0,
+        "dolphinScenarioMs": 0,
+        "claimsLedgerMs": 0,
+        "totalMs": 9814
+      }
+    }
+  },
+  "deepReview": {
+    "status": 200,
+    "ok": true,
+    "wallMs": 11319,
+    "body": {
+      "tier": "deep",
+      "serv": {
+        "provider": "serv",
+        "status": "ok",
+        "summary": "Analysis complete.",
+        "items": [],
+        "findings": [],
+        "attempts": 1,
+        "toolCallCount": 4,
+        "loopTurns": 2,
+        "tier": "deep"
+      },
+      "dolphin": {
+        "provider": "dolphin",
+        "status": "ok",
+        "summary": "The proposal executes a single irreversible ERC-20 transfer of 75,320 UNI to an address not identified in the proposal text, with no escrow, vesting, milestone, or on-chain accountability mechanism. The main risks are recipient misidentification/compromise and unrestricted use of DAO funds.",
+        "scenarios": [
+          {
+            "id": "scenario-1",
+            "title": "Unverified recipient address enables theft or misdirection of grant funds",
+            "preconditions": [
+              "The recipient address 0x3B59C6d0034490093460787566dc5D6cE17F2f9C is not verifiably controlled by GnosisDAO, karpatkey, or an authorized incentive manager.",
+              "The address is an EOA or a contract whose ownership/keys may be compromised.",
+              "The UNI transfer is irreversible once executed."
+            ],
+            "steps": [
+              {
+                "actionRef": 0,
+                "description": "Execute transfer of 75,320 UNI to 0x3B59C6d0034490093460787566dc5D6cE17F2f9C."
+              }
+            ],
+            "impact": "If the address is attacker-controlled or compromised, the entire 75,320 UNI grant is stolen with no recovery path.",
+            "severityHint": "critical",
+            "rebuttalStatus": "needs_human",
+            "refutedBy": "Needs human delegate review: Scenario relies on off-chain governance assumptions (multisig key compromise or external signer collusion) that cannot be proved or disproved on-chain."
+          },
+          {
+            "id": "scenario-2",
+            "title": "Lack of escrow or milestones allows unrestricted diversion of incentive funds",
+            "preconditions": [
+              "No vesting, escrow, milestone, or reporting obligation is encoded in the execution.",
+              "The recipient has full discretion over the transferred UNI.",
+              "The DAO has no on-chain clawback or enforcement mechanism."
+            ],
+            "steps": [
+              {
+                "actionRef": 0,
+                "description": "Transfer 75,320 UNI directly to the recipient with no conditional release."
+              }
+            ],
+            "impact": "The recipient can divert funds away from Uniswap liquidity incentives, sell immediately, or fail to deploy them, leaving the DAO without recourse.",
+            "severityHint": "high",
+            "rebuttalStatus": "needs_human",
+            "refutedBy": "Needs human delegate review: Scenario assumptions require manual governance review."
+          },
+          {
+            "id": "scenario-3",
+            "title": "Fixed UNI amount creates price exposure and potential overfunding",
+            "preconditions": [
+              "The proposal converts a USD-denominated budget at an assumed $5 per UNI.",
+              "The actual UNI market price at execution differs from $5.",
+              "The transfer amount is fixed in UNI with no refund or true-up mechanism."
+            ],
+            "steps": [
+              {
+                "actionRef": 0,
+                "description": "Transfer 75,320 UNI regardless of the prevailing UNI price."
+              }
+            ],
+            "impact": "If UNI trades above $5 at execution, the DAO transfers more USD value than the intended $376,600 budget; if the recipient sells, it may also create market pressure.",
+            "severityHint": "medium",
+            "rebuttalStatus": "needs_human",
+            "refutedBy": "Needs human delegate review: Scenario assumptions require manual governance review."
+          }
+        ],
+        "questions": [
+          "Who exactly controls 0x3B59C6d0034490093460787566dc5D6cE17F2f9C, and can you provide a signed message or multisig transaction proving ownership by GnosisDAO or karpatkey?",
+          "Why is the full 75,320 UNI transferred upfront with no escrow, vesting, milestone, or reporting obligation?",
+          "What on-chain or legal mechanism lets Uniswap DAO recover or redirect funds if the recipient does not use them for the stated Gnosis Chain incentive program?"
+        ],
+        "items": [
+          {
+            "kind": "risk",
+            "issue": "The executable recipient address 0x3B59C6d0034490093460787566dc5D6cE17F2f9C is not named or justified in the proposal text, creating ambiguity about who receives 75,320 UNI.",
+            "actionRef": 0,
+            "findingRef": "none"
+          },
+          {
+            "kind": "risk",
+            "issue": "The transfer is unconditional and irreversible, with no escrow, vesting, milestone, or reporting requirement encoded in the execution.",
+            "actionRef": 0,
+            "findingRef": "none"
+          },
+          {
+            "kind": "note",
+            "issue": "The amount 75,320 UNI corresponds to $376,600 at $5/UNI, matching the stated $250k plus $105k Oku plus $21.6k Merkl, but the fixed UNI amount exposes the DAO to price variance at execution.",
+            "actionRef": 0,
+            "findingRef": "none"
+          }
+        ],
+        "findings": [
+          "Unverified recipient address enables theft or misdirection of grant funds: needs_human",
+          "Lack of escrow or milestones allows unrestricted diversion of incentive funds: needs_human",
+          "Fixed UNI amount creates price exposure and potential overfunding: needs_human",
+          "The executable recipient address 0x3B59C6d0034490093460787566dc5D6cE17F2f9C is not named or justified in the proposal text, creating ambiguity about who receives 75,320 UNI.",
+          "The transfer is unconditional and irreversible, with no escrow, vesting, milestone, or reporting requirement encoded in the execution.",
+          "The amount 75,320 UNI corresponds to $376,600 at $5/UNI, matching the stated $250k plus $105k Oku plus $21.6k Merkl, but the fixed UNI amount exposes the DAO to price variance at execution."
+        ],
+        "attempts": 1,
+        "tier": "deep"
+      },
+      "timings": {
+        "servExtractionMs": 0,
+        "servInvestigatorMs": 10982,
+        "dolphinScenarioMs": 10982,
+        "claimsLedgerMs": 0,
+        "totalMs": 10983
+      }
+    }
+  }
+}

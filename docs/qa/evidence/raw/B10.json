@@ -1,0 +1,15 @@
+{
+  "request": {
+    "network": "base",
+    "governorAddress": "0x65ba0624403fc5ca2b20479e9f626ed4d78e0ad9",
+    "proposalId": "4"
+  },
+  "coldRun": {
+    "status": 504,
+    "ok": false,
+    "wallMs": 61162,
+    "body": {
+      "rawText": "An error occurred with your deployment\n\nFUNCTION_INVOCATION_TIMEOUT\n\nfra1::gvkmg-1794647954117-d58ea9af4821\n"
+    }
+  }
+}
