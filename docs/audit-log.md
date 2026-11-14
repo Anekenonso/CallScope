@@ -1002,6 +1002,38 @@ Our investigation uncovered a compound failure across three distinct layers:
   - `pnpm build`: Exit code 0.
   - `pnpm check:readme`: Exit code 0.
 
+---
+
+## Protected Incremental Upgrade — Phase D: Dolphin Lighthouse Verification & Rebuttal Loop
+
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Live verification of Dolphin Lighthouse endpoint (`https://lighthouse.dphn.ai/run/text-v/v1/chat/completions`) and model `deepseek-ai/DeepSeek-V4.1-Flash`, tuning reasoning token headroom, and empirical validation of the deterministic engine rebuttal loop.
+
+### 1. Empirical Findings & Implementation Tuning
+- **Reasoning Model Token Budgeting (`server/providers/dolphin.ts`):**
+  - Identified that DeepSeek-V4.1-Flash consumes tokens during internal reasoning before emitting output.
+  - Tuned `maxTokens` to `3500` and `timeoutMs` to `25_000ms`, moving concise-thinking directives to the header of `systemPrompt`.
+  - Result: Generated full adversarial review in 8,341ms without token truncation.
+- **Adversarial Scenario Generation on ENS EP 6.50:**
+  - Generated 3 adversarial attack scenarios identifying the contradiction between "cannot propose" in motivation and `PROPOSER_ROLE` capability on `TimelockController`.
+- **Deterministic Engine Rebuttal Loop (`evaluateScenarioRebuttal`):**
+  - Cross-examined generated attack scenarios against on-chain AST capabilities and findings:
+    - Scenarios correctly classified as `not_refuted`: Deterministic AST analysis confirmed `schedule()` capability on TimelockController.
+- **Reference Integrity Gate & 3-Item Cap:**
+  - Enforced 3-item cap and verified that all emitted items strictly referenced valid on-chain actions (`actionRef: 0`).
+- **Raw Evidence Logs:**
+  - Created and committed `docs/evidence/raw/phase-d-dolphin-probe.json` and `docs/evidence/raw/phase-d-dolphin-probe.md`.
+
+### 2. Verification Evidence
+- `tests/live/dolphin-live.test.ts`: PASSED in 8,357ms.
+- `tests/live/sponsor-live.test.ts`: PASSED (both SERV and Dolphin live calls green).
+- `pnpm typecheck`: Exit code 0.
+- `pnpm test`: 26 files, 224 unit tests passing offline with 0 failures.
+- `pnpm build`: Production bundles clean.
+- `pnpm check:readme`: Clean exit code 0.
+
+
 
 
 
