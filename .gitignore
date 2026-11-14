@@ -3,8 +3,16 @@ node_modules/
 dist/
 scripts/*.mjs
 _spec_backup/
+# Environment & Secrets
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.pk
+*id_rsa*
+*id_ed25519*
+secrets/
 .DS_Store
 *.log
 docs/qa/
