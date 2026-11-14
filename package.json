@@ -15,7 +15,10 @@
     "check:readme": "node --experimental-strip-types scripts/check-readme-consistency.ts",
     "compare:sponsors": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=sim",
     "compare:sponsors:sim": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=sim",
-    "compare:sponsors:live": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=live"
+    "compare:sponsors:live": "node --experimental-strip-types scripts/compare-sponsors.ts --mode=live",
+    "eval": "node --experimental-strip-types eval/sponsor-contribution.ts",
+    "eval:sim": "node --experimental-strip-types eval/sponsor-contribution.ts --mode=sim",
+    "eval:live": "node --experimental-strip-types eval/sponsor-contribution.ts --mode=live"
   },
   "dependencies": {
     "react": "^18.3.1",

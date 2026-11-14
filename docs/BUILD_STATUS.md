@@ -113,12 +113,13 @@ The upgrade branch `upgrade/protected-incremental-build` has completed:
 - **Phase B**: OpenServ SERV API & model verification (`a3e5fc6`)
 - **Phase C**: OpenServ SERV multi-turn ReAct tool execution loop (`c4b31a2`)
 - **Phase D**: Dolphin Lighthouse verification and engine rebuttal loop (`bb6fb70`)
-- **Phase E**: Live measured sponsor ablation benchmark (current)
+- **Phase E**: Live measured sponsor ablation benchmark (`a744f69`)
+- **Phase F**: Sponsor contribution evaluation harness (`eval/sponsor-contribution.ts`)
 
 Current checks:
 - `pnpm check:readme`: ✅ PASS
 - `pnpm typecheck`: ✅ PASS (0 errors)
-- `pnpm test`: ✅ PASS (26 files, 224 unit tests hermetic offline)
+- `pnpm test`: ✅ PASS (27 files, 229 unit tests hermetic offline)
 - `pnpm build`: ✅ PASS (all 3 SSR bundles + Vite client)
 
 

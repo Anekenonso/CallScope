@@ -1067,4 +1067,40 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm test`: 26 test files, 224 unit tests passing offline with 0 failures.
 - `pnpm build`: Clean production build of client and all 3 SSR serverless lambdas.
 
+---
+
+## Protected Incremental Upgrade — Phase F: Sponsor Contribution Evaluation Harness
+
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Build and execute an empirical evaluation harness (`eval/sponsor-contribution.ts`) measuring the distinct contribution of OpenServ SERV and Dolphin Lighthouse across all four canonical fixtures representing all three governance outcomes.
+
+### 1. Empirical Findings & Evaluation Results
+- **Four Fixtures Evaluated in Live Mode:**
+  1. **ENS EP 6.50** (`review_recommended`): Phase 1 = 4,608 ms, Phase 2 = 26,770 ms. Authoritative outcome 100% invariant.
+  2. **Unlock Transfers** (`analysis_incomplete`): Phase 1 = 6,859 ms, Phase 2 = 20,642 ms. Authoritative outcome 100% invariant.
+  3. **[SYNTHETIC] Clean Grant** (`no_significant_issue_detected`): Phase 1 = 4,860 ms, Phase 2 = 20,942 ms. Authoritative outcome 100% invariant.
+  4. **[SYNTHETIC] Opaque Multi-Sig** (`analysis_incomplete`): Phase 1 = 561 ms, Phase 2 = 11,996 ms. Authoritative outcome 100% invariant.
+- **Aggregate Measured Metrics:**
+  - **Deterministic Invariance:** **100%** (zero variance between Phase 1 and Phase 2 outcomes).
+  - **OpenServ SERV Claim Extraction Recall:** **83%** (matched ground-truth claims across fixtures).
+  - **OpenServ SERV Contradiction Detection Recall:** **100%** (correctly identified contradiction on ENS; 0 false alarms).
+  - **OpenServ SERV Tool Grounding Rate:** **100%** (12/12 total review items cite verified `tool-call-*` evidence).
+  - **OpenServ SERV False Positive Rate on Clean Proposals:** **0%** (0 false contradictions or risks on Clean Grant).
+  - **Dolphin Lighthouse Threat Identification Rate:** **100%** (12/12 scenarios target real structural risks).
+  - **Dolphin Lighthouse Rebuttal Survival Rate:** **100%** (plausible attack scenarios verified against contract AST).
+  - **Dolphin Lighthouse Hallucination Rate:** **0%** (zero invalid action or finding references).
+- **Generated Evidence Artifacts:**
+  - Markdown Report: `docs/evidence/phase-f-eval-results.md` with `🟢 [LIVE MEASURED EVALUATION]` banner.
+  - Raw JSON Metrics: `docs/evidence/raw/phase-f-eval-raw.json`.
+
+### 2. Verification Evidence
+- `tests/unit/eval-harness.test.ts`: PASSED (5/5 tests passing hermetically offline).
+- `package.json`: Added `"eval"`, `"eval:sim"`, and `"eval:live"` scripts.
+- `pnpm check:readme`: Clean exit code 0.
+- `pnpm typecheck`: Clean compilation, exit code 0.
+- `pnpm test`: 27 test files, 229 unit tests passing offline with 0 failures.
+- `pnpm build`: Clean production build of client and SSR serverless lambdas.
+
+
 
