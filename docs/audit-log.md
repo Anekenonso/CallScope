@@ -1140,5 +1140,42 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm test`: 27 test files, 232 unit tests passing offline with 0 failures.
 - `pnpm build`: Clean production build of client and SSR serverless lambdas.
 
+---
+
+## Protected Incremental Upgrade — Phase H: Documentation Rewrite, Demo Script, and Judge Copy Audit
+
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Complete README rewrite with verified sponsor configurations, empirical benchmark numbers, evaluation scorecard, live demo script, and complete copy audit eliminating all overclaims.
+
+### 1. Implementation Details
+- **README Rewrite (`README.md`):**
+  - Updated production URL to `https://callscope-five.vercel.app`.
+  - Updated OpenServ SERV configuration: verified `serv-swift` model identifier, ReAct multi-turn tool execution loop (up to 4 turns over 5 engine tools), mandatory tool evidence citation gate (`tool-call-*`), and native configuration (`serv_prompt_guard`, `serv_shadow_agent`, `reasoning_effort: low`).
+  - Updated Dolphin Lighthouse configuration: verified `deepseek-ai/DeepSeek-V4.1-Flash` model identifier, `max_tokens: 3500` headroom, and deterministic engine rebuttal loop (`evaluateScenarioRebuttal`).
+  - Added **Empirical Evaluation Scorecard & Live Benchmarks** section:
+    - Phase F Evaluation table: Deterministic Invariance (100%), SERV Claim Recall (83%), SERV Contradiction Recall (100%), SERV Tool Grounding (100%), SERV Clean False Positives (0%), Dolphin Threat Identification (100%), Dolphin Rebuttal Survival (100%), Dolphin Hallucinations (0%).
+    - Phase E Live Latency table: unfloored wall-clock latencies across ENS EP 6.50 (Phase 1 = 4,608 ms, Phase 2 = 26,770 ms) and Unlock Transfers (Phase 1 = 6,859 ms, Phase 2 = 20,642 ms).
+    - Linked evidence artifacts: `docs/evidence/phase-f-eval-results.md` and `docs/sponsor-impact.md`.
+  - Added evaluation scripts: `pnpm eval:sim` and `pnpm eval:live`.
+  - Updated test instructions: 232 automated tests across 27 suites, 0 network calls.
+- **Model Fallback Consistency (`server/analysis/claims-ledger.ts`):**
+  - Updated default model resolution from legacy `serv-mini` to verified `serv-swift`.
+- **Demo Script Update (`docs/demo-script.md`):**
+  - Updated live URL to `https://callscope-five.vercel.app`.
+  - Updated storyboard walkthrough to cover Phase G UI additions: verified tool evidence badge (`Tool: tool-call-1`), loop telemetry (`Turns: 2`, `Tool calls: 3`), in-page action jump link (`Action #1 ↗`), Dolphin Lighthouse attribution, scenario steps with action jump links, engine rebuttal audit badge (`⚠ Not Refuted (Plausible Risk)`), and Tri-Reviewer Agreement Strip stances.
+- **Judge Copy Audit:**
+  - Audited all user-facing strings across `src/components/`, `README.md`, and documentation.
+  - Confirmed 0 occurrences of "Verified Clean" in application output (honestly labeled "No significant issue detected").
+  - Confirmed 0 unverified claims or safety guarantees (explicitly stated: "This does not constitute an audit or guarantee of safety").
+  - Confirmed accurate representation of static analysis boundaries and opaque wrapper limitations (`analysis_incomplete`).
+
+### 2. Verification Evidence
+- `pnpm check:readme`: Clean exit code 0 (all constants, RPCs, and fixtures verified).
+- `pnpm typecheck`: Clean compilation, exit code 0.
+- `pnpm test`: 27 test files, 232 unit tests passing offline with 0 failures.
+- `pnpm build`: Clean production build of client and SSR serverless lambdas.
+
+
 
 

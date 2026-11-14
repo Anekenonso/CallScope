@@ -111,7 +111,10 @@ export async function extractClaimsWithServ(description: string): Promise<Claim[
     return null;
   }
 
-  const model = process.env.SERV_MODEL || 'serv-mini';
+  let model = process.env.SERV_MODEL || 'serv-swift';
+  if (model === '4o-mini' || model === 'gpt-4o-mini' || model === 'serv-mini') {
+    model = 'serv-swift';
+  }
 
   const systemPrompt = `[OpenServ Agent Configuration: serv_prompt_guard=true, serv_shadow_agent=true, reasoning_effort=low]
 You are a claim extraction agent for DAO governance proposals powered by OpenServ SERV.

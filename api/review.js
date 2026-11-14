@@ -3400,7 +3400,10 @@ async function extractClaimsWithServ(description2) {
   if (!apiKey || apiKey.trim().length === 0) {
     return null;
   }
-  const model = process.env.SERV_MODEL || "serv-mini";
+  let model = process.env.SERV_MODEL || "serv-swift";
+  if (model === "4o-mini" || model === "gpt-4o-mini" || model === "serv-mini") {
+    model = "serv-swift";
+  }
   const systemPrompt = `[OpenServ Agent Configuration: serv_prompt_guard=true, serv_shadow_agent=true, reasoning_effort=low]
 You are a claim extraction agent for DAO governance proposals powered by OpenServ SERV.
 Your sole job is to extract individual testable assertions, commitments, and claims made in the proposal text.

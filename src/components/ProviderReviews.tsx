@@ -384,13 +384,12 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
                       padding: '10px 14px',
                       borderRadius: '6px',
                       backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                      border: `1px solid ${
-                        isRefuted
+                      border: `1px solid ${isRefuted
                           ? 'rgba(34, 197, 94, 0.3)'
                           : isNotRefuted
                             ? 'rgba(239, 68, 68, 0.3)'
                             : 'rgba(59, 130, 246, 0.3)'
-                      }`,
+                        }`,
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
