@@ -512,6 +512,52 @@ async function queryGovernorVotingDelay(client, governorAddress) {
     return null;
   }
 }
+async function estimateBlockFromTimestamp(client, targetTimestamp, latestBlock) {
+  try {
+    const latestBlockData = await client.getBlock({ blockTag: "latest" });
+    let high = latestBlockData.number;
+    let highTs = latestBlockData.timestamp;
+    if (targetTimestamp >= highTs) return high;
+    let low = high > 5000000n ? high - 5000000n : 1n;
+    let lowTs = 0n;
+    try {
+      const lowBlock = await client.getBlock({ blockNumber: low });
+      lowTs = lowBlock.timestamp;
+    } catch {
+      low = high > 1500000n ? high - 1500000n : 1n;
+      const lowBlock = await client.getBlock({ blockNumber: low });
+      lowTs = lowBlock.timestamp;
+    }
+    if (targetTimestamp <= lowTs) return low;
+    let currentMid = (low + high) / 2n;
+    for (let i = 0; i < 5; i++) {
+      if (highTs <= lowTs || high <= low) break;
+      const rawFrac = Number(targetTimestamp - lowTs) / Number(highTs - lowTs);
+      const frac = Math.max(0.01, Math.min(0.99, rawFrac));
+      const range = high - low;
+      const step = BigInt(Math.max(1, Math.min(Number(range - 1n), Math.floor(Number(range) * frac))));
+      currentMid = low + step;
+      try {
+        const midBlock = await client.getBlock({ blockNumber: currentMid });
+        if (midBlock.timestamp < targetTimestamp) {
+          low = currentMid;
+          lowTs = midBlock.timestamp;
+        } else if (midBlock.timestamp > targetTimestamp) {
+          high = currentMid;
+          highTs = midBlock.timestamp;
+        } else {
+          return currentMid;
+        }
+        if (high - low <= 1000n) return currentMid;
+      } catch {
+        break;
+      }
+    }
+    return currentMid;
+  } catch {
+    return latestBlock;
+  }
+}
 async function fetchProposalEventFromRpc(client, network, governorAddress, expectedProposalId) {
   const latestBlock = await client.getBlockNumber();
   let matchingEvent = null;
@@ -523,25 +569,7 @@ async function fetchProposalEventFromRpc(client, network, governorAddress, expec
     if (creationTimepoint < 500000000n) {
       targetBlock = creationTimepoint <= latestBlock ? creationTimepoint : latestBlock;
     } else {
-      try {
-        const latestBlockData = await client.getBlock({ blockTag: "latest" });
-        const timeDiff = Number(latestBlockData.timestamp - creationTimepoint);
-        let secPerBlock = network === "base" ? 2 : 12;
-        try {
-          const sampleNum = latestBlockData.number > 2000n ? latestBlockData.number - 2000n : 0n;
-          const sampleBlock = await client.getBlock({ blockNumber: sampleNum });
-          const dt = Number(latestBlockData.timestamp - sampleBlock.timestamp);
-          const dn = Number(latestBlockData.number - sampleBlock.number);
-          if (dt > 0 && dn > 0) {
-            secPerBlock = dt / dn;
-          }
-        } catch {
-        }
-        const estimatedDiff = BigInt(Math.max(0, Math.floor(timeDiff / secPerBlock)));
-        targetBlock = latestBlockData.number > estimatedDiff ? latestBlockData.number - estimatedDiff : 0n;
-      } catch {
-        targetBlock = latestBlock;
-      }
+      targetBlock = await estimateBlockFromTimestamp(client, creationTimepoint, latestBlock);
     }
     const rings = [
       // Ring 0: immediate target (within ±5,000 blocks)
