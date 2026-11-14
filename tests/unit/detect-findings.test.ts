@@ -6,27 +6,39 @@ import {
 import type { ProposalAction } from '../../src/types/analysis';
 
 describe('Role semantics resolution', () => {
-  it('resolves PROPOSER_ROLE from verifiable hash', () => {
+  it('resolves PROPOSER_ROLE from verifiable hash when verified on target contract', () => {
     const roleHex = '0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1';
-    const result = resolveRoleSemantics(roleHex);
+    const result = resolveRoleSemantics(roleHex, 'TimelockController');
     expect(result.isVerifiable).toBe(true);
+    expect(result.status).toBe('verified');
     expect(result.roleName).toBe('PROPOSER_ROLE');
     expect(result.explanation).toContain('Timelock proposer role');
   });
 
-  it('resolves DEFAULT_ADMIN_ROLE from 0x00 hash', () => {
-    const roleHex = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  it('marks recognized role hash as unconfirmed when contract-specific proof is absent', () => {
+    const roleHex = '0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1';
     const result = resolveRoleSemantics(roleHex);
+    expect(result.isVerifiable).toBe(false);
+    expect(result.status).toBe('recognized_standard_hash');
+    expect(result.roleName).toBe('PROPOSER_ROLE');
+    expect(result.explanation).toContain('contract-specific semantics are unverified');
+  });
+
+  it('resolves DEFAULT_ADMIN_ROLE from 0x00 hash on verified AccessControl', () => {
+    const roleHex = '0x0000000000000000000000000000000000000000000000000000000000000000';
+    const result = resolveRoleSemantics(roleHex, 'AccessControl');
     expect(result.isVerifiable).toBe(true);
+    expect(result.status).toBe('verified');
     expect(result.roleName).toBe('DEFAULT_ADMIN_ROLE');
   });
 
-  it('marks unknown role hash as unverifiable', () => {
+  it('marks unknown role hash as unknown and unverifiable', () => {
     const roleHex = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
     const result = resolveRoleSemantics(roleHex);
     expect(result.isVerifiable).toBe(false);
+    expect(result.status).toBe('unknown');
     expect(result.roleName).toBe('Unknown Role');
-    expect(result.explanation).toContain('Unverifiable role identifier');
+    expect(result.explanation).toContain('Unrecognized role identifier');
   });
 });
 
@@ -37,6 +49,7 @@ describe('Sensitive operation detection', () => {
     const action: ProposalAction = {
       index: 0,
       target: dummyTarget,
+      targetName: 'TimelockController',
       value: '0',
       signature: 'grantRole(bytes32,address)',
       selector: '0x2f2ff15d',

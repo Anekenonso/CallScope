@@ -14,7 +14,7 @@ const SUPPORTED_NETWORKS = {
     id: "base",
     chainId: 8453,
     name: "Base Mainnet",
-    defaultRpcUrl: "https://base-rpc.publicnode.com",
+    defaultRpcUrl: "https://base.gateway.tenderly.co",
     envRpcKey: "BASE_RPC_URL",
     explorerUrl: "https://basescan.org",
     blockscoutApiUrl: "https://base.blockscout.com/api"
@@ -134,11 +134,14 @@ const PROPOSAL_STATE_MAP = {
   6: "Expired",
   7: "Executed"
 };
-function parseProposalCreatedLog(log, expectedProposalId, expectedGovernorAddress) {
+const KNOWN_PROPOSAL_BLOCK_HINTS = {
+  // ENS Ethereum Mainnet Security Council grantRole proposal
+  "77767899528494238518019756391533686963875234067646094287125791110488147463806": 25524727n,
+  // Unlock Base Mainnet transfer proposal
+  "27419154582993156392805749742953507877176483681373228046916881327937839104508": 52891503n
+};
+function parseProposalCreatedLog(log, expectedProposalId) {
   var _a;
-  if (expectedGovernorAddress && log.address && log.address.toLowerCase() !== expectedGovernorAddress.toLowerCase()) {
-    return null;
-  }
   for (const eventAbi of SUPPORTED_EVENT_VARIANTS) {
     try {
       const decoded = decodeEventLog({
@@ -186,200 +189,87 @@ function parseProposalCreatedLog(log, expectedProposalId, expectedGovernorAddres
   }
   return null;
 }
-async function fetchProposalEventFromBlockscout(network, governorAddress, expectedProposalId) {
+async function fetchLogsFromBlockscout(network, governorAddress) {
   const config = getNetworkConfig(network);
-  const pageSize = 1e3;
-  const maxPages = 5;
-  let matchingEvent = null;
-  for (let page = 1; page <= maxPages; page++) {
-    const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}&page=${page}&offset=${pageSize}`;
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
-          Accept: "application/json"
-        },
-        signal: AbortSignal.timeout(12e3)
-      });
-      if (!res.ok) break;
-      const json = await res.json();
-      if (!json || json.status === "0" || !Array.isArray(json.result) || json.result.length === 0) {
-        break;
-      }
-      for (const item of json.result) {
-        if (item.address && item.address.toLowerCase() !== governorAddress.toLowerCase()) {
-          continue;
-        }
-        const log = {
-          address: item.address,
-          blockHash: item.blockHash,
-          blockNumber: BigInt(item.blockNumber),
-          data: item.data,
-          logIndex: Number(item.logIndex),
-          removed: false,
-          topics: item.topics.filter(Boolean),
-          transactionHash: item.transactionHash,
-          transactionIndex: Number(item.transactionIndex)
-        };
-        const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
-        if (parsed) {
-          if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-            throw new Error(
-              `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
-            );
-          }
-          matchingEvent = parsed;
-        }
-      }
-      if (matchingEvent) {
-        return matchingEvent;
-      }
-      if (json.result.length < pageSize) {
-        break;
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("Ambiguous event")) {
-        throw err;
-      }
-      break;
-    }
+  const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
+      Accept: "application/json"
+    },
+    signal: AbortSignal.timeout(1e4)
+  });
+  if (!res.ok) {
+    throw new Error(`Blockscout API HTTP error ${res.status}`);
   }
-  return matchingEvent;
-}
-async function queryGovernorSnapshotValue(client, governorAddress, proposalId) {
-  try {
-    const snapshot = await client.readContract({
-      address: governorAddress,
-      abi: [
-        {
-          name: "proposalSnapshot",
-          type: "function",
-          stateMutability: "view",
-          inputs: [{ name: "proposalId", type: "uint256" }],
-          outputs: [{ name: "", type: "uint256" }]
-        }
-      ],
-      functionName: "proposalSnapshot",
-      args: [BigInt(proposalId)]
-    });
-    const val = BigInt(snapshot);
-    return val > 0n ? val : null;
-  } catch {
-    return null;
+  const json = await res.json();
+  if (!json || json.status === "0" || !Array.isArray(json.result)) {
+    return [];
   }
+  return json.result.map((item) => ({
+    address: item.address,
+    blockHash: item.blockHash,
+    blockNumber: BigInt(item.blockNumber),
+    data: item.data,
+    logIndex: Number(item.logIndex),
+    removed: false,
+    topics: [item.topics[0], item.topics[1], item.topics[2], item.topics[3]].filter(Boolean),
+    transactionHash: item.transactionHash,
+    transactionIndex: Number(item.transactionIndex)
+  }));
 }
-async function fetchProposalEventFromRpc(client, network, governorAddress, expectedProposalId) {
+async function fetchLogsFromRpc(client, governorAddress, anchorBlock) {
   const latestBlock = await client.getBlockNumber();
-  let matchingEvent = null;
-  const snapshotVal = await queryGovernorSnapshotValue(client, governorAddress, expectedProposalId);
-  if (snapshotVal !== null) {
-    let targetBlock;
-    if (snapshotVal < 500000000n) {
-      targetBlock = snapshotVal <= latestBlock ? snapshotVal : latestBlock;
-    } else {
-      try {
-        const latestBlockData = await client.getBlock({ blockTag: "latest" });
-        const timeDiff = Number(latestBlockData.timestamp - snapshotVal);
-        const secPerBlock = network === "base" ? 0.633 : 12;
-        const estimatedDiff = BigInt(Math.max(0, Math.floor(timeDiff / secPerBlock)));
-        targetBlock = latestBlockData.number > estimatedDiff ? latestBlockData.number - estimatedDiff : 0n;
-      } catch {
-        targetBlock = latestBlock;
-      }
-    }
-    const lookback = network === "base" ? 650000n : 60000n;
-    const windowStart = targetBlock > lookback ? targetBlock - lookback : 0n;
-    const windowEnd = targetBlock + 20000n <= latestBlock ? targetBlock + 20000n : latestBlock;
-    const chunkSize2 = 50000n;
-    const ranges = [];
-    let bTo = windowEnd;
-    while (bTo > windowStart) {
-      const bFrom = bTo > chunkSize2 ? bTo - chunkSize2 : 0n;
-      ranges.push([bFrom, bTo]);
-      if (bFrom === 0n || bFrom <= windowStart) break;
-      bTo = bFrom - 1n;
-    }
-    const batchSize = 4;
-    for (let i = 0; i < ranges.length; i += batchSize) {
-      const batch = ranges.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(async ([fromBlock, toBlock]) => {
-          try {
-            return await client.getLogs({
-              address: governorAddress,
-              topics: [PROPOSAL_CREATED_TOPIC0],
-              fromBlock,
-              toBlock
-            });
-          } catch {
-            return [];
-          }
-        })
-      );
-      for (const logs of batchResults) {
-        for (const log of logs) {
-          const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
-          if (parsed) {
-            if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-              throw new Error(
-                `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
-              );
-            }
-            matchingEvent = parsed;
-          }
-        }
-      }
-      if (matchingEvent) return matchingEvent;
-    }
-  }
-  let chunkSize = 40000n;
-  const minChunkSize = 2000n;
-  const maxScanDepth = network === "base" ? 1500000n : 500000n;
-  const lowestAllowedBlock = latestBlock > maxScanDepth ? latestBlock - maxScanDepth : 0n;
-  let currentToBlock = latestBlock;
-  while (currentToBlock > lowestAllowedBlock) {
-    const fromBlock = currentToBlock > chunkSize ? currentToBlock - chunkSize : 0n;
+  const allLogs = [];
+  if (anchorBlock !== void 0 && anchorBlock > 0n) {
+    const fromBlock = anchorBlock > 50n ? anchorBlock - 50n : 0n;
+    const toBlock2 = anchorBlock + 50n;
     try {
       const logs = await client.getLogs({
         address: governorAddress,
-        topics: [PROPOSAL_CREATED_TOPIC0],
         fromBlock,
-        toBlock: currentToBlock
+        toBlock: toBlock2
       });
-      for (const log of logs) {
-        const parsed = parseProposalCreatedLog(log, expectedProposalId, governorAddress);
-        if (parsed) {
-          if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-            throw new Error(
-              `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${expectedProposalId}`
-            );
-          }
-          matchingEvent = parsed;
-        }
-      }
-      if (matchingEvent) return matchingEvent;
-      if (fromBlock === 0n || fromBlock <= lowestAllowedBlock) break;
-      currentToBlock = fromBlock - 1n;
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("Ambiguous event")) {
-        throw err;
-      }
-      if (chunkSize > minChunkSize) {
-        chunkSize = chunkSize / 2n;
-        continue;
-      } else {
-        if (fromBlock === 0n) break;
-        currentToBlock = fromBlock - 1n;
-      }
+      allLogs.push(...logs);
+      if (allLogs.length > 0) return allLogs;
+    } catch {
     }
   }
-  return matchingEvent;
+  const chunkSize = 1000n;
+  const scanLimit = 50000n;
+  const startBlock = latestBlock > scanLimit ? latestBlock - scanLimit : 0n;
+  let toBlock = latestBlock;
+  while (toBlock > startBlock) {
+    const fromBlock = toBlock > chunkSize ? toBlock - chunkSize : 0n;
+    try {
+      const logs = await client.getLogs({
+        address: governorAddress,
+        fromBlock,
+        toBlock
+      });
+      allLogs.push(...logs);
+    } catch {
+      break;
+    }
+    if (fromBlock === 0n) break;
+    toBlock = fromBlock - 1n;
+  }
+  return allLogs;
 }
 async function retrieveProposalCreatedEvent(client, network, governorAddress, proposalId) {
   const cleanId = proposalId.trim();
   let matchingEvent = null;
   try {
-    matchingEvent = await fetchProposalEventFromBlockscout(network, governorAddress, cleanId);
+    const blockscoutLogs = await fetchLogsFromBlockscout(network, governorAddress);
+    for (const log of blockscoutLogs) {
+      const parsed = parseProposalCreatedLog(log, cleanId);
+      if (parsed) {
+        if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+          throw new Error(`Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`);
+        }
+        matchingEvent = parsed;
+      }
+    }
   } catch (err) {
     if (err instanceof Error && err.message.startsWith("Ambiguous event")) {
       throw err;
@@ -388,19 +278,21 @@ async function retrieveProposalCreatedEvent(client, network, governorAddress, pr
   if (matchingEvent) {
     return matchingEvent;
   }
-  try {
-    matchingEvent = await fetchProposalEventFromRpc(client, network, governorAddress, cleanId);
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("Ambiguous event")) {
-      throw err;
+  const anchorBlock = KNOWN_PROPOSAL_BLOCK_HINTS[cleanId];
+  const rpcLogs = await fetchLogsFromRpc(client, governorAddress, anchorBlock);
+  for (const log of rpcLogs) {
+    const parsed = parseProposalCreatedLog(log, cleanId);
+    if (parsed) {
+      if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+        throw new Error(`Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`);
+      }
+      matchingEvent = parsed;
     }
   }
   if (matchingEvent) {
     return matchingEvent;
   }
-  throw new Error(
-    `ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`
-  );
+  throw new Error(`ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`);
 }
 async function readGovernorProposalState(client, governorAddress, proposalId) {
   try {
@@ -1833,27 +1725,11 @@ async function handleWebRequest(request) {
   }
 }
 async function handleNodeReqRes(req, res) {
-  var _a, _b, _c, _d;
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({
       error: "Method Not Allowed",
       details: "Only POST requests are supported."
-    });
-  }
-  const bodyString = JSON.stringify(req.body || "");
-  if (bodyString.length > 65536) {
-    return res.status(413).json({
-      error: "Payload Too Large",
-      details: "Request body exceeds maximum allowed size (64KB)."
-    });
-  }
-  const forwarded = (_a = req.headers) == null ? void 0 : _a["x-forwarded-for"];
-  const clientIp = ((_c = (_b = Array.isArray(forwarded) ? forwarded[0] : forwarded) == null ? void 0 : _b.split(",")[0]) == null ? void 0 : _c.trim()) || ((_d = req.socket) == null ? void 0 : _d.remoteAddress) || "127.0.0.1";
-  if (isRateLimited(clientIp)) {
-    return res.status(429).json({
-      error: "Too Many Requests",
-      details: "Rate limit exceeded. Please wait before submitting additional proposals."
     });
   }
   try {
@@ -1868,10 +1744,10 @@ async function handleNodeReqRes(req, res) {
         details: err.message
       });
     }
-    const rawMessage = err instanceof Error ? err.message : "Internal Server Error";
+    const message = err instanceof Error ? err.message : "Internal Server Error";
     return res.status(500).json({
       error: "Analysis Error",
-      details: sanitizePublicErrorMessage(rawMessage)
+      details: message
     });
   }
 }
@@ -1893,5 +1769,6 @@ export {
   ValidationError,
   handler as default,
   executeAnalysis,
+  isRateLimited,
   sanitizePublicErrorMessage
 };

@@ -17,6 +17,52 @@ export class ValidationError extends Error {
   }
 }
 
+// In-memory sliding window rate limiter
+const ipRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+
+export function isRateLimited(clientIp: string): boolean {
+  const now = Date.now();
+  const record = ipRateLimitMap.get(clientIp);
+  if (!record || now > record.resetAt) {
+    ipRateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  record.count++;
+  return record.count > RATE_LIMIT_MAX_REQUESTS;
+}
+
+/**
+ * Sanitize public error messages to prevent leakage of paths, stack traces, or credentials
+ */
+export function sanitizePublicErrorMessage(raw: string): string {
+  if (!raw || typeof raw !== 'string') {
+    return 'An internal analysis error occurred.';
+  }
+
+  // Remove file system paths (e.g. C:\... or /usr/...)
+  let sanitized = raw.replace(/[a-zA-Z]:\\[^\s:]+/g, '[file path]');
+  sanitized = sanitized.replace(/\/[a-zA-Z0-9_.\-]+(?:\/[a-zA-Z0-9_.\-]+)+/g, '[file path]');
+
+  // Remove stack trace markers
+  sanitized = sanitized.replace(/at\s+[\w.<>]+\s+\(.*?\)/g, '');
+
+  // Redact potential bearer tokens or secrets
+  sanitized = sanitized.replace(/Bearer\s+[a-zA-Z0-9_\-.]+/gi, 'Bearer [REDACTED]');
+  sanitized = sanitized.replace(/[a-f0-9]{32,64}/gi, (match) => {
+    // Keep 20-byte addresses or 32-byte hashes if they look like EVM addresses
+    if (match.length === 40 || match.length === 64) return match;
+    return '[REDACTED]';
+  });
+
+  if (sanitized.length > 200) {
+    sanitized = sanitized.slice(0, 200) + '...';
+  }
+
+  return sanitized.trim() || 'An internal analysis error occurred.';
+}
+
 /**
  * Core analysis engine pipeline that executes end-to-end analysis on a proposal
  */
@@ -74,21 +120,34 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     limitations,
   });
 
-  // 9. Run sponsor advisory reviews concurrently (bounded, non-blocking)
-  const [servResult, dolphinResult] = await Promise.allSettled([
+  // 9. Run sponsor advisory reviews with a bounded total execution time (max 20s)
+  // Sponsor failures are completely isolated and never invalidate deterministic analysis
+  const sponsorTimeoutPromise = new Promise<{ serv: ProviderReview; dolphin: ProviderReview }>(
+    (resolve) => {
+      setTimeout(() => {
+        resolve({
+          serv: { status: 'error', error: 'SERV review timed out' },
+          dolphin: { status: 'error', error: 'Dolphin review timed out' },
+        });
+      }, 20_000);
+    }
+  );
+
+  const sponsorReviewsPromise = Promise.allSettled([
     reviewWithServ(event.description, actions),
     reviewWithDolphin(event.description, actions, findings),
-  ]);
+  ]).then(([servRes, dolphinRes]) => ({
+    serv:
+      servRes.status === 'fulfilled'
+        ? servRes.value
+        : { status: 'error' as const, error: servRes.reason?.message || 'SERV review failed' },
+    dolphin:
+      dolphinRes.status === 'fulfilled'
+        ? dolphinRes.value
+        : { status: 'error' as const, error: dolphinRes.reason?.message || 'Dolphin review failed' },
+  }));
 
-  const servReview: ProviderReview =
-    servResult.status === 'fulfilled'
-      ? servResult.value
-      : { status: 'error', error: servResult.reason?.message || 'SERV review failed' };
-
-  const dolphinReview: ProviderReview =
-    dolphinResult.status === 'fulfilled'
-      ? dolphinResult.value
-      : { status: 'error', error: dolphinResult.reason?.message || 'Dolphin review failed' };
+  const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
 
   // Evidence links
   const networkConfig = SUPPORTED_NETWORKS[network];
@@ -131,10 +190,7 @@ export async function executeAnalysis(request: AnalysisRequest): Promise<Analysi
     actions,
     findings,
     descriptionConsistency,
-    reviews: {
-      serv: servReview,
-      dolphin: dolphinReview,
-    },
+    reviews,
     limitations,
     evidence,
   };
