@@ -1,3 +1,0 @@
-=== CONSOLE LOGS ===
-
-=== 4XX / 5XX NETWORK REQUESTS ===

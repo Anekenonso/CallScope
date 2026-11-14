@@ -7,6 +7,7 @@ _spec_backup/
 .env.local
 .DS_Store
 *.log
+docs/qa/
 
 
 
