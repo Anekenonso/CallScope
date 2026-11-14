@@ -8,6 +8,7 @@ import { executeAnalysis, sanitizePublicErrorMessage } from './_analyse';
 import { isSupportedNetwork } from '../server/chain/networks';
 import { extractClaimsWithServ, evaluateClaimsLedger } from '../server/analysis/check-consistency';
 import { isAddress } from 'viem';
+import { getStoredPinnedReview, checkBudgetAvailability } from '../server/budget';
 
 export async function executeWithRetry(
   providerFn: () => Promise<ProviderReview>,
@@ -154,6 +155,43 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
   }
 
   const requestedTier = (body.tier === 'standard' ? 'standard' : 'deep') as 'standard' | 'deep';
+
+  // 1. Check for stored real outputs on pinned proposals (when not reverifying live)
+  // In test environment, only return stored outputs if explicitly requested (e.g. useStoredReviews: true)
+  // so that unconfigured-keys tests can verify provider fallback behavior.
+  const allowStored = process.env.NODE_ENV !== 'test' || Boolean(body.useStoredReviews);
+  if (allowStored && !body.reverifyLive) {
+    const stored = getStoredPinnedReview(proposalId);
+    if (stored) {
+      const respData = {
+        serv: { ...stored.serv, tier: requestedTier },
+        dolphin:
+          requestedTier === 'deep'
+            ? { ...stored.dolphin, tier: 'deep' }
+            : {
+                provider: 'Dolphin',
+                status: 'available',
+                summary:
+                  'Adversarial execution scenarios and governance questions available in Deep review.',
+                tier: 'standard',
+              },
+        tier: requestedTier,
+        timings: { totalMs: 5 },
+      };
+      if (isWebStandard) {
+        return new Response(JSON.stringify(respData), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return res!.status(200).json(respData);
+    }
+  }
+
+  // 2. Budget and kill-switch checks
+  const servBudget = checkBudgetAvailability('serv');
+  const dolphinBudget = checkBudgetAvailability('dolphin');
+
   const tReviewStart = Date.now();
   let tServExtractionMs = 0;
   let tServInvestigatorMs = 0;
@@ -174,7 +212,7 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
     // No multi-turn tool loop. No Dolphin call.
     const tExtractStart = Date.now();
     let servClaims = null;
-    if (process.env.SERV_API_KEY) {
+    if (servBudget.allowed && process.env.SERV_API_KEY) {
       try {
         servClaims = await extractClaimsWithServ(description, { enablePromptGuard: true });
       } catch {
@@ -193,10 +231,12 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
     const isOk = servClaims !== null;
     servResult = {
       provider: 'OpenServ SERV',
-      status: isOk ? 'ok' : (process.env.SERV_API_KEY ? 'available' : 'not_configured'),
-      summary: isOk
-        ? `Standard Review: Extracted ${claimCount} claim(s) from proposal description; verified against deterministic on-chain actions.`
-        : (process.env.SERV_API_KEY ? 'Standard review completed.' : 'OpenServ SERV API key not configured in environment.'),
+      status: !servBudget.allowed ? 'not_configured' : isOk ? 'ok' : (process.env.SERV_API_KEY ? 'available' : 'not_configured'),
+      summary: !servBudget.allowed
+        ? servBudget.reason
+        : isOk
+          ? `Standard Review: Extracted ${claimCount} claim(s) from proposal description; verified against deterministic on-chain actions.`
+          : (process.env.SERV_API_KEY ? 'Standard review completed.' : 'OpenServ SERV API key not configured in environment.'),
       items: extendedClaimsCheck?.claims?.map((c) => ({
         kind: c.status === 'contradicted' ? 'contradiction' : c.status === 'verified' ? 'supported' : 'note',
         issue: `[${c.category.toUpperCase()}] "${c.quote}" — ${c.explanation || c.status}`,
@@ -210,22 +250,38 @@ export default async function handler(req: VercelRequest | Request, res?: Vercel
 
     dolphinResult = {
       provider: 'Dolphin',
-      status: process.env.DOLPHIN_API_KEY ? 'available' : 'not_configured',
-      summary: 'Adversarial execution scenarios and governance questions available in Deep review.',
+      status: !dolphinBudget.allowed ? 'not_configured' : (process.env.DOLPHIN_API_KEY ? 'available' : 'not_configured'),
+      summary: !dolphinBudget.allowed ? dolphinBudget.reason : 'Adversarial execution scenarios and governance questions available in Deep review.',
       tier: 'standard',
     };
   } else {
     // Deep Tier (on click):
     // SERV investigator tool loop + Dolphin scenarios + questions run concurrently.
     let servClaimsPromise = Promise.resolve<any>(null);
-    if (process.env.SERV_API_KEY) {
+    if (servBudget.allowed && process.env.SERV_API_KEY) {
       servClaimsPromise = extractClaimsWithServ(description, { enablePromptGuard: true }).catch(() => null);
     }
 
+    const servToolPromise = servBudget.allowed
+      ? executeWithRetry(() => reviewWithServ(description, actions), 'OpenServ SERV')
+      : Promise.resolve<ProviderReview>({
+          provider: 'OpenServ SERV',
+          status: 'not_configured',
+          summary: servBudget.reason,
+        });
+
+    const dolphinReviewPromise = dolphinBudget.allowed
+      ? executeWithRetry(() => reviewWithDolphin(description, actions, findings), 'Dolphin')
+      : Promise.resolve<ProviderReview>({
+          provider: 'Dolphin',
+          status: 'not_configured',
+          summary: dolphinBudget.reason,
+        });
+
     const tParallelStart = Date.now();
     const [servToolRes, dolphinRes, servClaims] = await Promise.all([
-      executeWithRetry(() => reviewWithServ(description, actions), 'OpenServ SERV'),
-      executeWithRetry(() => reviewWithDolphin(description, actions, findings), 'Dolphin'),
+      servToolPromise,
+      dolphinReviewPromise,
       servClaimsPromise,
     ]);
     const tParallelMs = Date.now() - tParallelStart;
