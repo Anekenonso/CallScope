@@ -1176,6 +1176,45 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm test`: 27 test files, 232 unit tests passing offline with 0 failures.
 - `pnpm build`: Clean production build of client and SSR serverless lambdas.
 
+---
+
+## Protected Incremental Upgrade — Phase I: Preview Deployment, Smoke Testing & Human Promotion Gate
+
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Deploy preview deployment, verify GitHub Actions CI, execute comprehensive deployment smoke test across all endpoints and fixtures, and pause at the Human Promotion Gate (Rule 2.4).
+
+### 1. Implementation Details
+- **Pull Request Creation & Vercel Preview:**
+  - Created Pull Request [#1](https://github.com/Anekenonso/CallScope/pull/1) from `upgrade/protected-incremental-build` into `master`.
+  - Vercel automatically deployed the preview build to: `https://callscope-git-upgrade-protected-incremen-ea9f1e-trades-with-ken.vercel.app`.
+  - GitHub Actions CI ran on the PR: `Typecheck, Hermetic Tests & Build` completed successfully in 1m 43s (run `43546677898`).
+  - All GitHub PR checks are 100% green (`Typecheck, Hermetic Tests & Build` pass, `Vercel` pass, `Vercel Preview Comments` pass).
+- **Vite Dev Server Endpoint Parity (`vite.config.ts`):**
+  - Added native dev server middleware handling for `/api/health` and `/api/review` matching `/api/analyse`, ensuring local development tests run against all three serverless endpoints.
+- **Deployment Smoke Test Suite (`scripts/smoke-test-deployment.ts`):**
+  - Automated smoke test exercising:
+    1. `GET /api/health`: Diagnostics and readiness verification (passed).
+    2. `POST /api/analyse` on ENS EP 6.50: Deterministic outcome verified as `review_recommended` (passed in 4,765 ms).
+    3. `POST /api/review` on ENS EP 6.50: Phase 2 review executed, HTTP 200 returned, Dolphin scenarios verified, agreement resolved to `agree` (passed in 12,412 ms).
+    4. `POST /api/analyse` on Unlock Protocol: Outcome verified as `analysis_incomplete` (passed in 6,721 ms).
+    5. `POST /api/analyse` on [SYNTHETIC] Clean Grant: Outcome verified as `no_significant_issue_detected` (passed in 3,808 ms).
+    6. `POST /api/analyse` on [SYNTHETIC] Opaque Multi-Sig: Outcome verified as `analysis_incomplete` (passed in 185 ms).
+  - Generated evidence artifact: `docs/evidence/phase-i-smoke.md`.
+- **Package Scripts (`package.json`):**
+  - Added `"smoke": "node --env-file=.env --experimental-strip-types scripts/smoke-test-deployment.ts"`.
+- **Human Promotion Gate Protocol (Rule 2.4):**
+  - Strictly respected Critical Protection Rule 2.4: Did not merge into `master` or promote preview to production. Paused for explicit human authorization.
+
+### 2. Verification Evidence
+- `pnpm smoke`: 6/6 smoke checks passing with 100% assessment invariance.
+- `pnpm check:readme`: Clean exit code 0.
+- `pnpm typecheck`: Clean compilation, exit code 0.
+- `pnpm test`: 27 test files, 232 unit tests passing offline with 0 failures.
+- `pnpm build`: Clean production build of client and SSR serverless lambdas.
+- GitHub Actions CI: 100% green.
+
+
 
 
 

@@ -115,12 +115,18 @@ The upgrade branch `upgrade/protected-incremental-build` has completed:
 - **Phase C**: OpenServ SERV multi-turn ReAct tool execution loop (`c4b31a2`)
 - **Phase D**: Dolphin Lighthouse verification and engine rebuttal loop (`bb6fb70`)
 - **Phase E**: Live measured sponsor ablation benchmark (`a744f69`)
-- **Phase F**: Sponsor contribution evaluation harness (`eval/sponsor-contribution.ts`)
+- **Phase F**: Sponsor contribution evaluation harness (`0cf6537`)
+- **Phase G**: UI evidence, loop telemetry, action jump links & attribution (`ca91e6c`)
+- **Phase H**: README rewrite, live demo script & judge copy audit (`9af1113`)
+- **Phase I**: Preview deployment, GitHub Actions CI green, deployment smoke test
 
 Current checks:
 - `pnpm check:readme`: ✅ PASS
 - `pnpm typecheck`: ✅ PASS (0 errors)
-- `pnpm test`: ✅ PASS (27 files, 229 unit tests hermetic offline)
+- `pnpm test`: ✅ PASS (27 files, 232 unit tests hermetic offline)
 - `pnpm build`: ✅ PASS (all 3 SSR bundles + Vite client)
+- `pnpm smoke`: ✅ PASS (6/6 checks, 100% assessment outcome invariance)
+- GitHub Actions CI: ✅ PASS (1m 43s on PR #1)
+- Vercel Preview: ✅ DEPLOYED (`https://callscope-git-upgrade-protected-incremen-ea9f1e-trades-with-ken.vercel.app`)
 
 

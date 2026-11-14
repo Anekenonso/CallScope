@@ -18,6 +18,40 @@ export default defineConfig(({ mode }) => {
         name: 'api-server',
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
+            if (req.url === '/api/health' && (req.method === 'GET' || !req.method)) {
+              try {
+                const { getHealthData } = await import('./api/_health');
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(getHealthData()));
+              } catch (err: unknown) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'Health Check Failed' }));
+              }
+              return;
+            }
+
+            if (req.url === '/api/review' && req.method === 'POST') {
+              let body = '';
+              req.on('data', (chunk) => {
+                body += chunk;
+              });
+              req.on('end', async () => {
+                try {
+                  const { default: reviewHandler } = await import('./api/_review');
+                  (req as any).body = JSON.parse(body || '{}');
+                  await reviewHandler(req as any, res as any);
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Internal Server Error';
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: 'Review Error', details: message }));
+                }
+              });
+              return;
+            }
+
             if (req.url === '/api/analyse' && req.method === 'POST') {
               let body = '';
               req.on('data', (chunk) => {
