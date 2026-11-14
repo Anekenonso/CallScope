@@ -50,7 +50,7 @@ export default defineConfig(({ mode }) => {
       environment: 'node',
       fileParallelism: false,
       testTimeout: 45000,
-      include: ['tests/unit/**/*.{test,spec}.{ts,tsx}'],
+      include: ['tests/**/*.{test,spec}.{ts,tsx}'],
     },
     server: {
       port: 5173,

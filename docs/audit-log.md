@@ -964,6 +964,45 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm build`: Client build and 3 SSR API bundles successfully produced.
 - `pnpm check:readme`: Clean exit code 0.
 
+---
+
+## Protected Incremental Upgrade — Phase C: OpenServ SERV Multi-Turn ReAct Tool Loop
+
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Transform OpenServ SERV investigator from static pre-execution into a genuine multi-turn ReAct agent loop, dynamically executing engine tools across model turns while enforcing tool evidence citation gates.
+
+### 1. Architectural Implementation
+- **Chat Turn Execution (`server/providers/openai-compatible.ts`):**
+  - Added `callOpenAiChatTurn` supporting standard multi-turn schemas: `messages`, `tools`, `tool_choice: 'auto'`, `role: 'assistant'` with `tool_calls`, and `role: 'tool'` observation messages with matching `tool_call_id`.
+- **Dynamic ReAct Loop (`server/providers/serv.ts`):**
+  - Initialized `ServToolEngine` with base proposal context.
+  - Armed the investigator with 5 application tools: `get_action`, `get_role_capabilities`, `get_recipient_profile`, `get_token_metadata`, and `get_description_section`.
+  - Executed iterative loop (capped at 4 turns, 15s timeout per turn):
+    - When model requests `tool_calls`: dynamically executes each tool against `ServToolEngine`, appends structured observations (`role: 'tool'`), and feeds them back into conversation history.
+    - When model provides final content: extracts structured JSON review.
+  - Enforced strict tool evidence citation gate: every emitted review item must cite a valid `evidenceId` generated during the investigation.
+  - Added `toolCallCount` and `loopTurns` metadata to `ProviderReview` interface.
+
+### 2. Empirical Verification Evidence
+- **Multi-Turn ReAct Probe (`scripts/probe-tool-loop.ts`):**
+  - Proved live 2-turn execution: Turn 1 returned `finish_reason: "tool_calls"`; Turn 2 processed observation and concluded in `finish_reason: "stop"` (~9s total).
+- **Unit Test Suite (`tests/unit/serv-investigator.test.ts`):**
+  - Added `Phase C: Multi-Turn ReAct Tool Loop` unit test validating dynamic tool dispatch, turn counting (`loopTurns: 2`), and dynamic evidence ID tracking.
+  - Passed 13/13 tests in suite.
+  - Passed all 224 unit tests across 26 test suites offline.
+- **Live Test Suite (`tests/live/sponsor-live.test.ts`):**
+  - Live call to OpenServ SERV: status `ok`, 3 findings, completed in 7,303ms.
+  - Live call to Dolphin Lighthouse: status `ok`, 6 findings, completed in 11,700ms.
+- **Production Bundles:**
+  - `api/analyse.js` (159.57 kB), `api/review.js` (181.13 kB), and `api/health.js` (1.32 kB) cleanly compiled.
+- **Quality Gates:**
+  - `pnpm typecheck`: Exit code 0.
+  - `pnpm test`: 26 files, 224 tests passing.
+  - `pnpm build`: Exit code 0.
+  - `pnpm check:readme`: Exit code 0.
+
+
 
 
 

@@ -1785,6 +1785,110 @@ function detectFindings(actions) {
   }
   return findings;
 }
+async function callOpenAiChatTurn(options) {
+  var _a, _b;
+  const {
+    endpoint,
+    apiKey,
+    model,
+    messages,
+    tools,
+    toolChoice,
+    maxTokens = 800,
+    temperature = 0.1,
+    timeoutMs = 15e3,
+    extraBody
+  } = options;
+  if (!apiKey || apiKey.trim().length === 0) {
+    throw new Error("API key is not configured");
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const requestBody = {
+      model,
+      messages,
+      max_completion_tokens: maxTokens,
+      temperature,
+      ...extraBody || {}
+    };
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools;
+      if (toolChoice) {
+        requestBody.tool_choice = toolChoice;
+      }
+    }
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey.trim()}`,
+        "User-Agent": "Callscope/1.0 (DAO Proposal Analysis Tool)"
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const errorJson = await res.json();
+        if ((_a = errorJson == null ? void 0 : errorJson.error) == null ? void 0 : _a.message) {
+          errMsg = `${errMsg}: ${errorJson.error.message}`;
+        }
+      } catch {
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Authentication failed or access denied (${res.status}): ${errMsg}`);
+      }
+      if (res.status === 402) {
+        throw new Error(`Payment required / insufficient credits (402): ${errMsg}`);
+      }
+      if (res.status === 429) {
+        throw new Error(`Rate limit exceeded (429): ${errMsg}`);
+      }
+      if (res.status >= 500) {
+        throw new Error(`Provider server error (${res.status}): ${errMsg}`);
+      }
+      throw new Error(`Provider request failed (${res.status}): ${errMsg}`);
+    }
+    const data = await res.json();
+    const choice = (_b = data == null ? void 0 : data.choices) == null ? void 0 : _b[0];
+    const rawMsg = choice == null ? void 0 : choice.message;
+    const finishReason = choice == null ? void 0 : choice.finish_reason;
+    let content = rawMsg == null ? void 0 : rawMsg.content;
+    if ((typeof content !== "string" || content.trim().length === 0) && rawMsg) {
+      const msgObj = rawMsg;
+      const reasoning = msgObj.reasoning || msgObj.reasoning_content;
+      if (typeof reasoning === "string" && reasoning.trim().length > 0) {
+        const jsonMatch = reasoning.match(/\{[\s\S]*"summary"[\s\S]*\}/);
+        if (jsonMatch) {
+          content = jsonMatch[0];
+        }
+      }
+    }
+    if (content && typeof content === "string") {
+      if (content.includes("serv_prompt_guard_triggered") || content.includes("prompt_guard_blocked") || content.includes("BLOCKED_BY_PROMPT_GUARD") || content.includes("prompt injection safety guard")) {
+        throw new Error("Proposal text triggered provider prompt injection safety guard (serv_prompt_guard).");
+      }
+    }
+    const resultMessage = {
+      role: "assistant",
+      content: content || null,
+      tool_calls: (rawMsg == null ? void 0 : rawMsg.tool_calls) || void 0
+    };
+    return {
+      message: resultMessage,
+      finishReason
+    };
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 async function callOpenAiCompatible(options) {
   var _a, _b, _c, _d, _e;
   const {
@@ -2746,7 +2850,7 @@ Schema:
   ]
 }
 Output strictly valid JSON. Do not include markdown code fences or conversational text outside the JSON object.`;
-  const userPrompt = `Investigate the following DAO proposal using the tool evidence provided:
+  const userPrompt = `Investigate the following DAO proposal using the tool evidence provided. Total actions: ${actions.length}.
 
 <untrusted_proposal_text>
 ${description2 || "(No description provided)"}
@@ -2756,29 +2860,61 @@ ${description2 || "(No description provided)"}
 ${evidenceSummary}
 </investigation_tool_evidence>
 
-Output JSON response:`;
+Use tools if further verification is required, or output the final analysis JSON response:`;
   try {
-    const rawOutput = await callOpenAiCompatible({
-      endpoint: SERV_ENDPOINT,
-      apiKey,
-      model,
-      systemPrompt,
-      userPrompt,
-      maxTokens: 1e3,
-      timeoutMs: 15e3,
-      // response_format: 'json_object' is NOT supported by OpenServ (returns HTTP 400).
-      // 'json_schema' also returns 400 without strict:true. Plain text + extractStructuredJson
-      // is the correct approach — the system prompt enforces JSON-only output.
-      tools: SERV_INVESTIGATOR_TOOLS,
-      extraBody: {
-        serv_prompt_guard: true,
-        serv_shadow_agent: true,
-        reasoning_effort: "low"
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ];
+    let rawOutput = "";
+    const maxTurns = 4;
+    let turnsExecuted = 0;
+    for (let turn = 0; turn < maxTurns; turn++) {
+      turnsExecuted++;
+      const turnResult = await callOpenAiChatTurn({
+        endpoint: SERV_ENDPOINT,
+        apiKey,
+        model,
+        messages,
+        tools: SERV_INVESTIGATOR_TOOLS,
+        toolChoice: "auto",
+        maxTokens: 1e3,
+        timeoutMs: 15e3,
+        extraBody: {
+          serv_prompt_guard: true,
+          serv_shadow_agent: true,
+          reasoning_effort: "low"
+        }
+      });
+      const msg = turnResult.message;
+      messages.push(msg);
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          let parsedArgs = {};
+          try {
+            parsedArgs = JSON.parse(tc.function.arguments || "{}");
+          } catch {
+            parsedArgs = {};
+          }
+          const record = await engine.execute(tc.function.name, parsedArgs);
+          messages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: JSON.stringify(record)
+          });
+        }
+        continue;
       }
-    });
+      if (msg.content && msg.content.trim().length > 0) {
+        rawOutput = msg.content.trim();
+        break;
+      }
+      break;
+    }
     const parsed = extractStructuredJson(rawOutput);
     const rawList = Array.isArray(parsed == null ? void 0 : parsed.items) ? parsed.items : Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
-    const validEvidenceIds = new Set(executedEvidence.map((e) => e.evidenceId.toLowerCase()));
+    const executedEvidence2 = engine.getAllEvidence();
+    const validEvidenceIds = new Set(executedEvidence2.map((e) => e.evidenceId.toLowerCase()));
     const citedItems = [];
     for (const raw of rawList) {
       const normalized = normalizeReviewItem(raw);
@@ -2805,7 +2941,9 @@ Output JSON response:`;
       summary,
       items: citedItems,
       findings,
-      attempts: 1
+      attempts: 1,
+      toolCallCount: executedEvidence2.length,
+      loopTurns: turnsExecuted
     };
   } catch (err) {
     const classification = classifyProviderError(err);

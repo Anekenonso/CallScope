@@ -1,7 +1,8 @@
 import type { Address, PublicClient } from 'viem';
 import type { ProposalAction, ProviderReview, ReviewItem, SupportedNetwork } from '../../src/types/analysis';
 import {
-  callOpenAiCompatible,
+  callOpenAiChatTurn,
+  type ChatMessage,
   extractStructuredJson,
   classifyProviderError,
 } from './openai-compatible';
@@ -484,7 +485,7 @@ Schema:
 }
 Output strictly valid JSON. Do not include markdown code fences or conversational text outside the JSON object.`;
 
-  const userPrompt = `Investigate the following DAO proposal using the tool evidence provided:
+  const userPrompt = `Investigate the following DAO proposal using the tool evidence provided. Total actions: ${actions.length}.
 
 <untrusted_proposal_text>
 ${description || '(No description provided)'}
@@ -494,27 +495,66 @@ ${description || '(No description provided)'}
 ${evidenceSummary}
 </investigation_tool_evidence>
 
-Output JSON response:`;
+Use tools if further verification is required, or output the final analysis JSON response:`;
 
   try {
-    const rawOutput = await callOpenAiCompatible({
-      endpoint: SERV_ENDPOINT,
-      apiKey,
-      model,
-      systemPrompt,
-      userPrompt,
-      maxTokens: 1000,
-      timeoutMs: 15_000,
-      // response_format: 'json_object' is NOT supported by OpenServ (returns HTTP 400).
-      // 'json_schema' also returns 400 without strict:true. Plain text + extractStructuredJson
-      // is the correct approach — the system prompt enforces JSON-only output.
-      tools: SERV_INVESTIGATOR_TOOLS,
-      extraBody: {
-        serv_prompt_guard: true,
-        serv_shadow_agent: true,
-        reasoning_effort: 'low',
-      },
-    });
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
+
+    let rawOutput = '';
+    const maxTurns = 4;
+    let turnsExecuted = 0;
+
+    for (let turn = 0; turn < maxTurns; turn++) {
+      turnsExecuted++;
+      const turnResult = await callOpenAiChatTurn({
+        endpoint: SERV_ENDPOINT,
+        apiKey,
+        model,
+        messages,
+        tools: SERV_INVESTIGATOR_TOOLS,
+        toolChoice: 'auto',
+        maxTokens: 1000,
+        timeoutMs: 15_000,
+        extraBody: {
+          serv_prompt_guard: true,
+          serv_shadow_agent: true,
+          reasoning_effort: 'low',
+        },
+      });
+
+      const msg = turnResult.message;
+      messages.push(msg);
+
+      // If model requested tool calls, dynamically execute each and feed observations back
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          let parsedArgs: Record<string, unknown> = {};
+          try {
+            parsedArgs = JSON.parse(tc.function.arguments || '{}');
+          } catch {
+            parsedArgs = {};
+          }
+          const record = await engine.execute(tc.function.name, parsedArgs);
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: JSON.stringify(record),
+          });
+        }
+        continue;
+      }
+
+      // If model provided final text/JSON content, capture and conclude
+      if (msg.content && msg.content.trim().length > 0) {
+        rawOutput = msg.content.trim();
+        break;
+      }
+
+      break;
+    }
 
     const parsed = extractStructuredJson<{
       summary?: string;
@@ -528,6 +568,7 @@ Output JSON response:`;
         ? parsed.findings
         : [];
 
+    const executedEvidence = engine.getAllEvidence();
     const validEvidenceIds = new Set(executedEvidence.map((e) => e.evidenceId.toLowerCase()));
     const citedItems: ReviewItem[] = [];
 
@@ -572,6 +613,8 @@ Output JSON response:`;
       items: citedItems,
       findings,
       attempts: 1,
+      toolCallCount: executedEvidence.length,
+      loopTurns: turnsExecuted,
     };
   } catch (err: unknown) {
     const classification = classifyProviderError(err);
