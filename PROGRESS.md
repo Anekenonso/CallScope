@@ -46,6 +46,18 @@ The agent must report after every implementation phase and wait for the user's c
 ## Implementation log
 Append newest entries at the top.
 
+### 2026-11-14 — Rollback to Original Plan: P2 Sponsor Calls & UI per Plan Complete
+- **Status**: P2 Complete.
+- **Key Enhancements**:
+  1. OpenServ SERV adapter: Pinned model default to `serv-swift` (`serv-mini`/`4o-mini` mapped away), system prompt required, JSON prompted without `response_format: json_object`, `reasoning_effort: low` passed, strict citation gating (uncited or invalid action indices dropped).
+  2. Dolphin adapter: Pinned model default to `deepseek-ai/DeepSeek-V4.1-Flash` with bounded reasoning tokens, adversarial risk role (at most 3 scenarios, each strictly citing an action index or finding ID, dropping invalid citations).
+  3. Parallel non-blocking execution: Both sponsor calls run in parallel via `Promise.allSettled` raced against a 20s timeout; provider failure returns explicit error states and never mutates or impacts deterministic results.
+  4. UI fidelity: Clean near-white theme (`#F8F9FB`), system font stack (no web fonts), no animations, no taglines/helper copy, strict layout order matching `DESIGN.md`.
+- **Verification Metrics**:
+  - `npm run typecheck`: Exit code 0 (clean).
+  - `npm test`: 95 unit tests across 11 files passing offline with 0 failures (100% clean).
+  - `npm run build`: Clean production build (bundled SSR `api/analyse.js` + client bundle).
+
 ### 2026-11-14 — Rollback to Original Plan: P1 Reliable Event Retrieval Complete
 - **Status**: P1 Complete and empirical verification executed.
 - **Key Enhancements**:
