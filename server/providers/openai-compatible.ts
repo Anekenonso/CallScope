@@ -165,17 +165,6 @@ export async function callOpenAiChatTurn(
       }
     }
 
-    if (content && typeof content === 'string') {
-      if (
-        content.includes('serv_prompt_guard_triggered') ||
-        content.includes('prompt_guard_blocked') ||
-        content.includes('BLOCKED_BY_PROMPT_GUARD') ||
-        content.includes('prompt injection safety guard')
-      ) {
-        throw new Error('Proposal text triggered provider prompt injection safety guard (serv_prompt_guard).');
-      }
-    }
-
     const resultMessage: ChatMessage = {
       role: 'assistant',
       content: content || null,
@@ -222,7 +211,7 @@ export async function callOpenAiCompatible(
 
   try {
     const requestBody: Record<string, unknown> = {
-      model: model || 'serv-mini',
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -296,15 +285,6 @@ export async function callOpenAiCompatible(
         throw new Error('Provider exhausted token limit during reasoning without generating content');
       }
       throw new Error('Provider returned empty content response');
-    }
-
-    if (
-      content.includes('serv_prompt_guard_triggered') ||
-      content.includes('prompt_guard_blocked') ||
-      content.includes('BLOCKED_BY_PROMPT_GUARD') ||
-      content.includes('prompt injection safety guard')
-    ) {
-      throw new Error('Proposal text triggered provider prompt injection safety guard (serv_prompt_guard).');
     }
 
     return content.trim();

@@ -1,6 +1,6 @@
 import type { AnalysisResponse, SupportedNetwork } from '../src/types/analysis';
 
-export const SCHEMA_VERSION = 'v1';
+export const SCHEMA_VERSION = 'v2';
 
 export function getCacheMode(): 'kv' | 'memory' {
   const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;

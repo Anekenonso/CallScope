@@ -16,12 +16,16 @@ export interface ReviewRequest {
   network: SupportedNetwork;
   governorAddress: string;
   proposalId: string;
+  tier?: 'standard' | 'deep';
+  reverifyLive?: boolean;
 }
 
 export interface ReviewResponse {
   serv: ProviderReview;
   dolphin: ProviderReview;
   extendedClaimsCheck?: DescriptionConsistency;
+  tier?: 'instant' | 'standard' | 'deep';
+  timings?: Record<string, number>;
 }
 
 export async function fetchProposalReviews(request: ReviewRequest): Promise<ReviewResponse> {

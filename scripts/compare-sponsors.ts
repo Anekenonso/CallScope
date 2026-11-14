@@ -9,6 +9,7 @@ try {
 }
 import { executeAnalysis } from '../api/analyse.js';
 import reviewHandler from '../api/review.js';
+import { resolveServModel } from '../server/providers/serv-model.ts';
 import { computeReviewerAgreement } from '../src/lib/reviewer-agreement.ts';
 import type {
   AnalysisResponse,
@@ -291,10 +292,7 @@ function generateImpactReport(metrics: BenchmarkMetric[], isLive: boolean): stri
     md += `> [!NOTE]\n`;
     md += `> ### 🟢 [LIVE MEASURED BENCHMARK]\n`;
     md += `> Benchmark executed on **${timestamp}** against live inference APIs:\n`;
-    let servModel = process.env.SERV_MODEL || 'serv-swift';
-    if (servModel === '4o-mini' || servModel === 'gpt-4o-mini' || servModel === 'serv-mini') {
-      servModel = 'serv-swift';
-    }
+    const servModel = resolveServModel();
     const dolphinModel = process.env.DOLPHIN_MODEL || 'deepseek-ai/DeepSeek-V4.1-Flash';
     md += `> - **OpenServ SERV**: \`https://inference-api.openserv.ai/v1/chat/completions\` (\`${servModel}\`)\n`;
     md += `> - **Dolphin**: \`https://lighthouse.dphn.ai/run/text-v/v1/chat/completions\` (\`${dolphinModel}\`)\n`;

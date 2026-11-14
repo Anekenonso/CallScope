@@ -140,6 +140,7 @@ export type ProviderStatus =
   | 'timed_out'
   | 'auth_error'
   | 'guard_blocked'
+  | 'local_injection_precheck_flagged'
   | 'schema_invalid'
   | 'upstream_error'
   | 'unavailable'
@@ -151,6 +152,7 @@ export type ProviderErrorClass =
   | 'timed_out'
   | 'auth_error'
   | 'guard_blocked'
+  | 'local_injection_precheck_flagged'
   | 'schema_invalid'
   | 'upstream_error';
 
@@ -180,6 +182,8 @@ export interface ProviderReview {
   items?: ReviewItem[];
   findings?: string[];
   scenarios?: AttackScenario[];
+  questions?: string[];
+  modelReturned?: string;
   error?: string;
   reason?: string;
   errorClass?: ProviderErrorClass;
@@ -187,6 +191,8 @@ export interface ProviderReview {
   attempts?: number;
   toolCallCount?: number;
   loopTurns?: number;
+  tier?: 'instant' | 'standard' | 'deep';
+  durationMs?: number;
 }
 
 export interface EvidenceItem {
@@ -221,6 +227,36 @@ export interface AnalysisRequest {
   reverifyLive?: boolean;
 }
 
+export interface AnalysisTimings {
+  eventLookupMs?: number;
+  proposalStateMs?: number;
+  abiResolutionMs?: number;
+  tokenMetadataMs?: number;
+  roleCapabilitiesMs?: number;
+  recipientProfilingMs?: number;
+  securityChecksMs?: number;
+  consistencyCheckMs?: number;
+  assessmentMs?: number;
+  totalMs: number;
+}
+
+export interface ReviewTimings {
+  servExtractionMs?: number;
+  servInvestigatorMs?: number;
+  servLoopTurns?: number;
+  dolphinScenarioMs?: number;
+  claimsLedgerMs?: number;
+  totalMs: number;
+}
+
+export interface AnalysisDiagnostics {
+  tier: 'instant' | 'standard' | 'deep';
+  timings: AnalysisTimings & Partial<ReviewTimings>;
+  cached?: boolean;
+  eventSource?: string;
+  schemaVersion?: string;
+}
+
 export interface AnalysisResponse {
   assessment: AssessmentOutcome;
   network: SupportedNetwork;
@@ -237,6 +273,8 @@ export interface AnalysisResponse {
   };
   limitations: string[];
   evidence: EvidenceItem[];
+  tier?: 'instant' | 'standard' | 'deep';
+  diagnostics?: AnalysisDiagnostics;
 }
 
 export interface ApiErrorResponse {

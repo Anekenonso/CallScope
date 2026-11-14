@@ -14,7 +14,7 @@ import { join } from 'path';
 
 const SERV_ENDPOINT =
   process.env.SERV_ENDPOINT || 'https://inference-api.openserv.ai/v1/chat/completions';
-const SERV_MODEL = process.env.SERV_MODEL || 'serv-mini';
+const SERV_MODEL = process.env.SERV_MODEL || 'serv-swift';
 const SERV_API_KEY = process.env.SERV_API_KEY || '';
 
 if (!SERV_API_KEY) {

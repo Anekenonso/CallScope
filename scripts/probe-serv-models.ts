@@ -158,7 +158,6 @@ const stdOk = results[3]?.httpStatus === 200;
 console.log(`\n4. serv-standard (recommended model): ${stdOk ? 'YES — available and working' : 'NO'}`);
 
 console.log('\n═══════════════════════════════════════════════════════');
-console.log(' Current .env model is "4o-mini" — NOT a valid SERV model.');
 console.log(' Valid SERV models: serv-swift, serv-standard, serv-pro, serv-ultra');
 console.log(' Recommended replacement: serv-swift (cheapest) or serv-standard (balanced)');
 console.log('═══════════════════════════════════════════════════════');

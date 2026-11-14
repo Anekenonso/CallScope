@@ -11,6 +11,7 @@ TASKS.md
 # Dependencies & Build Outputs
 node_modules/
 dist/
+scripts/*.mjs
 .env
 .env.local
 .DS_Store

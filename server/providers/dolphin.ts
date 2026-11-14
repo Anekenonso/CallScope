@@ -156,7 +156,7 @@ export function evaluateScenarioRebuttal(
         };
       }
 
-      // Check: Role capabilities
+      // Check: Role capabilities & specific scenario kinds
       if (act.roleCapability && act.roleCapability.status === 'resolved') {
         const canSchedule = act.roleCapability.capabilities?.some((c) =>
           c.fn.toLowerCase().includes('schedule')
@@ -165,6 +165,53 @@ export function evaluateScenarioRebuttal(
           act.roleCapability.capabilities?.length === 1 &&
           act.roleCapability.capabilities[0].fn.toLowerCase().includes('cancel');
 
+        // Check A: Self-escalation / Role Admin Power
+        if (
+          descLower.includes('escalat') ||
+          descLower.includes('grant other role') ||
+          descLower.includes('grant roles') ||
+          descLower.includes('takeover') ||
+          descLower.includes('admin role')
+        ) {
+          const roleArg = act.args?.find((a) => a.name === 'role')?.value || '';
+          const isAdmin =
+            roleArg.includes('0000000000000000000000000000000000000000000000000000000000000000') ||
+            (act.roleCapability.summary || '').toLowerCase().includes('admin');
+
+          if (!isAdmin) {
+            return {
+              id,
+              title,
+              preconditions,
+              steps,
+              impact,
+              severityHint,
+              rebuttalStatus: 'refuted_by_data',
+              refutedBy: `Refuted by engine: Action #${step.actionRef} does not grant an admin role (DEFAULT_ADMIN_ROLE or TIMELOCK_ADMIN_ROLE). The grantee lacks permission to grant, revoke, or reconfigure roles.`,
+            };
+          }
+        }
+
+        // Check B: Expiry / Term Permanence
+        if (
+          descLower.includes('expir') ||
+          descLower.includes('permanen') ||
+          descLower.includes('term') ||
+          descLower.includes('perpetual')
+        ) {
+          return {
+            id,
+            title,
+            preconditions,
+            steps,
+            impact,
+            severityHint,
+            rebuttalStatus: 'needs_human',
+            refutedBy: `Needs human delegate review: Action #${step.actionRef} executes a standard grantRole call without an EVM-enforced deadline parameter; enforcement of stated term depends on contract expiration logic or subsequent DAO revocation.`,
+          };
+        }
+
+        // Check C: Schedule / Privilege Execution
         if (onlyCancel && (descLower.includes('schedule') || descLower.includes('execute arbitrary'))) {
           return {
             id,
@@ -178,7 +225,7 @@ export function evaluateScenarioRebuttal(
           };
         }
 
-        if (canSchedule && descLower.includes('schedule')) {
+        if (canSchedule && (descLower.includes('schedule') || descLower.includes('queue') || descLower.includes('propose'))) {
           return {
             id,
             title,
@@ -192,7 +239,7 @@ export function evaluateScenarioRebuttal(
         }
       }
 
-      // Check: Recipient profile
+      // Check: Recipient profile ("source verified" must never mean refuted_by_data)
       if (act.recipientProfile?.isVerified && descLower.includes('unverified bytecode')) {
         return {
           id,
@@ -201,8 +248,8 @@ export function evaluateScenarioRebuttal(
           steps,
           impact,
           severityHint,
-          rebuttalStatus: 'refuted_by_data',
-          refutedBy: `Refuted by engine: Recipient contract source code is verified on the public block explorer.`,
+          rebuttalStatus: 'needs_human',
+          refutedBy: `Needs human delegate review: Recipient contract source code is verified on the block explorer, but verified source alone does not guarantee absence of governance or economic risk.`,
         };
       }
     }
@@ -312,6 +359,9 @@ CRITICAL SECURITY AND SAFETY INSTRUCTIONS:
       "severityHint": "critical" | "high" | "medium" | "low"
     }
   ],
+  "questions": [
+    "Concrete, sharp question delegates should ask the proposer before voting"
+  ],
   "items": [
     {
       "kind": "risk" | "contradiction" | "unsupported_claim" | "supported" | "note",
@@ -354,6 +404,7 @@ Output JSON response:`;
     const parsed = extractStructuredJson<{
       summary?: string;
       scenarios?: Array<Partial<AttackScenario>>;
+      questions?: string[];
       items?: unknown[];
       findings?: unknown[];
     }>(rawOutput);
@@ -363,6 +414,12 @@ Output JSON response:`;
     const evaluatedScenarios: AttackScenario[] = rawScenarios
       .slice(0, 3)
       .map((sc) => evaluateScenarioRebuttal(sc, actions, findings, description));
+
+    const validQuestions: string[] = Array.isArray(parsed?.questions)
+      ? parsed.questions
+          .filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+          .slice(0, 3)
+      : [];
 
     // Dolphin items: cap at 3 items; each must carry valid actionRef or findingRef
     const rawList = Array.isArray(parsed?.items)
@@ -399,6 +456,7 @@ Output JSON response:`;
       status: 'ok',
       summary: typeof parsed?.summary === 'string' ? parsed.summary : 'Secondary security review complete.',
       scenarios: evaluatedScenarios,
+      questions: validQuestions.length > 0 ? validQuestions : undefined,
       items: validDolphinItems,
       findings: findingsStrings,
       attempts: 1,

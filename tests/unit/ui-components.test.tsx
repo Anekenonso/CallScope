@@ -345,6 +345,34 @@ describe('UI Component Unit Tests (Phase 6)', () => {
       expect(html).toContain('OpenServ SERV:');
       expect(html).toContain('Dolphin:');
     });
+
+    it('renders 3-tier architecture badge, Run Deep Review trigger, and Dolphin questions', () => {
+      const htmlStandard = renderToString(
+        <ProviderReviews
+          currentTier="standard"
+          onRunDeepReview={() => {}}
+          serv={{ status: 'ok', summary: 'Standard claims checked.' }}
+          dolphin={{
+            status: 'ok',
+            questions: ['Who controls the multisig emergency keys?'],
+          }}
+        />
+      );
+      expect(htmlStandard).toContain('Tier: standard');
+      expect(htmlStandard).toContain('Run Deep Review');
+      expect(htmlStandard).toContain('Key Questions for Proposer');
+      expect(htmlStandard).toContain('Who controls the multisig emergency keys?');
+
+      const htmlDeep = renderToString(
+        <ProviderReviews
+          currentTier="deep"
+          serv={{ status: 'ok' }}
+          dolphin={{ status: 'ok' }}
+        />
+      );
+      expect(htmlDeep).toContain('Tier: deep');
+      expect(htmlDeep).not.toContain('Run Deep Review');
+    });
   });
 
   describe('EvidenceLinks', () => {
