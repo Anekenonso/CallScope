@@ -53,3 +53,4 @@ export const GovernanceLogo: React.FC<GovernanceLogoProps> = ({ size = 26, class
     </svg>
   );
 };
+
