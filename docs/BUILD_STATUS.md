@@ -109,3 +109,4 @@ Root cause: `pnpm/action-setup@v4` bundled pnpm v9 self-installer crashed with `
 ## Upgrade Branch Status
 
 The upgrade branch `upgrade/protected-incremental-build` is **identical** to `master` at `ccab0dafc8`. Phase A documentation is the first diverging commit on this branch.
+

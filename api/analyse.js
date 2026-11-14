@@ -2687,9 +2687,9 @@ async function reviewWithServ(description2, actions, options) {
       attempts: 1
     };
   }
-  let model = process.env.SERV_MODEL || "serv-mini";
-  if (model === "4o-mini" || model === "gpt-4o-mini") {
-    model = "serv-mini";
+  let model = process.env.SERV_MODEL || "serv-swift";
+  if (model === "4o-mini" || model === "gpt-4o-mini" || model === "serv-mini") {
+    model = "serv-swift";
   }
   const engine = new ServToolEngine(description2, actions, "ethereum", options == null ? void 0 : options.client);
   if (actions.length > 0) {
@@ -2766,7 +2766,9 @@ Output JSON response:`;
       userPrompt,
       maxTokens: 1e3,
       timeoutMs: 15e3,
-      responseFormat: { type: "json_object" },
+      // response_format: 'json_object' is NOT supported by OpenServ (returns HTTP 400).
+      // 'json_schema' also returns 400 without strict:true. Plain text + extractStructuredJson
+      // is the correct approach — the system prompt enforces JSON-only output.
       tools: SERV_INVESTIGATOR_TOOLS,
       extraBody: {
         serv_prompt_guard: true,

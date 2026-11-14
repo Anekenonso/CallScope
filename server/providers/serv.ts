@@ -412,9 +412,11 @@ export async function reviewWithServ(
     };
   }
 
-  let model = process.env.SERV_MODEL || 'serv-mini';
-  if (model === '4o-mini' || model === 'gpt-4o-mini') {
-    model = 'serv-mini';
+  // serv-swift is the cheapest confirmed SERV model (200K context, ~$0.125/M input).
+  // 'serv-mini' and 'gpt-4o-mini' do not exist in the OpenServ catalogue (verified Phase B).
+  let model = process.env.SERV_MODEL || 'serv-swift';
+  if (model === '4o-mini' || model === 'gpt-4o-mini' || model === 'serv-mini') {
+    model = 'serv-swift';
   }
 
   // Instantiate the deterministic tool engine
@@ -503,7 +505,9 @@ Output JSON response:`;
       userPrompt,
       maxTokens: 1000,
       timeoutMs: 15_000,
-      responseFormat: { type: 'json_object' },
+      // response_format: 'json_object' is NOT supported by OpenServ (returns HTTP 400).
+      // 'json_schema' also returns 400 without strict:true. Plain text + extractStructuredJson
+      // is the correct approach — the system prompt enforces JSON-only output.
       tools: SERV_INVESTIGATOR_TOOLS,
       extraBody: {
         serv_prompt_guard: true,

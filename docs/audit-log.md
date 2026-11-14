@@ -924,6 +924,47 @@ Our investigation uncovered a compound failure across three distinct layers:
 - **Full Unit Test Suite (`pnpm test`):** PASSED 26/26 test suites (223 tests passing offline, 0 failures).
 - **Client & Serverless Bundle Build (`pnpm build`):** PASSED. Client bundle and prebundled SSR serverless lambdas (`api/analyse.js`, `api/review.js`, `api/health.js`) compiled cleanly.
 
+---
+
+## Protected Incremental Upgrade — Phase B: OpenServ SERV API Verification & Hardening
+
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Live endpoint and model discovery on OpenServ inference gateway, resolution of unsupported JSON formatting flags (HTTP 400), validation of agent parameters, and proof of active tool-calling capabilities.
+
+### 1. Empirical Findings & Probe Evidence
+- **Model Discovery:**
+  - Querying OpenServ model discovery endpoint (`GET https://inference-api.openserv.ai/v1/models`) confirmed available SERV models: `serv-swift`, `serv-standard`, `serv-pro`, and `serv-ultra`.
+  - Discovered that legacy default `serv-mini` (and misconfigured `4o-mini`) are unpriced/invalid on OpenServ, returning HTTP 400.
+  - Selected `serv-swift` as default (powered by `claude-haiku-4-5-20251001` with 200k context window and economical per-token tier).
+- **Response Format Correction:**
+  - Invocations with `response_format: { type: 'json_object' }` triggered HTTP 400 on OpenServ gateway (`Input should be 'json_schema'`).
+  - Removed unsupported `response_format` flag; resilient JSON extraction via `extractStructuredJson` and prompt instructions maintained 100% structured output fidelity.
+- **Native Parameter Verification:**
+  - Verified `serv_prompt_guard`, `serv_shadow_agent`, and `reasoning_effort: 'low'` in request body are accepted cleanly (HTTP 200) without rejection.
+  - Documented realistic attribution in `docs/sponsor-notes.md`.
+- **Tool-Calling Verification:**
+  - Live probe with `tools` array confirmed model responds with `finish_reason: "tool_calls"` and structured function arguments, proving readiness for full ReAct tool execution loop.
+- **Raw Evidence Logs:**
+  - Generated and committed:
+    - `docs/evidence/raw/phase-b-serv-api.json`
+    - `docs/evidence/raw/phase-b-serv-models.json`
+    - `docs/evidence/raw/phase-b-serv-final.json`
+    - `docs/evidence/raw/phase-b-serv-api.md`
+
+### 2. Implementation Changes
+- Updated `server/providers/serv.ts` model fallback logic and removed `responseFormat: { type: 'json_object' }`.
+- Updated `server/analysis/claims-ledger.ts` to remove `responseFormat: { type: 'json_object' }`.
+- Updated `.env.example` with documented valid models (`serv-swift`, `serv-standard`, `serv-pro`, `serv-ultra`).
+- Recompiled serverless distribution bundles (`api/analyse.js`, `api/review.js`).
+
+### 3. Verification Evidence
+- `pnpm typecheck`: Clean compilation, exit code 0.
+- `pnpm test`: 26 passed test files, 223 passed tests.
+- `pnpm build`: Client build and 3 SSR API bundles successfully produced.
+- `pnpm check:readme`: Clean exit code 0.
+
+
 
 
 
