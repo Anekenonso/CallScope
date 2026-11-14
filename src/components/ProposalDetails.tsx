@@ -191,7 +191,7 @@ export const ProposalDetails: React.FC<ProposalDetailsProps> = ({
         )}
       </div>
 
-      <div className="description-container">
+      <div className="description-container" id="proposal-description">
         <div className="description-header-row">
           <span className="detail-label">Submitted Description</span>
           <span className="description-meta-len">

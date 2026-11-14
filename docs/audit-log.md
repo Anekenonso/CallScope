@@ -1102,5 +1102,43 @@ Our investigation uncovered a compound failure across three distinct layers:
 - `pnpm test`: 27 test files, 229 unit tests passing offline with 0 failures.
 - `pnpm build`: Clean production build of client and SSR serverless lambdas.
 
+---
+
+## Protected Incremental Upgrade — Phase G: UI Evidence and Attribution Display
+
+- **Status:** PASS
+- **Date:** 2026-11-14
+- **Focus:** Surface verified multi-turn tool grounding badges, ReAct loop iteration counts, Dolphin Lighthouse attack scenario navigation, and tri-reviewer agreement stance badges in the UI.
+
+### 1. Implementation Details
+- **Action Navigation Target Anchors (`src/components/ActionList.tsx`):**
+  - Added `id={`action-${act.index}`}` to the top-level `<article>` of each action item.
+  - Allows verified review evidence links and Dolphin adversarial scenario steps to smoothly anchor jump to specific executable actions in the proposal.
+- **Proposal Description Anchor (`src/components/ProposalDetails.tsx`):**
+  - Added `id="proposal-description"` to `.description-container` for review item links pointing to stated description text.
+- **OpenServ SERV Multi-Turn Evidence Display (`src/components/ProviderReviews.tsx`):**
+  - Updated card subtitle: `"OpenServ SERV — Multi-Turn Tool-Grounded Investigator"`.
+  - Added verified model attribution pill: `serv-swift`.
+  - Added loop telemetry badges: `Turns: {serv.loopTurns}` and `Tool calls: {serv.toolCallCount}`.
+  - In `ReviewItemRow`, rendered verified tool evidence pill `Tool: {item.evidenceId}` linking to deterministic tool executions.
+  - Added clickable in-page action jump link (`Action #{N} ↗`) and description jump link (`Description ↗`).
+- **Dolphin Lighthouse Adversarial Review Display (`src/components/ProviderReviews.tsx`):**
+  - Updated card subtitle: `"Dolphin — Adversarial Review (powered by DeepSeek-V4.1-Flash on Lighthouse)"`.
+  - Added model attribution pill: `Lighthouse · DeepSeek-V4.1-Flash`.
+  - Added scenario count badge: `Scenarios: {dolphin.scenarios.length}`.
+  - Rendered attack scenario preconditions and step-by-step attack sequences with clickable action jump links (`[Action #{N} ↗]`).
+  - Styled deterministic engine audit rebuttal badges (`✓ Refuted by Engine Facts`, `⚠ Not Refuted (Plausible Risk)`, `⚑ Needs Delegate Review`).
+- **Tri-Reviewer Agreement Strip (`src/components/ProviderReviews.tsx`):**
+  - Rendered stance comparison badges across Deterministic Engine, OpenServ SERV, and Dolphin.
+- **Serverless API Type Declarations (`api/review.d.ts`, `api/health.d.ts`):**
+  - Created ambient declarations matching `api/analyse.d.ts` for clean TypeScript compilation.
+
+### 2. Verification Evidence
+- `tests/unit/ui-components.test.tsx`: 20/20 unit tests passing (added tests for tool evidence badges, loop turns, scenario links, model attribution, and agreement strip stances).
+- `pnpm check:readme`: Clean exit code 0.
+- `pnpm typecheck`: Clean compilation, exit code 0.
+- `pnpm test`: 27 test files, 232 unit tests passing offline with 0 failures.
+- `pnpm build`: Clean production build of client and SSR serverless lambdas.
+
 
 

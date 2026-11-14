@@ -23,9 +23,9 @@ Captured on: **2026-11-12 (upgrade branch)**
 
 ### 2. `pnpm test` (`vitest run tests/unit/`)
 - **Result:** ✅ PASS
-- **Test files:** 26 passed (26)
-- **Tests:** 223 passed (223)
-- **Duration:** ~151–227 s (includes async integration stubs)
+- **Test files:** 27 passed (27)
+- **Tests:** 232 passed (232)
+- **Duration:** ~105 s
 
 **Test file breakdown:**
 
@@ -33,9 +33,9 @@ Captured on: **2026-11-12 (upgrade branch)**
 |---|---|---|
 | `final-reliability-gaps.test.ts` | 19 | ✅ |
 | `claims-ledger.test.ts` | 15 | ✅ |
-| `ui-components.test.tsx` | 17 | ✅ |
+| `ui-components.test.tsx` | 20 | ✅ |
 | `dolphin-scenarios.test.ts` | 11 | ✅ |
-| `serv-investigator.test.ts` | 12 | ✅ |
+| `serv-investigator.test.ts` | 13 | ✅ |
 | `role-capabilities.test.ts` | 9 | ✅ |
 | `sponsor-providers.test.ts` | 16 | ✅ |
 | `chain.test.ts` | 14 | ✅ |
@@ -46,6 +46,7 @@ Captured on: **2026-11-12 (upgrade branch)**
 | `decoupled-baseline-consistency.test.ts` | 3 | ✅ |
 | `stateless-review-and-health.test.ts` | 10 | ✅ |
 | `provider-retry-and-backoff.test.ts` | 6 | ✅ |
+| `eval-harness.test.ts` | 5 | ✅ |
 | `build-assessment.test.ts` | 8 | ✅ |
 | `api-handler.test.ts` | 8 | ✅ |
 | `sponsor-review-normalization.test.ts` | 5 | ✅ |

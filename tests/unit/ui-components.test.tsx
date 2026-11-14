@@ -235,6 +235,116 @@ describe('UI Component Unit Tests (Phase 6)', () => {
       expect(html).toContain('Not configured');
       expect(html).toContain('The deterministic analysis engine remains authoritative.');
     });
+
+    it('renders OpenServ SERV multi-turn tool grounding badges, turn counts, and action jump links', () => {
+      const html = renderToString(
+        <ProviderReviews
+          serv={{
+            status: 'ok',
+            summary: 'OpenServ tool-grounded investigation completed.',
+            loopTurns: 2,
+            toolCallCount: 3,
+            items: [
+              {
+                kind: 'contradiction',
+                issue: 'Description claims Security Council cannot propose, but calldata grants PROPOSER_ROLE.',
+                evidenceId: 'tool-call-1',
+                actionRef: 0,
+              },
+            ],
+          }}
+          dolphin={{
+            status: 'not_configured',
+          }}
+        />
+      );
+      expect(html).toContain('OpenServ SERV — Multi-Turn Tool-Grounded Investigator');
+      expect(html).toContain('Turns: 2');
+      expect(html).toContain('Tool calls: 3');
+      expect(html).toContain('Tool: tool-call-1');
+      expect(html).toContain('href="#action-0"');
+      expect(html).toContain('Action #1 ↗');
+    });
+
+    it('renders Dolphin adversarial review with model attribution, scenario steps, and engine rebuttal badges', () => {
+      const html = renderToString(
+        <ProviderReviews
+          serv={{
+            status: 'not_configured',
+          }}
+          dolphin={{
+            status: 'ok',
+            summary: 'Dolphin adversarial scenarios analyzed.',
+            scenarios: [
+              {
+                id: 'sc-1',
+                title: 'Rogue Proposal Scheduling via PROPOSER_ROLE',
+                preconditions: ['Council holds PROPOSER_ROLE'],
+                steps: [{ actionRef: 0, description: 'Calls schedule() to bypass standard queue' }],
+                impact: 'Arbitrary execution after timelock delay',
+                severityHint: 'high',
+                rebuttalStatus: 'not_refuted',
+                refutedBy: 'Verified contract source confirms schedule() capability',
+              },
+              {
+                id: 'sc-2',
+                title: 'Fake Treasury Drain Attempt',
+                preconditions: ['Requires treasury balance > 500 ETH'],
+                steps: [{ actionRef: 0, description: 'Claims drain of 500 ETH' }],
+                impact: 'Draining treasury funds',
+                severityHint: 'critical',
+                rebuttalStatus: 'refuted_by_data',
+                refutedBy: 'Refuted by engine: Action #0 transfers 0 wei',
+              },
+            ],
+          }}
+        />
+      );
+      expect(html).toContain('Dolphin — Adversarial Review (powered by DeepSeek-V4.1-Flash on Lighthouse)');
+      expect(html).toContain('Lighthouse · DeepSeek-V4.1-Flash');
+      expect(html).toContain('Scenarios: 2');
+      expect(html).toContain('Rogue Proposal Scheduling via PROPOSER_ROLE');
+      expect(html).toContain('⚠ Not Refuted (Plausible Risk)');
+      expect(html).toContain('✓ Refuted by Engine Facts');
+      expect(html).toContain('Verified contract source confirms schedule() capability');
+      expect(html).toContain('href="#action-0"');
+    });
+
+    it('renders Tri-Reviewer Agreement Strip comparing engine, SERV, and Dolphin stances', () => {
+      const html = renderToString(
+        <ProviderReviews
+          assessment="review_recommended"
+          serv={{
+            status: 'ok',
+            items: [
+              {
+                kind: 'contradiction',
+                issue: 'Contradiction in proposing power',
+                evidenceId: 'tool-call-1',
+              },
+            ],
+          }}
+          dolphin={{
+            status: 'ok',
+            scenarios: [
+              {
+                id: 'sc-1',
+                title: 'Unrefuted threat',
+                preconditions: [],
+                steps: [],
+                impact: 'Potential privilege elevation',
+                rebuttalStatus: 'not_refuted',
+              },
+            ],
+          }}
+        />
+      );
+      expect(html).toContain('reviewer-agreement-strip');
+      expect(html).toContain('Reviewers agree');
+      expect(html).toContain('Deterministic Engine:');
+      expect(html).toContain('OpenServ SERV:');
+      expect(html).toContain('Dolphin:');
+    });
   });
 
   describe('EvidenceLinks', () => {
