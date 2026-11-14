@@ -116,13 +116,45 @@ const PROPOSAL_CREATED_EVENT_INDEXED_ID_PROPOSER = {
     { name: "description", type: "string", indexed: false }
   ]
 };
+const PROPOSAL_CREATED_EVENT_COMPOUND_BRAVO = {
+  type: "event",
+  name: "ProposalCreated",
+  inputs: [
+    { name: "id", type: "uint256", indexed: false },
+    { name: "proposer", type: "address", indexed: false },
+    { name: "targets", type: "address[]", indexed: false },
+    { name: "values", type: "uint256[]", indexed: false },
+    { name: "signatures", type: "string[]", indexed: false },
+    { name: "calldatas", type: "bytes[]", indexed: false },
+    { name: "startBlock", type: "uint256", indexed: false },
+    { name: "endBlock", type: "uint256", indexed: false },
+    { name: "description", type: "string", indexed: false }
+  ]
+};
+const PROPOSAL_CREATED_EVENT_COMPOUND_BRAVO_INDEXED_ID = {
+  type: "event",
+  name: "ProposalCreated",
+  inputs: [
+    { name: "id", type: "uint256", indexed: true },
+    { name: "proposer", type: "address", indexed: false },
+    { name: "targets", type: "address[]", indexed: false },
+    { name: "values", type: "uint256[]", indexed: false },
+    { name: "signatures", type: "string[]", indexed: false },
+    { name: "calldatas", type: "bytes[]", indexed: false },
+    { name: "startBlock", type: "uint256", indexed: false },
+    { name: "endBlock", type: "uint256", indexed: false },
+    { name: "description", type: "string", indexed: false }
+  ]
+};
 const PROPOSAL_CREATED_TOPIC0 = keccak256(
   toBytes("ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)")
 );
 const SUPPORTED_EVENT_VARIANTS = [
   PROPOSAL_CREATED_EVENT_UNINDEXED,
   PROPOSAL_CREATED_EVENT_INDEXED_ID,
-  PROPOSAL_CREATED_EVENT_INDEXED_ID_PROPOSER
+  PROPOSAL_CREATED_EVENT_INDEXED_ID_PROPOSER,
+  PROPOSAL_CREATED_EVENT_COMPOUND_BRAVO,
+  PROPOSAL_CREATED_EVENT_COMPOUND_BRAVO_INDEXED_ID
 ];
 const PROPOSAL_STATE_MAP = {
   0: "Pending",
@@ -134,12 +166,58 @@ const PROPOSAL_STATE_MAP = {
   6: "Expired",
   7: "Executed"
 };
-const KNOWN_PROPOSAL_BLOCK_HINTS = {
-  // ENS Ethereum Mainnet Security Council grantRole proposal
-  "77767899528494238518019756391533686963875234067646094287125791110488147463806": 25524727n,
-  // Unlock Base Mainnet transfer proposal
-  "27419154582993156392805749742953507877176483681373228046916881327937839104508": 52891503n
-};
+class ProposalNotFoundError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ProposalNotFoundError";
+  }
+}
+async function verifyProposalExistsOnGovernor(client, governorAddress, proposalId) {
+  let idBigInt;
+  try {
+    idBigInt = BigInt(proposalId);
+  } catch {
+    return false;
+  }
+  try {
+    const snapshot = await client.readContract({
+      address: governorAddress,
+      abi: [
+        {
+          name: "proposalSnapshot",
+          type: "function",
+          stateMutability: "view",
+          inputs: [{ name: "proposalId", type: "uint256" }],
+          outputs: [{ name: "", type: "uint256" }]
+        }
+      ],
+      functionName: "proposalSnapshot",
+      args: [idBigInt]
+    });
+    if (snapshot > 0n) return true;
+    return false;
+  } catch {
+  }
+  try {
+    const state = await client.readContract({
+      address: governorAddress,
+      abi: [
+        {
+          name: "state",
+          type: "function",
+          stateMutability: "view",
+          inputs: [{ name: "proposalId", type: "uint256" }],
+          outputs: [{ name: "", type: "uint8" }]
+        }
+      ],
+      functionName: "state",
+      args: [idBigInt]
+    });
+    return typeof state === "number" || typeof state === "bigint";
+  } catch {
+    return false;
+  }
+}
 function parseProposalCreatedLog(log, expectedProposalId) {
   var _a;
   for (const eventAbi of SUPPORTED_EVENT_VARIANTS) {
@@ -153,12 +231,13 @@ function parseProposalCreatedLog(log, expectedProposalId) {
         continue;
       }
       const args = decoded.args;
-      const decodedId = (_a = args.proposalId) == null ? void 0 : _a.toString();
-      if (decodedId === expectedProposalId) {
-        const targets = args.targets;
-        const values = args.values;
-        const signatures = args.signatures;
-        const calldatas = args.calldatas;
+      const decodedId = (_a = args.proposalId ?? args.id) == null ? void 0 : _a.toString();
+      if (!decodedId) continue;
+      if (!expectedProposalId || decodedId === expectedProposalId) {
+        const targets = args.targets || [];
+        const values = args.values || [];
+        const signatures = args.signatures || [];
+        const calldatas = args.calldatas || [];
         if (!Array.isArray(targets) || !Array.isArray(values) || !Array.isArray(signatures) || !Array.isArray(calldatas)) {
           throw new Error("Malformed ProposalCreated event: action properties must be arrays");
         }
@@ -174,10 +253,10 @@ function parseProposalCreatedLog(log, expectedProposalId) {
           values,
           signatures,
           calldatas,
-          voteStart: args.voteStart ?? 0n,
-          voteEnd: args.voteEnd ?? 0n,
+          voteStart: args.voteStart ?? args.startBlock ?? 0n,
+          voteEnd: args.voteEnd ?? args.endBlock ?? 0n,
           description: args.description ?? "",
-          transactionHash: log.transactionHash,
+          transactionHash: log.transactionHash || "0x",
           blockNumber: log.blockNumber ?? 0n
         };
       }
@@ -189,75 +268,121 @@ function parseProposalCreatedLog(log, expectedProposalId) {
   }
   return null;
 }
+function extractTransactionHash(input) {
+  if (!input || typeof input !== "string") return null;
+  const match = input.trim().match(/0x[a-fA-F0-9]{64}/);
+  return match ? match[0].toLowerCase() : null;
+}
+async function retrieveEventFromCreationTx(client, governorAddress, txHash, expectedProposalId) {
+  const receipt = await client.getTransactionReceipt({ hash: txHash });
+  if (!receipt) {
+    throw new Error(`Transaction receipt not found for hash ${txHash}`);
+  }
+  const governorLower = governorAddress.toLowerCase();
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() === governorLower) {
+      const parsed = parseProposalCreatedLog(log, expectedProposalId);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+  throw new Error(
+    `No ProposalCreated log for Governor ${governorAddress} found in transaction ${txHash}`
+  );
+}
 async function fetchLogsFromBlockscout(network, governorAddress) {
   const config = getNetworkConfig(network);
   const url = `${config.blockscoutApiUrl}?module=logs&action=getLogs&address=${governorAddress}&fromBlock=0&toBlock=latest&topic0=${PROPOSAL_CREATED_TOPIC0}`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
-      Accept: "application/json"
-    },
-    signal: AbortSignal.timeout(1e4)
-  });
-  if (!res.ok) {
-    throw new Error(`Blockscout API HTTP error ${res.status}`);
-  }
-  const json = await res.json();
-  if (!json || json.status === "0" || !Array.isArray(json.result)) {
-    return [];
-  }
-  return json.result.map((item) => ({
-    address: item.address,
-    blockHash: item.blockHash,
-    blockNumber: BigInt(item.blockNumber),
-    data: item.data,
-    logIndex: Number(item.logIndex),
-    removed: false,
-    topics: [item.topics[0], item.topics[1], item.topics[2], item.topics[3]].filter(Boolean),
-    transactionHash: item.transactionHash,
-    transactionIndex: Number(item.transactionIndex)
-  }));
-}
-async function fetchLogsFromRpc(client, governorAddress, anchorBlock) {
-  const latestBlock = await client.getBlockNumber();
-  const allLogs = [];
-  if (anchorBlock !== void 0 && anchorBlock > 0n) {
-    const fromBlock = anchorBlock > 50n ? anchorBlock - 50n : 0n;
-    const toBlock2 = anchorBlock + 50n;
+  const attemptFetch = async () => {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Callscope/1.0 (DAO Proposal Analyzer)",
+        Accept: "application/json"
+      },
+      signal: AbortSignal.timeout(8e3)
+    });
+    if (!res.ok) {
+      throw new Error(`Blockscout API HTTP error ${res.status}`);
+    }
+    const json = await res.json();
+    if (!json || json.status === "0" || !Array.isArray(json.result)) {
+      return [];
+    }
+    return json.result.map((item) => ({
+      address: item.address,
+      blockHash: item.blockHash,
+      blockNumber: BigInt(item.blockNumber),
+      data: item.data,
+      logIndex: Number(item.logIndex),
+      removed: false,
+      topics: [item.topics[0], item.topics[1], item.topics[2], item.topics[3]].filter(Boolean),
+      transactionHash: item.transactionHash,
+      transactionIndex: Number(item.transactionIndex)
+    }));
+  };
+  try {
+    return await attemptFetch();
+  } catch {
     try {
-      const logs = await client.getLogs({
-        address: governorAddress,
-        fromBlock,
-        toBlock: toBlock2
-      });
-      allLogs.push(...logs);
-      if (allLogs.length > 0) return allLogs;
+      return await attemptFetch();
     } catch {
+      return [];
     }
   }
-  const chunkSize = 1000n;
-  const scanLimit = 50000n;
-  const startBlock = latestBlock > scanLimit ? latestBlock - scanLimit : 0n;
+}
+async function fetchLogsAdaptiveBoundedRpc(client, governorAddress, cleanId) {
+  const MAX_REQUESTS = 10;
+  const MAX_DURATION_MS = 8e3;
+  const CHUNK_SIZE = 100000n;
+  const startTime = Date.now();
+  let latestBlock;
+  try {
+    latestBlock = await client.getBlockNumber();
+  } catch {
+    return null;
+  }
   let toBlock = latestBlock;
-  while (toBlock > startBlock) {
-    const fromBlock = toBlock > chunkSize ? toBlock - chunkSize : 0n;
+  let requestsMade = 0;
+  while (toBlock > 0n && requestsMade < MAX_REQUESTS && Date.now() - startTime < MAX_DURATION_MS) {
+    const fromBlock = toBlock > CHUNK_SIZE ? toBlock - CHUNK_SIZE : 0n;
+    requestsMade++;
     try {
       const logs = await client.getLogs({
         address: governorAddress,
+        event: PROPOSAL_CREATED_EVENT_UNINDEXED,
         fromBlock,
         toBlock
       });
-      allLogs.push(...logs);
+      for (const log of logs) {
+        const parsed = parseProposalCreatedLog(log, cleanId);
+        if (parsed) {
+          return parsed;
+        }
+      }
     } catch {
       break;
     }
     if (fromBlock === 0n) break;
     toBlock = fromBlock - 1n;
   }
-  return allLogs;
+  return null;
 }
-async function retrieveProposalCreatedEvent(client, network, governorAddress, proposalId) {
+async function retrieveProposalCreatedEvent(client, network, governorAddress, proposalId, creationTxHashOrUrl) {
   const cleanId = proposalId.trim();
+  const directTxHash = extractTransactionHash(creationTxHashOrUrl);
+  if (directTxHash) {
+    try {
+      return await retrieveEventFromCreationTx(client, governorAddress, directTxHash, cleanId);
+    } catch (err) {
+    }
+  }
+  const proposalExists = await verifyProposalExistsOnGovernor(client, governorAddress, cleanId);
+  if (!proposalExists) {
+    throw new ProposalNotFoundError(
+      `Proposal ${cleanId} not found on Governor ${governorAddress} (proposalSnapshot/state returned 0 or reverted).`
+    );
+  }
   let matchingEvent = null;
   try {
     const blockscoutLogs = await fetchLogsFromBlockscout(network, governorAddress);
@@ -265,7 +390,9 @@ async function retrieveProposalCreatedEvent(client, network, governorAddress, pr
       const parsed = parseProposalCreatedLog(log, cleanId);
       if (parsed) {
         if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-          throw new Error(`Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`);
+          throw new Error(
+            `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`
+          );
         }
         matchingEvent = parsed;
       }
@@ -278,21 +405,40 @@ async function retrieveProposalCreatedEvent(client, network, governorAddress, pr
   if (matchingEvent) {
     return matchingEvent;
   }
-  const anchorBlock = KNOWN_PROPOSAL_BLOCK_HINTS[cleanId];
-  const rpcLogs = await fetchLogsFromRpc(client, governorAddress, anchorBlock);
-  for (const log of rpcLogs) {
-    const parsed = parseProposalCreatedLog(log, cleanId);
-    if (parsed) {
-      if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
-        throw new Error(`Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`);
+  let rpcRangeRejected = false;
+  try {
+    const rpcLogs = await client.getLogs({
+      address: governorAddress,
+      event: PROPOSAL_CREATED_EVENT_UNINDEXED,
+      fromBlock: 0n,
+      toBlock: "latest"
+    });
+    for (const log of rpcLogs) {
+      const parsed = parseProposalCreatedLog(log, cleanId);
+      if (parsed) {
+        if (matchingEvent && matchingEvent.transactionHash !== parsed.transactionHash) {
+          throw new Error(
+            `Ambiguous event: multiple conflicting ProposalCreated logs found for proposal ID ${cleanId}`
+          );
+        }
+        matchingEvent = parsed;
       }
-      matchingEvent = parsed;
     }
+  } catch {
+    rpcRangeRejected = true;
   }
   if (matchingEvent) {
     return matchingEvent;
   }
-  throw new Error(`ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`);
+  if (rpcRangeRejected) {
+    const adaptiveResult = await fetchLogsAdaptiveBoundedRpc(client, governorAddress, cleanId);
+    if (adaptiveResult) {
+      return adaptiveResult;
+    }
+  }
+  throw new Error(
+    `ProposalCreated event not found for proposal ID ${cleanId} on Governor ${governorAddress}`
+  );
 }
 async function readGovernorProposalState(client, governorAddress, proposalId) {
   try {
@@ -1532,8 +1678,9 @@ function sanitizePublicErrorMessage(raw) {
   }
   return sanitized.trim() || "An internal analysis error occurred.";
 }
+const INTERNAL_DEADLINE_MS = 24500;
 async function executeAnalysis(request) {
-  const { network, governorAddress, proposalId } = request;
+  const { network, governorAddress, proposalId, creationTxHash } = request;
   if (!network || network !== "ethereum" && network !== "base") {
     throw new ValidationError('Invalid network: must be either "ethereum" or "base".');
   }
@@ -1544,88 +1691,198 @@ async function executeAnalysis(request) {
     throw new ValidationError("Invalid proposal ID: must be a valid non-empty decimal string.");
   }
   const trimmedProposalId = proposalId.trim();
-  const client = createChainClient(network);
-  await verifyNetworkChainId(network, client);
-  const validGovernor = await validateGovernorContract(client, governorAddress, network);
-  const event = await retrieveProposalCreatedEvent(client, network, validGovernor, trimmedProposalId);
-  const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
-  const { actions, limitations } = await decodeProposalActions({
-    network,
-    targets: event.targets,
-    values: event.values,
-    signatures: event.signatures,
-    calldatas: event.calldatas,
-    client
-  });
-  const findings = detectFindings(actions);
-  const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
-  const assessment = buildAssessment({
-    actions,
-    findings,
-    consistency: descriptionConsistency,
-    limitations
-  });
-  const sponsorTimeoutPromise = new Promise(
-    (resolve) => {
-      setTimeout(() => {
-        resolve({
-          serv: { status: "error", error: "SERV review timed out" },
-          dolphin: { status: "error", error: "Dolphin review timed out" }
-        });
-      }, 2e4);
+  let currentStage = "initialization";
+  const pipelinePromise = (async () => {
+    currentStage = "network_verification";
+    const client = createChainClient(network);
+    await verifyNetworkChainId(network, client);
+    currentStage = "governor_validation";
+    const validGovernor = await validateGovernorContract(client, governorAddress, network);
+    currentStage = "event_retrieval";
+    let event;
+    try {
+      event = await retrieveProposalCreatedEvent(
+        client,
+        network,
+        validGovernor,
+        trimmedProposalId,
+        creationTxHash
+      );
+    } catch (err) {
+      if (err instanceof ProposalNotFoundError) {
+        throw new ValidationError(`Proposal not found for this governor: ${err.message}`);
+      }
+      const state2 = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+      return {
+        assessment: "analysis_incomplete",
+        network,
+        governorAddress: validGovernor,
+        proposal: {
+          id: trimmedProposalId,
+          description: `Analysis incomplete: ProposalCreated event could not be recovered by on-chain log scan.`,
+          status: state2
+        },
+        actions: [],
+        findings: [
+          {
+            id: "PROPOSAL_EVENT_NOT_RECOVERED",
+            severity: "high",
+            title: `Analysis incomplete: ProposalCreated log not recovered`,
+            description: `On-chain event logs for proposal ID ${trimmedProposalId} on Governor ${validGovernor} could not be established within the scan budget. Hint: Provide the proposal creation transaction hash or explorer URL to analyze this proposal directly.`,
+            verified: true,
+            whyItMatters: "Without the ProposalCreated event log, executable action targets, values, signatures, and calldata cannot be proven from chain state."
+          }
+        ],
+        descriptionConsistency: {
+          status: "indeterminate",
+          explanation: "Event retrieval incomplete; calldata not recovered."
+        },
+        reviews: {
+          serv: { status: "unavailable", error: "Analysis incomplete: event not recovered" },
+          dolphin: { status: "unavailable", error: "Analysis incomplete: event not recovered" }
+        },
+        limitations: [
+          "On-chain log retrieval reached scan limits without locating the ProposalCreated event.",
+          "Provide the proposal creation transaction hash or explorer URL to decode actions directly without scanning."
+        ],
+        evidence: [
+          {
+            label: "Governor Contract",
+            url: `${SUPPORTED_NETWORKS[network].explorerUrl}/address/${validGovernor}`,
+            description: `Verified on-chain governor at ${validGovernor}`
+          }
+        ]
+      };
     }
-  );
-  const sponsorReviewsPromise = Promise.allSettled([
-    reviewWithServ(event.description, actions),
-    reviewWithDolphin(event.description, actions, findings)
-  ]).then(([servRes, dolphinRes]) => {
-    var _a, _b;
-    return {
-      serv: servRes.status === "fulfilled" ? servRes.value : { status: "error", error: ((_a = servRes.reason) == null ? void 0 : _a.message) || "SERV review failed" },
-      dolphin: dolphinRes.status === "fulfilled" ? dolphinRes.value : { status: "error", error: ((_b = dolphinRes.reason) == null ? void 0 : _b.message) || "Dolphin review failed" }
-    };
-  });
-  const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
-  const networkConfig = SUPPORTED_NETWORKS[network];
-  const evidence = [
-    {
-      label: "Governor Contract",
-      url: `${networkConfig.explorerUrl}/address/${validGovernor}`,
-      description: `Verified on-chain governor at ${validGovernor}`
-    },
-    {
-      label: "Proposal Creation Transaction",
-      url: `${networkConfig.explorerUrl}/tx/${event.transactionHash}`,
-      description: `Emitted ProposalCreated event in block ${event.blockNumber.toString()}`
-    }
-  ];
-  for (let i = 0; i < actions.length; i++) {
-    const act = actions[i];
-    evidence.push({
-      label: `Action #${i + 1} Target: ${act.targetName || act.target.slice(0, 10) + "..."}`,
-      url: `${networkConfig.explorerUrl}/address/${act.target}`,
-      description: act.isProxy && act.implementation ? `Proxy contract pointing to implementation ${act.implementation}` : `Direct target contract`
+    currentStage = "state_read";
+    const state = await readGovernorProposalState(client, validGovernor, trimmedProposalId);
+    currentStage = "action_decoding";
+    const { actions, limitations } = await decodeProposalActions({
+      network,
+      targets: event.targets,
+      values: event.values,
+      signatures: event.signatures,
+      calldatas: event.calldatas,
+      client
     });
+    currentStage = "deterministic_checks";
+    const findings = detectFindings(actions);
+    currentStage = "consistency_check";
+    const descriptionConsistency = checkDescriptionActionConsistency(event.description, actions);
+    currentStage = "assessment_synthesis";
+    const assessment = buildAssessment({
+      actions,
+      findings,
+      consistency: descriptionConsistency,
+      limitations
+    });
+    currentStage = "sponsor_reviews";
+    const sponsorTimeoutPromise = new Promise(
+      (resolve) => {
+        setTimeout(() => {
+          resolve({
+            serv: { status: "error", error: "SERV review timed out" },
+            dolphin: { status: "error", error: "Dolphin review timed out" }
+          });
+        }, 2e4);
+      }
+    );
+    const sponsorReviewsPromise = Promise.allSettled([
+      reviewWithServ(event.description, actions),
+      reviewWithDolphin(event.description, actions, findings)
+    ]).then(([servRes, dolphinRes]) => {
+      var _a, _b;
+      return {
+        serv: servRes.status === "fulfilled" ? servRes.value : { status: "error", error: ((_a = servRes.reason) == null ? void 0 : _a.message) || "SERV review failed" },
+        dolphin: dolphinRes.status === "fulfilled" ? dolphinRes.value : { status: "error", error: ((_b = dolphinRes.reason) == null ? void 0 : _b.message) || "Dolphin review failed" }
+      };
+    });
+    const reviews = await Promise.race([sponsorReviewsPromise, sponsorTimeoutPromise]);
+    const networkConfig = SUPPORTED_NETWORKS[network];
+    const evidence = [
+      {
+        label: "Governor Contract",
+        url: `${networkConfig.explorerUrl}/address/${validGovernor}`,
+        description: `Verified on-chain governor at ${validGovernor}`
+      },
+      {
+        label: "Proposal Creation Transaction",
+        url: `${networkConfig.explorerUrl}/tx/${event.transactionHash}`,
+        description: `Emitted ProposalCreated event in block ${event.blockNumber.toString()}`
+      }
+    ];
+    for (let i = 0; i < actions.length; i++) {
+      const act = actions[i];
+      evidence.push({
+        label: `Action #${i + 1} Target: ${act.targetName || act.target.slice(0, 10) + "..."}`,
+        url: `${networkConfig.explorerUrl}/address/${act.target}`,
+        description: act.isProxy && act.implementation ? `Proxy contract pointing to implementation ${act.implementation}` : `Direct target contract`
+      });
+    }
+    return {
+      assessment,
+      network,
+      governorAddress: validGovernor,
+      proposal: {
+        id: trimmedProposalId,
+        description: event.description,
+        status: state,
+        proposer: event.proposer,
+        creationTransaction: event.transactionHash,
+        blockNumber: event.blockNumber.toString()
+      },
+      actions,
+      findings,
+      descriptionConsistency,
+      reviews,
+      limitations,
+      evidence
+    };
+  })();
+  let timerId;
+  const deadlinePromise = new Promise((resolve) => {
+    timerId = setTimeout(() => {
+      resolve({
+        assessment: "analysis_incomplete",
+        network,
+        governorAddress,
+        proposal: {
+          id: trimmedProposalId,
+          description: `Analysis timed out during ${currentStage}. The chain log scan exceeded the 25-second execution budget.`,
+          status: "Incomplete"
+        },
+        actions: [],
+        findings: [
+          {
+            id: "SCAN_DEADLINE_EXCEEDED",
+            severity: "high",
+            title: `Analysis incomplete: stage stalled at ${currentStage}`,
+            description: `ProposalCreated event could not be retrieved within the 25-second deadline. Hint: Provide the creation transaction hash or explorer URL to analyze this proposal directly without scanning.`,
+            verified: true,
+            whyItMatters: "Without the ProposalCreated event, executable calldata and parameters cannot be established on-chain."
+          }
+        ],
+        descriptionConsistency: {
+          status: "indeterminate",
+          explanation: "Event retrieval incomplete; calldata not recovered."
+        },
+        reviews: {
+          serv: { status: "unavailable", error: "Analysis incomplete" },
+          dolphin: { status: "unavailable", error: "Analysis incomplete" }
+        },
+        limitations: [
+          `Analysis exceeded the 25-second execution deadline during ${currentStage}.`,
+          "You can provide the proposal creation transaction hash directly to bypass log scanning."
+        ],
+        evidence: []
+      });
+    }, INTERNAL_DEADLINE_MS);
+  });
+  try {
+    return await Promise.race([pipelinePromise, deadlinePromise]);
+  } finally {
+    clearTimeout(timerId);
   }
-  return {
-    assessment,
-    network,
-    governorAddress: validGovernor,
-    proposal: {
-      id: trimmedProposalId,
-      description: event.description,
-      status: state,
-      proposer: event.proposer,
-      creationTransaction: event.transactionHash,
-      blockNumber: event.blockNumber.toString()
-    },
-    actions,
-    findings,
-    descriptionConsistency,
-    reviews,
-    limitations,
-    evidence
-  };
 }
 async function handleWebRequest(request) {
   var _a;
@@ -1765,6 +2022,7 @@ async function handler(req, res) {
 }
 export {
   GET,
+  INTERNAL_DEADLINE_MS,
   POST,
   ValidationError,
   handler as default,

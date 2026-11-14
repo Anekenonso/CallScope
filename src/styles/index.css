@@ -7,7 +7,7 @@
   --color-border-subtle: #F0F2F5;
   --color-action: #315EF5;
   --color-action-hover: #244BD0;
-  
+
   --color-warning-text: #A86412;
   --color-warning-bg: #FFF6E8;
   --color-warning-border: #F7D7A3;
@@ -18,7 +18,7 @@
 
   --color-neutral-bg: #EEF2F7;
   --color-neutral-border: #DDE2EB;
-  
+
   --color-positive-text: #167647;
   --color-positive-bg: #ECFDF3;
   --color-positive-border: #ABEFC6;
@@ -27,13 +27,16 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body {
+html,
+body {
   min-height: 100%;
 }
 
@@ -50,11 +53,15 @@ body {
   overflow-x: hidden;
 }
 
-input, button, select, textarea {
+input,
+button,
+select,
+textarea {
   font: inherit;
 }
 
-code, pre {
+code,
+pre {
   font-family: var(--font-mono);
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
@@ -73,6 +80,7 @@ a {
   color: var(--color-action);
   text-decoration: none;
 }
+
 a:hover {
   text-decoration: underline;
 }
@@ -153,6 +161,29 @@ a:hover {
   }
 }
 
+.optional-tx-section {
+  margin-top: 8px;
+}
+
+.disclosure-toggle-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.disclosure-toggle-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.optional-tx-field {
+  margin-top: 8px;
+}
+
 .form-field {
   display: flex;
   flex-direction: column;
@@ -165,7 +196,8 @@ a:hover {
   color: var(--color-text-primary);
 }
 
-.form-input, .form-select {
+.form-input,
+.form-select {
   height: 38px;
   padding: 0 12px;
   border: 1px solid var(--color-border);
@@ -176,7 +208,8 @@ a:hover {
   width: 100%;
 }
 
-.form-input:focus, .form-select:focus {
+.form-input:focus,
+.form-select:focus {
   border-color: var(--color-action);
   outline: none;
 }
@@ -380,17 +413,22 @@ a:hover {
   color: var(--color-text-secondary);
 }
 
-.status-executed, .status-succeeded {
+.status-executed,
+.status-succeeded {
   background-color: var(--color-positive-bg);
   color: var(--color-positive-text);
 }
 
-.status-active, .status-pending, .status-queued {
+.status-active,
+.status-pending,
+.status-queued {
   background-color: var(--color-warning-bg);
   color: var(--color-warning-text);
 }
 
-.status-defeated, .status-canceled, .status-expired {
+.status-defeated,
+.status-canceled,
+.status-expired {
   background-color: var(--color-error-bg);
   color: var(--color-error-text);
 }
@@ -760,7 +798,8 @@ a:hover {
   letter-spacing: 0.03em;
 }
 
-.severity-critical, .severity-high {
+.severity-critical,
+.severity-high {
   background-color: var(--color-error-bg);
   color: var(--color-error-text);
   border: 1px solid var(--color-error-border);
@@ -772,7 +811,8 @@ a:hover {
   border: 1px solid var(--color-warning-border);
 }
 
-.severity-low, .severity-info {
+.severity-low,
+.severity-info {
   background-color: var(--color-neutral-bg);
   color: var(--color-text-secondary);
 }
@@ -852,14 +892,16 @@ a:hover {
   letter-spacing: 0.03em;
 }
 
-.consistency-list, .limitations-list {
+.consistency-list,
+.limitations-list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.consistency-list-item, .limitations-list-item {
+.consistency-list-item,
+.limitations-list-item {
   font-size: 13px;
   padding: 6px 10px;
   border-radius: 3px;
@@ -982,7 +1024,8 @@ a:hover {
   color: var(--color-text-secondary);
 }
 
-.review-empty-text, .review-error-text {
+.review-empty-text,
+.review-error-text {
   font-size: 12px;
   color: var(--color-text-secondary);
   font-style: italic;

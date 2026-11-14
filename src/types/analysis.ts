@@ -1,8 +1,8 @@
 export type SupportedNetwork = 'ethereum' | 'base';
 
-export type AssessmentOutcome = 
-  | 'review_recommended' 
-  | 'no_significant_issue_detected' 
+export type AssessmentOutcome =
+  | 'review_recommended'
+  | 'no_significant_issue_detected'
   | 'analysis_incomplete';
 
 export interface ProposalInfo {
@@ -74,6 +74,7 @@ export interface AnalysisRequest {
   network: SupportedNetwork;
   governorAddress: string;
   proposalId: string;
+  creationTxHash?: string;
 }
 
 export interface AnalysisResponse {

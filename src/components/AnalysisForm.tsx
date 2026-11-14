@@ -11,6 +11,8 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
   const [network, setNetwork] = useState<SupportedNetwork>('ethereum');
   const [governorAddress, setGovernorAddress] = useState('');
   const [proposalId, setProposalId] = useState('');
+  const [creationTxHash, setCreationTxHash] = useState('');
+  const [showCreationTx, setShowCreationTx] = useState(false);
   const [errors, setErrors] = useState<FormValidationErrors>({});
 
   const loadExample = (
@@ -21,6 +23,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
     setNetwork(exNetwork);
     setGovernorAddress(exGov);
     setProposalId(exId);
+    setCreationTxHash('');
     setErrors({});
   };
 
@@ -37,6 +40,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
       network,
       governorAddress: governorAddress.trim(),
       proposalId: proposalId.trim(),
+      creationTxHash: creationTxHash.trim() || undefined,
     });
   };
 
@@ -107,6 +111,34 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onAnalyse, isLoading
           >
             {isLoading ? 'Analysing...' : 'Analyse'}
           </button>
+        </div>
+
+        {/* Optional creation tx disclosure toggle */}
+        <div className="optional-tx-section">
+          <button
+            type="button"
+            className="disclosure-toggle-btn"
+            disabled={isLoading}
+            onClick={() => setShowCreationTx(!showCreationTx)}
+          >
+            {showCreationTx ? '− Hide creation transaction' : '+ Creation transaction (optional)'}
+          </button>
+          {showCreationTx && (
+            <div className="form-field optional-tx-field">
+              <label htmlFor="creation-tx-input">Creation transaction hash or explorer URL</label>
+              <input
+                id="creation-tx-input"
+                type="text"
+                className="form-input tabular-nums"
+                placeholder="0x... or https://etherscan.io/tx/..."
+                value={creationTxHash}
+                disabled={isLoading}
+                onChange={(e) => setCreationTxHash(e.target.value)}
+                autoComplete="off"
+                spellCheck="false"
+              />
+            </div>
+          )}
         </div>
 
         {/* Examples row */}
