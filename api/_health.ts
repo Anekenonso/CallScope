@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '../src/types/vercel';
 import { getCacheMode, SCHEMA_VERSION } from '../server/cache';
 import { resolveServModel } from '../server/providers/serv-model';
+import { validateEnvStartup } from '../server/validation/request-schemas';
 
 export interface HealthResponse {
   status: 'ok';
@@ -11,17 +12,30 @@ export interface HealthResponse {
   dolphinModel: string;
   schemaVersion: string;
   buildSha: string;
+  envValid: boolean;
+  isAiPaused: boolean;
 }
 
 export function getHealthData(): HealthResponse {
   const servKey = process.env.SERV_API_KEY;
   const dolphinKey = process.env.DOLPHIN_API_KEY;
   let servModel = 'serv-swift';
+  let envValid = true;
+  let isAiPaused = process.env.AI_PAUSED === 'true';
+
   try {
-    servModel = resolveServModel();
+    const startup = validateEnvStartup();
+    servModel = startup.servModel;
+    isAiPaused = startup.isAiPaused;
   } catch {
-    servModel = 'serv-swift (unresolved)';
+    envValid = false;
+    try {
+      servModel = resolveServModel();
+    } catch {
+      servModel = 'serv-swift (unresolved)';
+    }
   }
+
   const dolphinModel = process.env.DOLPHIN_MODEL || 'deepseek-ai/DeepSeek-V4.1-Flash';
   const buildSha =
     process.env.VERCEL_GIT_COMMIT_SHA ||
@@ -38,6 +52,8 @@ export function getHealthData(): HealthResponse {
     dolphinModel,
     schemaVersion: SCHEMA_VERSION,
     buildSha,
+    envValid,
+    isAiPaused,
   };
 }
 
