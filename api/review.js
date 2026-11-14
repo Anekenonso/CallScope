@@ -2709,6 +2709,9 @@ CRITICAL SECURITY AND SAFETY INSTRUCTIONS:
       "severityHint": "critical" | "high" | "medium" | "low"
     }
   ],
+  "questions": [
+    "Concrete, sharp question delegates should ask the proposer before voting"
+  ],
   "items": [
     {
       "kind": "risk" | "contradiction" | "unsupported_claim" | "supported" | "note",
@@ -2748,6 +2751,7 @@ Output JSON response:`;
     const parsed = extractStructuredJson(rawOutput);
     const rawScenarios = Array.isArray(parsed == null ? void 0 : parsed.scenarios) ? parsed.scenarios : [];
     const evaluatedScenarios = rawScenarios.slice(0, 3).map((sc) => evaluateScenarioRebuttal(sc, actions, findings, description2));
+    const validQuestions = Array.isArray(parsed == null ? void 0 : parsed.questions) ? parsed.questions.filter((q) => typeof q === "string" && q.trim().length > 0).slice(0, 3) : [];
     const rawList = Array.isArray(parsed == null ? void 0 : parsed.items) ? parsed.items : Array.isArray(parsed == null ? void 0 : parsed.findings) ? parsed.findings : [];
     const normalizedItems = rawList.map(normalizeReviewItem);
     const validDolphinItems = normalizedItems.filter((item) => {
@@ -2773,6 +2777,7 @@ Output JSON response:`;
       status: "ok",
       summary: typeof (parsed == null ? void 0 : parsed.summary) === "string" ? parsed.summary : "Secondary security review complete.",
       scenarios: evaluatedScenarios,
+      questions: validQuestions.length > 0 ? validQuestions : void 0,
       items: validDolphinItems,
       findings: findingsStrings,
       attempts: 1

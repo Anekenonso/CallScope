@@ -359,6 +359,9 @@ CRITICAL SECURITY AND SAFETY INSTRUCTIONS:
       "severityHint": "critical" | "high" | "medium" | "low"
     }
   ],
+  "questions": [
+    "Concrete, sharp question delegates should ask the proposer before voting"
+  ],
   "items": [
     {
       "kind": "risk" | "contradiction" | "unsupported_claim" | "supported" | "note",
@@ -401,6 +404,7 @@ Output JSON response:`;
     const parsed = extractStructuredJson<{
       summary?: string;
       scenarios?: Array<Partial<AttackScenario>>;
+      questions?: string[];
       items?: unknown[];
       findings?: unknown[];
     }>(rawOutput);
@@ -410,6 +414,12 @@ Output JSON response:`;
     const evaluatedScenarios: AttackScenario[] = rawScenarios
       .slice(0, 3)
       .map((sc) => evaluateScenarioRebuttal(sc, actions, findings, description));
+
+    const validQuestions: string[] = Array.isArray(parsed?.questions)
+      ? parsed.questions
+          .filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+          .slice(0, 3)
+      : [];
 
     // Dolphin items: cap at 3 items; each must carry valid actionRef or findingRef
     const rawList = Array.isArray(parsed?.items)
@@ -446,6 +456,7 @@ Output JSON response:`;
       status: 'ok',
       summary: typeof parsed?.summary === 'string' ? parsed.summary : 'Secondary security review complete.',
       scenarios: evaluatedScenarios,
+      questions: validQuestions.length > 0 ? validQuestions : undefined,
       items: validDolphinItems,
       findings: findingsStrings,
       attempts: 1,

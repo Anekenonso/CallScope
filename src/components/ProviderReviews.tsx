@@ -4,10 +4,13 @@ import { normalizeReviewItem } from '../../server/providers/review-normalizer';
 import { computeReviewerAgreement } from '../lib/reviewer-agreement';
 
 interface ProviderReviewsProps {
-  serv: ProviderReview;
-  dolphin: ProviderReview;
+  serv?: ProviderReview;
+  dolphin?: ProviderReview;
   assessment?: AssessmentOutcome;
   extendedConsistency?: DescriptionConsistency;
+  currentTier?: 'instant' | 'standard' | 'deep';
+  isDeepLoading?: boolean;
+  onRunDeepReview?: () => void;
 }
 
 const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
@@ -195,7 +198,15 @@ const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
   );
 };
 
-export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin, assessment, extendedConsistency }) => {
+export const ProviderReviews: React.FC<ProviderReviewsProps> = ({
+  serv = { status: 'pending' },
+  dolphin = { status: 'pending' },
+  assessment,
+  extendedConsistency,
+  currentTier = 'standard',
+  isDeepLoading = false,
+  onRunDeepReview,
+}) => {
   const agreement = computeReviewerAgreement(assessment, serv, dolphin, extendedConsistency);
 
   const getStatusBadge = (review: ProviderReview) => {
@@ -490,6 +501,28 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
           </div>
         )}
 
+        {review.questions && review.questions.length > 0 && (
+          <div className="review-questions-block" style={{ marginTop: '14px', marginBottom: '14px' }}>
+            <h4
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: '#cbd5e1',
+                marginBottom: '8px',
+              }}
+            >
+              Key Questions for Proposer
+            </h4>
+            <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {review.questions.map((q, idx) => (
+                <li key={idx} style={{ fontSize: '0.825rem', color: '#e2e8f0' }}>{q}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {items.length > 0 && (
           <ul className="review-observations-list">
             {items.map((item, idx) => (
@@ -503,12 +536,72 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
 
   return (
     <section className="section-card reviews-section" aria-labelledby="reviews-heading">
-      <div className="section-header-row">
+      <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div className="section-heading-group">
-          <span className="section-kicker">Secondary Intelligence</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="section-kicker">Secondary Intelligence</span>
+            <span
+              className={`tier-badge tier-badge-${currentTier}`}
+              data-testid="tier-badge"
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                letterSpacing: '0.05em',
+                backgroundColor: currentTier === 'deep'
+                  ? 'rgba(168, 85, 247, 0.2)'
+                  : currentTier === 'standard'
+                  ? 'rgba(56, 189, 248, 0.2)'
+                  : 'rgba(255, 255, 255, 0.1)',
+                color: currentTier === 'deep' ? '#c084fc' : currentTier === 'standard' ? '#38bdf8' : '#94a3b8',
+                border: `1px solid ${currentTier === 'deep' ? 'rgba(168, 85, 247, 0.4)' : currentTier === 'standard' ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.2)'}`,
+              }}
+            >
+              {`Tier: ${currentTier}`}
+            </span>
+          </div>
           <h2 id="reviews-heading" className="section-heading">Sponsor advisory reviews</h2>
         </div>
-        <span className="section-note">Advisory delegate assistance</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {currentTier !== 'deep' && onRunDeepReview && (
+            <button
+              type="button"
+              className="run-deep-btn"
+              data-testid="run-deep-btn"
+              onClick={onRunDeepReview}
+              disabled={isDeepLoading}
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                padding: '6px 14px',
+                borderRadius: '6px',
+                cursor: isDeepLoading ? 'not-allowed' : 'pointer',
+                backgroundColor: isDeepLoading ? 'rgba(255, 255, 255, 0.05)' : '#7c3aed',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {isDeepLoading ? (
+                <>
+                  <span className="pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#c084fc' }} />
+                  <span>Running Deep Review...</span>
+                </>
+              ) : (
+                <>
+                  <span>⚡ Run Deep Review (Tools &amp; Scenarios)</span>
+                </>
+              )}
+            </button>
+          )}
+          <span className="section-note">Advisory delegate assistance</span>
+        </div>
       </div>
 
       {/* Reviewer Agreement Strip */}
