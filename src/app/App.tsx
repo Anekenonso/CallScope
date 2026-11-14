@@ -85,9 +85,12 @@ export const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <div className="app-container">
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <Header />
 
-        <main>
+        <main id="main-content">
           <AnalysisForm onAnalyse={handleAnalyse} isLoading={isLoading} />
 
           {error && (
@@ -98,8 +101,31 @@ export const App: React.FC = () => {
           )}
 
           {isLoading && (
-            <div className="loading-box" aria-live="polite">
-              <span>Querying RPC, retrieving proposal logs, and decoding actions...</span>
+            <div className="skeleton-container" aria-live="polite" aria-label="Analyzing proposal">
+              <div className="skeleton-card shimmer-active">
+                <div className="skeleton-line skeleton-title" />
+                <div className="skeleton-line skeleton-subtitle" />
+              </div>
+              <div className="skeleton-card shimmer-active">
+                <div className="skeleton-line skeleton-title" style={{ width: '35%' }} />
+                <div className="skeleton-grid">
+                  <div className="skeleton-box" />
+                  <div className="skeleton-box" />
+                  <div className="skeleton-box" />
+                </div>
+              </div>
+              <div className="reviews-grid">
+                <div className="skeleton-card shimmer-active">
+                  <div className="skeleton-line skeleton-title" style={{ width: '50%' }} />
+                  <div className="skeleton-line" />
+                  <div className="skeleton-line" style={{ width: '80%' }} />
+                </div>
+                <div className="skeleton-card shimmer-active">
+                  <div className="skeleton-line skeleton-title" style={{ width: '50%' }} />
+                  <div className="skeleton-line" />
+                  <div className="skeleton-line" style={{ width: '80%' }} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -135,6 +161,15 @@ export const App: React.FC = () => {
             </div>
           )}
         </main>
+
+        <footer className="app-footer">
+          <div className="footer-content">
+            <span>Callscope &middot; DAO Governance Intelligence &middot; OpenServ SERV &amp; Dolphin</span>
+            <div className="footer-links">
+              <span className="footer-badge">Ethereum Mainnet &amp; Base</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </ErrorBoundary>
   );
