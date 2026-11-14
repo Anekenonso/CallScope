@@ -624,9 +624,11 @@ export function generateMarkdownReport(summary: AggregateEvalSummary): string {
       ? '🟢 `[LIVE MEASURED EVALUATION]` — Active OpenServ SERV (`serv-swift`) & Dolphin Lighthouse (`DeepSeek-V4.1-Flash`)'
       : '⚠️  `[SIMULATED EVALUATION]` — Hermetic offline benchmark verification';
 
-  return `# CallScope Sponsor Contribution Evaluation Report
+  return `# Developer Self-Check: Sponsor Advisory Integration (n=4, two fixtures synthetic, agent-authored expectations)
 
 ${modeBadge}
+
+> **Methodology Notice:** This is an internal developer self-check on 4 fixtures (2 synthetic) with agent-authored expectations to verify provider plumbing, prompt behavior, and authoritative invariance. It is NOT an independent scientific ablation study.
 
 - **Execution Timestamp:** \`${summary.timestamp}\`
 - **Fixtures Evaluated:** ${summary.fixturesEvaluated}
@@ -636,7 +638,7 @@ ${modeBadge}
 
 ## 1. Executive Summary
 
-This evaluation harness rigorously scores the empirical contribution of **OpenServ SERV** (semantic claims investigation and tool-grounded consistency) and **Dolphin Lighthouse** (adversarial threat identification and deterministic engine rebuttal) across the four canonical fixtures representing all three governance outcomes:
+This check inspects the empirical integration of **OpenServ SERV** (semantic claims investigation and tool-grounded consistency) and **Dolphin Lighthouse** (adversarial threat identification and deterministic engine rebuttal) across the four canonical fixtures representing all three governance outcomes:
 1. **ENS EP 6.50** (\`review_recommended\` — privilege escalation and motivation contradiction).
 2. **Unlock Protocol** (\`analysis_incomplete\` — six multi-token transfers with RPC lookback limitation).
 3. **[SYNTHETIC] Clean Grant** (\`no_significant_issue_detected\` — clean, verbatim 400 USDC transfer).
@@ -644,18 +646,18 @@ This evaluation harness rigorously scores the empirical contribution of **OpenSe
 
 ---
 
-## 2. Aggregate Benchmark Scorecard
+## 2. Developer Self-Check Scorecard
 
-| Evaluated Dimension | Measured Metric | Sponsor Target | Actual Score | Evaluation Verdict |
-|---|---|---|---|---|
-| **Authoritative Invariance** | Phase 1 vs Phase 2 Assessment Parity | 100% | **${summary.deterministicInvariancePct}%** | ✅ PASSED (Advisory only) |
-| **OpenServ SERV** | Claim Extraction Recall | ≥ 80% | **${summary.servAggregate.overallClaimRecallPct}%** | ✅ PASSED |
-| **OpenServ SERV** | Contradiction Detection Recall | 100% | **${summary.servAggregate.contradictionDetectionRecallPct}%** | ✅ PASSED |
-| **OpenServ SERV** | Tool Grounding Rate | 100% | **${summary.servAggregate.toolGroundingPct}%** | ✅ PASSED (Evidence gate active) |
-| **OpenServ SERV** | Clean Proposal False Positive Rate | 0% | **${summary.servAggregate.falsePositiveRateOnCleanPct}%** | ✅ PASSED (Zero false alarms) |
-| **Dolphin Lighthouse** | Threat Identification Rate | ≥ 80% | **${summary.dolphinAggregate.threatIdentificationRatePct}%** | ✅ PASSED |
-| **Dolphin Lighthouse** | Rebuttal Survival Rate | ≥ 60% | **${summary.dolphinAggregate.rebuttalSurvivalRatePct}%** | ✅ PASSED (Plausible risks verified) |
-| **Dolphin Lighthouse** | Hallucination Rate | 0% | **${summary.dolphinAggregate.hallucinationRatePct}%** | ✅ PASSED (Zero invalid action refs) |
+| Evaluated Dimension | Measured Metric | Actual Score | Status |
+|---|---|---|---|
+| **Authoritative Invariance** | Phase 1 vs Phase 2 Assessment Parity | **${summary.deterministicInvariancePct}%** | Invariant (Advisory only) |
+| **OpenServ SERV** | Claim Extraction Recall | **${summary.servAggregate.overallClaimRecallPct}%** | Measured |
+| **OpenServ SERV** | Contradiction Detection Recall | **${summary.servAggregate.contradictionDetectionRecallPct}%** | Measured |
+| **OpenServ SERV** | Tool Grounding Rate | **${summary.servAggregate.toolGroundingPct}%** | Measured (Tool evidence cited) |
+| **OpenServ SERV** | Clean Proposal False Positive Rate | **${summary.servAggregate.falsePositiveRateOnCleanPct}%** | Measured (Zero false alarms) |
+| **Dolphin Lighthouse** | Threat Identification Rate | **${summary.dolphinAggregate.threatIdentificationRatePct}%** | Measured |
+| **Dolphin Lighthouse** | Rebuttal Survival Rate | **${summary.dolphinAggregate.rebuttalSurvivalRatePct}%** | Measured |
+| **Dolphin Lighthouse** | Hallucination Rate | **${summary.dolphinAggregate.hallucinationRatePct}%** | Measured |
 
 ---
 
