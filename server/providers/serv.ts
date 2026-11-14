@@ -1,7 +1,8 @@
 import type { Address, PublicClient } from 'viem';
 import type { ProposalAction, ProviderReview, ReviewItem, SupportedNetwork } from '../../src/types/analysis';
 import {
-  callOpenAiCompatible,
+  callOpenAiChatTurn,
+  type ChatMessage,
   extractStructuredJson,
   classifyProviderError,
 } from './openai-compatible';
@@ -412,9 +413,11 @@ export async function reviewWithServ(
     };
   }
 
-  let model = process.env.SERV_MODEL || 'serv-mini';
-  if (model === '4o-mini' || model === 'gpt-4o-mini') {
-    model = 'serv-mini';
+  // serv-swift is the cheapest confirmed SERV model (200K context, ~$0.125/M input).
+  // 'serv-mini' and 'gpt-4o-mini' do not exist in the OpenServ catalogue (verified Phase B).
+  let model = process.env.SERV_MODEL || 'serv-swift';
+  if (model === '4o-mini' || model === 'gpt-4o-mini' || model === 'serv-mini') {
+    model = 'serv-swift';
   }
 
   // Instantiate the deterministic tool engine
@@ -482,7 +485,7 @@ Schema:
 }
 Output strictly valid JSON. Do not include markdown code fences or conversational text outside the JSON object.`;
 
-  const userPrompt = `Investigate the following DAO proposal using the tool evidence provided:
+  const userPrompt = `Investigate the following DAO proposal using the tool evidence provided. Total actions: ${actions.length}.
 
 <untrusted_proposal_text>
 ${description || '(No description provided)'}
@@ -492,25 +495,66 @@ ${description || '(No description provided)'}
 ${evidenceSummary}
 </investigation_tool_evidence>
 
-Output JSON response:`;
+Use tools if further verification is required, or output the final analysis JSON response:`;
 
   try {
-    const rawOutput = await callOpenAiCompatible({
-      endpoint: SERV_ENDPOINT,
-      apiKey,
-      model,
-      systemPrompt,
-      userPrompt,
-      maxTokens: 1000,
-      timeoutMs: 15_000,
-      responseFormat: { type: 'json_object' },
-      tools: SERV_INVESTIGATOR_TOOLS,
-      extraBody: {
-        serv_prompt_guard: true,
-        serv_shadow_agent: true,
-        reasoning_effort: 'low',
-      },
-    });
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
+
+    let rawOutput = '';
+    const maxTurns = 4;
+    let turnsExecuted = 0;
+
+    for (let turn = 0; turn < maxTurns; turn++) {
+      turnsExecuted++;
+      const turnResult = await callOpenAiChatTurn({
+        endpoint: SERV_ENDPOINT,
+        apiKey,
+        model,
+        messages,
+        tools: SERV_INVESTIGATOR_TOOLS,
+        toolChoice: 'auto',
+        maxTokens: 1000,
+        timeoutMs: 15_000,
+        extraBody: {
+          serv_prompt_guard: true,
+          serv_shadow_agent: true,
+          reasoning_effort: 'low',
+        },
+      });
+
+      const msg = turnResult.message;
+      messages.push(msg);
+
+      // If model requested tool calls, dynamically execute each and feed observations back
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          let parsedArgs: Record<string, unknown> = {};
+          try {
+            parsedArgs = JSON.parse(tc.function.arguments || '{}');
+          } catch {
+            parsedArgs = {};
+          }
+          const record = await engine.execute(tc.function.name, parsedArgs);
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: JSON.stringify(record),
+          });
+        }
+        continue;
+      }
+
+      // If model provided final text/JSON content, capture and conclude
+      if (msg.content && msg.content.trim().length > 0) {
+        rawOutput = msg.content.trim();
+        break;
+      }
+
+      break;
+    }
 
     const parsed = extractStructuredJson<{
       summary?: string;
@@ -524,6 +568,7 @@ Output JSON response:`;
         ? parsed.findings
         : [];
 
+    const executedEvidence = engine.getAllEvidence();
     const validEvidenceIds = new Set(executedEvidence.map((e) => e.evidenceId.toLowerCase()));
     const citedItems: ReviewItem[] = [];
 
@@ -568,6 +613,8 @@ Output JSON response:`;
       items: citedItems,
       findings,
       attempts: 1,
+      toolCallCount: executedEvidence.length,
+      loopTurns: turnsExecuted,
     };
   } catch (err: unknown) {
     const classification = classifyProviderError(err);

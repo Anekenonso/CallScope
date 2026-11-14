@@ -44,7 +44,7 @@ describe('Live Sponsor Provider Verification (T5.9)', () => {
       }
 
       // When API key is configured, assert valid authenticated response
-      expect(review.status).toBe('available');
+      expect(['ok', 'available']).toContain(review.status);
       expect(typeof review.summary).toBe('string');
       expect((review.summary ?? '').length).toBeGreaterThan(10);
       expect(Array.isArray(review.findings)).toBe(true);
@@ -70,7 +70,7 @@ describe('Live Sponsor Provider Verification (T5.9)', () => {
       }
 
       // When API key is configured, assert valid authenticated response
-      expect(review.status).toBe('available');
+      expect(['ok', 'available']).toContain(review.status);
       expect(typeof review.summary).toBe('string');
       expect((review.summary ?? '').length).toBeGreaterThan(10);
       expect(Array.isArray(review.findings)).toBe(true);

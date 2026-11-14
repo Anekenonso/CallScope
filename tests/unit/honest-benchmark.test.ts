@@ -31,14 +31,20 @@ describe('Task 8: Honest Sponsor Benchmark Suite', () => {
     expect(pkg.scripts['compare:sponsors:live']).toContain('--mode=live');
   });
 
-  it('proves generated docs/sponsor-impact.md carries explicit [SIMULATED] banner when run offline', () => {
+  it('proves generated docs/sponsor-impact.md carries explicit [SIMULATED] or [LIVE] banner with truth in labeling', () => {
     const reportPath = resolve(process.cwd(), 'docs/sponsor-impact.md');
     expect(existsSync(reportPath)).toBe(true);
 
     const reportContent = readFileSync(reportPath, 'utf-8');
-    expect(reportContent).toContain('[SIMULATED BENCHMARK]');
-    expect(reportContent).toContain('simulated offline mode');
-    expect(reportContent).toContain('pnpm compare:sponsors:sim');
+    const isSimulated = reportContent.includes('[SIMULATED BENCHMARK]');
+    const isLive = reportContent.includes('[LIVE MEASURED BENCHMARK]');
+    expect(isSimulated || isLive).toBe(true);
+    if (isSimulated) {
+      expect(reportContent).toContain('simulated offline mode');
+      expect(reportContent).toContain('pnpm compare:sponsors:sim');
+    } else {
+      expect(reportContent).toContain('All latencies reflect true wall-clock timings');
+    }
     expect(reportContent).toContain('100% INVARIANT');
   });
 });

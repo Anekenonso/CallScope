@@ -63,6 +63,7 @@ export const ActionList: React.FC<ActionListProps> = ({ actions, network }) => {
           return (
             <article
               key={act.index}
+              id={`action-${act.index}`}
               className={`action-item ${!isDecoded ? 'action-item-undecoded' : ''}`}
             >
               {/* Receipt Header Strip */}

@@ -3,14 +3,14 @@
 **Total Duration:** 90 seconds (1 minute, 30 seconds)  
 **Target Audience:** DAO Delegates, Protocol Security Researchers, Governance Stewards  
 **Resolution / Setting:** 1920x1080 (16:9), Dark Mode, System audio clear  
-**Production Deployment:** [https://callscope.vercel.app](https://callscope.vercel.app)
+**Production Deployment:** [https://callscope-five.vercel.app](https://callscope-five.vercel.app)
 
 ---
 
 ## Storyboard & Timeline
 
 ### 0:00 – 0:12: The Governance Blindspot
-- **Visual:** Open CallScope in browser (`https://callscope.vercel.app`). Clean dashboard view showing headline: *"Deterministic DAO Calldata Intelligence"*, the pinned examples row, and dual-mode input (Governor Address + Proposal ID or Tx Hash).
+- **Visual:** Open CallScope in browser (`https://callscope-five.vercel.app`). Clean dashboard view showing headline: *"Deterministic DAO Calldata Intelligence"*, the pinned examples row, and dual-mode input (Governor Address + Proposal ID or Tx Hash).
 - **On-Screen Action:** Mouse hovers briefly over the header pill: `Read-only · v0.1 beta`.
 - **Voiceover:**
   > *"Every week, DAO delegates vote on proposals where thousands of lines of descriptive prose mask high-risk smart contract calls. Traditional LLMs hallucinate or gloss over malicious calldata. CallScope changes that. It puts an authoritative deterministic EVM decoding engine first, backed by an advisory multi-agent review layer."*
@@ -28,11 +28,11 @@
     - Recipient profile: `Recipient: contract, verified`.
   - Claims Ledger table displays extracted claims with status `contradicted` against action #1.
   - Phase 2 loads in the background:
-    - **OpenServ SERV**: Tool-grounded investigator uses `get_action(0)` to cite verifiable calldata and flags the contradiction.
-    - **Dolphin (`deepseek-ai/DeepSeek-V4.1-Flash`)**: Generates adversarial attack scenario (`Unauthorized Proposal Scheduling`); engine rebuttal loop confirms role has `schedule()` capability (`not_refuted`).
-  - Tri-Reviewer Agreement Strip displays: `Reviewers agree`.
+    - **OpenServ SERV**: Multi-turn ReAct investigator surfaces `serv-swift` badge, loop telemetry (`Turns: 2`, `Tool calls: 3`), verified tool evidence badge (`Tool: tool-call-1`), and in-page jump link (`Action #1 ↗`).
+    - **Dolphin (`deepseek-ai/DeepSeek-V4.1-Flash` on Dolphin Lighthouse)**: Surfaces `Lighthouse · DeepSeek-V4.1-Flash` and `Scenarios: 2` badge. Renders attack scenario preconditions and step-by-step action jump links (`[Action #1 ↗]`). Engine rebuttal audit confirms role capability (`⚠ Not Refuted (Plausible Risk)`).
+  - Tri-Reviewer Agreement Strip compares independent reviewer stances: Deterministic Engine (`review_recommended`), OpenServ SERV (`Identified contradictions`), and Dolphin (`Identified unrefuted threats`).
 - **Voiceover:**
-  > *"Look at ENS EP 6.50. In the description, the authors state the Security Council 'cannot propose, amend, or initiate actions'. But CallScope decodes the raw calldata to find a `grantRole` assigning `PROPOSER_ROLE`. By parsing the verified contract source with a full Solidity AST parser, CallScope proves this role grants the power to schedule and cancel timelocks. The Claims Ledger flags the contradiction, OpenServ SERV cites tool evidence, and Dolphin proposes an attack scenario that our engine verifies as an unrefuted hazard."*
+  > *"Look at ENS EP 6.50. In the description, the authors state the Security Council 'cannot propose, amend, or initiate actions'. But CallScope decodes the raw calldata to find a `grantRole` assigning `PROPOSER_ROLE`. By parsing the verified contract source with a full Solidity AST parser, CallScope proves this role grants the power to schedule and cancel timelocks. The Claims Ledger flags the contradiction, OpenServ SERV cites verified tool evidence across two loop turns, and Dolphin on Lighthouse proposes an attack scenario that our deterministic engine confirms as an unrefuted hazard."*
 
 ---
 
@@ -79,9 +79,9 @@
 | 4 | Capabilities | Solidity AST Parser | `can schedule and cancel on TimelockController (per verified source)` via `@solidity-parser/parser` |
 | 5 | Profiling | Deterministic Recipient Profile | `Recipient: contract, verified` |
 | 6 | Consistency | Structured Claims Ledger | Exact quote match, `verified` vs `contradicted` badges |
-| 7 | OpenServ SERV | Tool-Grounded Investigator | Cites `tool-call-1` evidence; drops uncited claims; `serv_prompt_guard: true` |
-| 8 | Dolphin | Adversarial Rebuttal Loop | Proposes attack scenarios; engine tests against bytecode (`refuted_by_data` vs `not_refuted`) |
-| 9 | Agreement | Tri-Reviewer Agreement Strip | Compares Engine baseline, SERV extended check, and Dolphin attack scenarios |
+| 7 | OpenServ SERV | Tool-Grounded Investigator | `serv-swift` multi-turn ReAct loop; cites `Tool: tool-call-1` evidence; displays loop telemetry (`Turns: 2`, `Tool calls: 3`) and action jump links; `serv_prompt_guard: true` |
+| 8 | Dolphin | Adversarial Rebuttal Loop | `DeepSeek-V4.1-Flash` on Lighthouse; proposes attack scenarios with action links; engine tests against bytecode (`✓ Refuted by Engine Facts` vs `⚠ Not Refuted (Plausible Risk)`) |
+| 9 | Agreement | Tri-Reviewer Agreement Strip | Compares independent stances: Deterministic Engine, OpenServ SERV, and Dolphin Lighthouse |
 | 10 | Resiliency | Prompt-Injection Resistance | Adversarial instructions cannot alter verdicts, severities, or outcomes |
 | 11 | Direct Input | Tx Hash / Explorer URL | Direct `eth_getTransactionReceipt` bypassing block scans; inline validation |
 | 12 | Live Toggle | Re-verify Live | Bypasses pinned snapshot and executes against public RPC endpoints |

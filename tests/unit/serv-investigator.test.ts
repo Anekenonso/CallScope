@@ -271,5 +271,80 @@ A single call to grant PROPOSER_ROLE to Blockful contract at 0x2acBf518b3759f6e1
       ]);
     });
   });
+
+  describe('Phase C: Multi-Turn ReAct Tool Loop', () => {
+    it('executes dynamic tool calls across turns and incorporates tool observations into final review', async () => {
+      process.env.SERV_API_KEY = 'test-serv-key';
+
+      // Turn 1: Model requests tool call to get_token_metadata
+      const turn1Response = {
+        choices: [
+          {
+            finish_reason: 'tool_calls',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_abc123',
+                  type: 'function',
+                  function: {
+                    name: 'get_token_metadata',
+                    arguments: JSON.stringify({ token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      // Turn 2: Model receives tool result and returns final structured review citing the new tool evidence
+      const turn2Response = {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: {
+              role: 'assistant',
+              content: JSON.stringify({
+                summary: 'Token metadata verified dynamically.',
+                items: [
+                  {
+                    kind: 'supported',
+                    issue: 'Verified USDC decimals and canonical registry status',
+                    evidenceId: 'tool-call-5', // dynamic tool call gets added to evidence sequence
+                    evidence: 'get_token_metadata confirms 6 decimals and verified status',
+                    actionRef: 0,
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      };
+
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => turn1Response,
+        } as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => turn2Response,
+        } as any);
+
+      const result = await reviewWithServ(sampleDescription, mockActions);
+
+      expect(result.status).toBe('ok');
+      expect(result.loopTurns).toBe(2);
+      expect(result.toolCallCount).toBeGreaterThanOrEqual(5);
+      expect(result.items).toHaveLength(1);
+      expect(result.items![0].evidenceId).toBe('tool-call-5');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+  });
 });
 

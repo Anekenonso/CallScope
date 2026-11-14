@@ -1,0 +1,140 @@
+{
+  "probeRunAt": "2026-11-12T16:27:26.226Z",
+  "results": [
+    {
+      "label": "1-plain-text",
+      "httpStatus": 200,
+      "durationMs": 4006,
+      "model": "claude-haiku-4-5-20251001",
+      "content": "Analysis complete.",
+      "toolCalls": [],
+      "finishReason": "stop",
+      "error": null,
+      "raw": {
+        "id": "msg_011CgyM9GxJeq25u9kZoKMtM",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Analysis complete."
+            }
+          }
+        ],
+        "created": 1794500838,
+        "model": "claude-haiku-4-5-20251001",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 6,
+          "prompt_tokens": 218,
+          "total_tokens": 224
+        }
+      }
+    },
+    {
+      "label": "2-json-schema-format",
+      "httpStatus": 400,
+      "durationMs": 3450,
+      "model": null,
+      "content": "",
+      "toolCalls": [],
+      "finishReason": null,
+      "error": {
+        "code": "invalid_request_error",
+        "message": "response_format.json_schema.strict: Field required",
+        "type": "invalid_request_error",
+        "param": null
+      },
+      "raw": {
+        "error": {
+          "code": "invalid_request_error",
+          "message": "response_format.json_schema.strict: Field required",
+          "type": "invalid_request_error",
+          "param": null
+        }
+      }
+    },
+    {
+      "label": "3-native-params-no-format",
+      "httpStatus": 200,
+      "durationMs": 3434,
+      "model": "claude-haiku-4-5-20251001",
+      "content": "Analysis complete.",
+      "toolCalls": [],
+      "finishReason": "stop",
+      "error": null,
+      "raw": {
+        "id": "msg_011CgyM9nR6KjaHpgRgER627",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Analysis complete."
+            }
+          }
+        ],
+        "created": 1794500845,
+        "model": "claude-haiku-4-5-20251001",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 6,
+          "prompt_tokens": 290,
+          "total_tokens": 296
+        }
+      }
+    },
+    {
+      "label": "4-tools-with-schema",
+      "httpStatus": 200,
+      "durationMs": 880,
+      "model": "claude-haiku-4-5-20251001",
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "toolu_01Ntfxe5ZC1GXdn1sANugKHq",
+          "type": "function",
+          "function": {
+            "name": "get_action",
+            "arguments": "{\"index\": 0}"
+          }
+        }
+      ],
+      "finishReason": "tool_calls",
+      "error": null,
+      "raw": {
+        "id": "msg_011CgyM9pj1Kf5LTrKudTsPX",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "toolu_01Ntfxe5ZC1GXdn1sANugKHq",
+                  "type": "function",
+                  "function": {
+                    "name": "get_action",
+                    "arguments": "{\"index\": 0}"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1794500846,
+        "model": "claude-haiku-4-5-20251001",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 54,
+          "prompt_tokens": 825,
+          "total_tokens": 879
+        }
+      }
+    }
+  ]
+}

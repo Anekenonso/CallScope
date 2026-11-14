@@ -185,6 +185,8 @@ export interface ProviderReview {
   errorClass?: ProviderErrorClass;
   retryable?: boolean;
   attempts?: number;
+  toolCallCount?: number;
+  loopTurns?: number;
 }
 
 export interface EvidenceItem {

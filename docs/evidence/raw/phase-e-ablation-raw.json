@@ -1,0 +1,65 @@
+{
+  "benchmarkRunAt": "2026-11-14T01:24:19.574Z",
+  "metrics": [
+    {
+      "fixture": "ENS EP 6.50 (Ethereum Mainnet)",
+      "network": "ethereum",
+      "proposalId": "77767899528494238518019756391533686963875234067646094287125791110488147463806",
+      "isSimulated": false,
+      "timestamp": "2026-11-14T01:22:30.985Z",
+      "sponsorsOff": {
+        "phase1LatencyMs": 15177,
+        "assessment": "review_recommended",
+        "findingsCount": 1,
+        "actionsCount": 1,
+        "claimsCount": 0,
+        "reviewsStatus": "pending"
+      },
+      "sponsorsOn": {
+        "phase1LatencyMs": 15177,
+        "phase2LatencyMs": 28680,
+        "assessment": "review_recommended",
+        "findingsCount": 1,
+        "actionsCount": 1,
+        "claimsCount": 0,
+        "claimsVerified": 0,
+        "claimsContradicted": 0,
+        "servItemsCount": 4,
+        "dolphinScenariosCount": 3,
+        "agreementStatus": "disagree",
+        "agreementHeadline": "Reviewers disagree: human review needed"
+      },
+      "invarianceVerified": true
+    },
+    {
+      "fixture": "Unlock Protocol (Base Mainnet)",
+      "network": "base",
+      "proposalId": "27419154582993156392805749742953507877176483681373228046916881327937839104508",
+      "isSimulated": false,
+      "timestamp": "2026-11-14T01:22:30.985Z",
+      "sponsorsOff": {
+        "phase1LatencyMs": 19388,
+        "assessment": "analysis_incomplete",
+        "findingsCount": 0,
+        "actionsCount": 6,
+        "claimsCount": 0,
+        "reviewsStatus": "pending"
+      },
+      "sponsorsOn": {
+        "phase1LatencyMs": 19388,
+        "phase2LatencyMs": 45332,
+        "assessment": "analysis_incomplete",
+        "findingsCount": 0,
+        "actionsCount": 6,
+        "claimsCount": 0,
+        "claimsVerified": 0,
+        "claimsContradicted": 0,
+        "servItemsCount": 2,
+        "dolphinScenariosCount": 3,
+        "agreementStatus": "disagree",
+        "agreementHeadline": "Reviewers disagree: human review needed"
+      },
+      "invarianceVerified": true
+    }
+  ]
+}

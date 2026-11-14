@@ -62,9 +62,28 @@ const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
           >
             {getKindLabel(item.kind)}
           </span>
-          {item.actionRef !== undefined && (
+          {item.evidenceId && (
             <span
-              className="review-ref-badge"
+              className="review-evidence-badge"
+              style={{
+                fontSize: '0.75rem',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                color: '#38bdf8',
+                fontFamily: 'monospace',
+                fontWeight: 600,
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+              }}
+              title="Grounded in verified deterministic tool execution evidence"
+            >
+              {`Tool: ${item.evidenceId}`}
+            </span>
+          )}
+          {item.actionRef !== undefined ? (
+            <a
+              href={`#action-${item.actionRef}`}
+              className="review-ref-link"
               style={{
                 fontSize: '0.75rem',
                 padding: '2px 6px',
@@ -72,10 +91,35 @@ const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 color: '#94a3b8',
                 fontFamily: 'monospace',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
               }}
+              title={`Jump to Action #${item.actionRef + 1}`}
             >
-              Action #{item.actionRef + 1}
-            </span>
+              {`Action #${item.actionRef + 1} ↗`}
+            </a>
+          ) : (
+            <a
+              href="#proposal-description"
+              className="review-ref-link"
+              style={{
+                fontSize: '0.75rem',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                color: '#94a3b8',
+                fontFamily: 'monospace',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+              }}
+              title="Jump to proposal description"
+            >
+              Description ↗
+            </a>
           )}
           {item.findingRef && (
             <span
@@ -89,7 +133,7 @@ const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
                 fontFamily: 'monospace',
               }}
             >
-              Finding: {item.findingRef}
+              {`Finding: ${item.findingRef}`}
             </span>
           )}
           {item.claimRef && (
@@ -104,7 +148,7 @@ const ReviewItemRow: React.FC<{ item: ReviewItem }> = ({ item }) => {
                 fontFamily: 'monospace',
               }}
             >
-              Claim: {item.claimRef}
+              {`Claim: ${item.claimRef}`}
             </span>
           )}
         </div>
@@ -340,13 +384,12 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
                       padding: '10px 14px',
                       borderRadius: '6px',
                       backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                      border: `1px solid ${
-                        isRefuted
+                      border: `1px solid ${isRefuted
                           ? 'rgba(34, 197, 94, 0.3)'
                           : isNotRefuted
                             ? 'rgba(239, 68, 68, 0.3)'
                             : 'rgba(59, 130, 246, 0.3)'
-                      }`,
+                        }`,
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
@@ -393,6 +436,38 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
                       <p style={{ margin: '6px 0 4px', fontSize: '0.8rem', color: '#94a3b8' }}>
                         <strong style={{ color: '#cbd5e1' }}>Impact:</strong> {sc.impact}
                       </p>
+                    )}
+                    {sc.preconditions && sc.preconditions.length > 0 && (
+                      <div style={{ margin: '4px 0', fontSize: '0.75rem', color: '#94a3b8' }}>
+                        <strong style={{ color: '#cbd5e1' }}>Preconditions:</strong>{' '}
+                        {sc.preconditions.join('; ')}
+                      </div>
+                    )}
+                    {sc.steps && sc.steps.length > 0 && (
+                      <div style={{ marginTop: '4px', marginBottom: '6px', fontSize: '0.75rem', color: '#94a3b8' }}>
+                        <strong style={{ color: '#cbd5e1' }}>Scenario Steps:</strong>
+                        <ol style={{ margin: '2px 0 0 16px', padding: 0 }}>
+                          {sc.steps.map((st, sIdx) => (
+                            <li key={sIdx} style={{ marginBottom: '2px' }}>
+                              {st.actionRef !== undefined ? (
+                                <a
+                                  href={`#action-${st.actionRef}`}
+                                  style={{
+                                    color: '#38bdf8',
+                                    fontFamily: 'monospace',
+                                    textDecoration: 'none',
+                                    marginRight: '6px',
+                                  }}
+                                  title={`Jump to Action #${st.actionRef + 1}`}
+                                >
+                                  {`[Action #${st.actionRef + 1} ↗]`}
+                                </a>
+                              ) : null}
+                              <span>{st.description}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
                     )}
                     {sc.refutedBy && (
                       <div
@@ -512,7 +587,7 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
                 border: '1px solid rgba(255, 255, 255, 0.05)',
               }}
             >
-              <span style={{ color: '#94a3b8', fontWeight: 500 }}>{s.name}:</span>
+              <span style={{ color: '#94a3b8', fontWeight: 500 }}>{`${s.name}:`}</span>
               <span
                 style={{
                   fontWeight: 600,
@@ -533,11 +608,55 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
 
       <div className="reviews-grid">
         {/* OpenServ SERV Card */}
-        <article className="review-card">
+        <article className="review-card" data-testid="serv-review-card">
           <div className="review-card-header">
             <div className="review-provider-title">
               <span className="provider-name">OpenServ SERV</span>
-              <span className="provider-role">Description / action comparison</span>
+              <span className="provider-role">OpenServ SERV — Multi-Turn Tool-Grounded Investigator</span>
+              {(serv.loopTurns !== undefined || serv.toolCallCount !== undefined) && (
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                      color: '#38bdf8',
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    serv-swift
+                  </span>
+                  {serv.loopTurns !== undefined && (
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                        color: '#cbd5e1',
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      {`Turns: ${serv.loopTurns}`}
+                    </span>
+                  )}
+                  {serv.toolCallCount !== undefined && (
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                        color: '#cbd5e1',
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      {`Tool calls: ${serv.toolCallCount}`}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             {getStatusBadge(serv)}
           </div>
@@ -545,11 +664,39 @@ export const ProviderReviews: React.FC<ProviderReviewsProps> = ({ serv, dolphin,
         </article>
 
         {/* Dolphin Card */}
-        <article className="review-card">
+        <article className="review-card" data-testid="dolphin-review-card">
           <div className="review-card-header">
             <div className="review-provider-title">
               <span className="provider-name">Dolphin</span>
-              <span className="provider-role">Dolphin Lighthouse · deepseek-ai/DeepSeek-V4.1-Flash</span>
+              <span className="provider-role">Dolphin — Adversarial Review (powered by DeepSeek-V4.1-Flash on Lighthouse)</span>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                    color: '#c084fc',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  Lighthouse · DeepSeek-V4.1-Flash
+                </span>
+                {dolphin.scenarios && dolphin.scenarios.length > 0 && (
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                      color: '#cbd5e1',
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    {`Scenarios: ${dolphin.scenarios.length}`}
+                  </span>
+                )}
+              </div>
             </div>
             {getStatusBadge(dolphin)}
           </div>

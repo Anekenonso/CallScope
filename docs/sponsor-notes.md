@@ -41,10 +41,11 @@ OpenServ SERV is used natively as a **guarded, tool-grounded investigator** for 
 
 ### A. OpenServ Agent Framework Parameters
 CallScope explicitly configures OpenServ's native agent runtime parameters:
-- `serv_prompt_guard: true`: Hardware/runtime-level prompt injection boundary defense. Analyzes untrusted proposal descriptions and calldata strings before model reasoning. Detects and blocks jailbreaks, command overrides, and evasion attempts, mapping directly to `status: 'guard_blocked'`.
-- `serv_shadow_agent: true`: OpenServ's dual-agent verification mechanism. A secondary shadow agent runs alongside the primary investigator to validate that claims, citations, and quotes match ground truth verbatim before delivery.
-- `reasoning_effort: low`: Fast-turn reasoning mode optimized for real-time governance delegate workflows, bounded within Vercel's serverless budget (under 15s per attempt).
-- **Strict JSON Schema Configuration**: Employs structured JSON schema enforcement (`response_format: { type: 'json_object' }` and typed output schemas) ensuring all emitted reviews adhere strictly to the TypeScript contract without conversational preamble.
+- `serv_prompt_guard: true`: Declared in the system prompt and passed as an extra body field. The OpenServ API accepts the field without error (verified Phase B probe). Its runtime enforcement is OpenServ-internal; in CallScope's layer, proposal text is wrapped in `<untrusted_proposal_text>` XML delimiters, and `detectPromptInjection()` pre-screens descriptions before any API call.
+- `serv_shadow_agent: true`: Declared in system prompt and extra body. Accepted by API (verified Phase B probe). Downstream verification is OpenServ-internal.
+- `reasoning_effort: low`: Passed as extra body field. Accepted by API (verified Phase B). Bounds reasoning to fast-turn mode suited to Vercel serverless budgets.
+- **Model:** `serv-swift` (underlying: `claude-haiku-4-5-20251001`, verified from API response). Cheapest SERV model, 200K context. Configurable via `SERV_MODEL` env var — valid values: `serv-swift`, `serv-standard`, `serv-pro`, `serv-ultra`. Note: `serv-mini` does not exist in the OpenServ catalogue.
+- **Response format:** `response_format: { type: 'json_object' }` is not supported by OpenServ (`json_object` → HTTP 400). JSON output is enforced via system prompt instruction; `extractStructuredJson()` parses the free-form response.
 
 ### B. Tool-Grounded Investigator Architecture (`server/providers/serv.ts`)
 Rather than relying on ungrounded text generation, SERV operates as a tool-grounded investigator backed by five deterministic engine tools:

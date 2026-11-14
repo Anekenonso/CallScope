@@ -111,7 +111,10 @@ export async function extractClaimsWithServ(description: string): Promise<Claim[
     return null;
   }
 
-  const model = process.env.SERV_MODEL || 'serv-mini';
+  let model = process.env.SERV_MODEL || 'serv-swift';
+  if (model === '4o-mini' || model === 'gpt-4o-mini' || model === 'serv-mini') {
+    model = 'serv-swift';
+  }
 
   const systemPrompt = `[OpenServ Agent Configuration: serv_prompt_guard=true, serv_shadow_agent=true, reasoning_effort=low]
 You are a claim extraction agent for DAO governance proposals powered by OpenServ SERV.
@@ -161,7 +164,8 @@ Output JSON:`;
       userPrompt,
       maxTokens: 1200,
       timeoutMs: 15_000,
-      responseFormat: { type: 'json_object' },
+      // response_format 'json_object' is not supported by OpenServ (HTTP 400 — Phase B verified).
+      // Plain text + extractStructuredJson is the correct approach.
       extraBody: {
         serv_prompt_guard: true,
         serv_shadow_agent: true,
